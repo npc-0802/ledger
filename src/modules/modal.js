@@ -1,6 +1,32 @@
-import { MOVIES, CATEGORIES, scoreClass, getLabel } from '../state.js';
+import { MOVIES, CATEGORIES, scoreClass, getLabel, calcTotal, recalcAllTotals } from '../state.js';
+import { saveToStorage } from './storage.js';
+import { syncToSupabase } from './supabase.js';
+import { renderRankings } from './rankings.js';
+
+const SCORE_LABELS = [
+  [90, 'All-time favorite'], [85, 'Really exceptional'], [80, 'Excellent'],
+  [75, 'Well above average'], [70, 'Great'], [65, 'Very good'], [60, 'A cut above'],
+  [55, 'Good'], [50, 'Solid'], [45, 'Not bad'], [40, 'Sub-par'], [35, 'Multiple flaws'],
+  [30, 'Poor'], [25, 'Bad'], [20, "Wouldn't watch"], [0, 'Unwatchable']
+];
+function getLabelSimple(score) {
+  for (const [t, l] of SCORE_LABELS) if (score >= t) return l;
+  return 'Unwatchable';
+}
+
+let currentModalIdx = null;
+let editMode = false;
+let editScores = {};
 
 export function openModal(idx) {
+  currentModalIdx = idx;
+  editMode = false;
+  editScores = {};
+  renderModal();
+}
+
+function renderModal() {
+  const idx = currentModalIdx;
   const m = MOVIES[idx];
   const sorted = [...MOVIES].sort((a,b) => b.total - a.total);
   const rank = sorted.indexOf(m) + 1;
@@ -16,12 +42,43 @@ export function openModal(idx) {
     `<span class="modal-meta-chip" onclick="exploreEntity('${type}','${value.replace(/'/g, String.fromCharCode(39))}')">${label}</span>`;
 
   const directorChips = (m.director||'').split(',').map(d=>d.trim()).filter(Boolean).map(d=>chip(d,'director',d)).join('');
-  const writerChips = (m.writer||'').split(',').map(w=>w.trim()).filter(Boolean).filter(w=>!(m.director||'').includes(w)).map(w=>chip(w,'writer',w)).join('');
+  const writerChips = (m.writer||'').split(',').map(w=>w.trim()).filter(Boolean).map(w=>chip(w,'writer',w)).join('');
   const castChips = (m.cast||'').split(',').map(c=>c.trim()).filter(Boolean).map(c=>chip(c,'actor',c)).join('');
+  const companyChips = (m.productionCompanies||'').split(',').map(c=>c.trim()).filter(Boolean).map(c=>chip(c,'company',c)).join('');
 
   const posterHtml = m.poster
     ? `<img class="modal-poster" src="https://image.tmdb.org/t/p/w780${m.poster}" alt="${m.title}">`
     : `<div class="modal-poster-placeholder">${m.title} · ${m.year||''}</div>`;
+
+  const scores = editMode ? editScores : m.scores;
+  const previewTotal = editMode ? calcTotal(editScores) : m.total;
+
+  const breakdownRows = CATEGORIES.map(cat => {
+    const v = scores[cat.key];
+    const cr = catRanks[cat.key];
+    if (editMode) {
+      return `<div class="breakdown-row" style="align-items:center;gap:12px">
+        <div class="breakdown-cat">${cat.label}</div>
+        <div class="breakdown-bar-wrap" style="flex:1">
+          <input type="range" min="1" max="100" value="${v||50}"
+            style="width:100%;accent-color:var(--blue);cursor:pointer"
+            oninput="modalUpdateScore('${cat.key}', this.value)">
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;min-width:60px">
+          <div class="breakdown-val ${scoreClass(v||50)}" id="modal-edit-val-${cat.key}">${v||50}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);text-align:right;margin-top:2px;white-space:nowrap" id="modal-edit-lbl-${cat.key}">${getLabelSimple(v||50)}</div>
+        </div>
+        <div class="breakdown-wt">×${cat.weight}</div>
+      </div>`;
+    }
+    return `<div class="breakdown-row">
+      <div class="breakdown-cat">${cat.label}</div>
+      <div class="breakdown-bar-wrap"><div class="breakdown-bar" style="width:${v||0}%"></div></div>
+      <div class="breakdown-val ${v ? scoreClass(v) : ''}">${v ?? '—'}</div>
+      <div class="breakdown-wt">×${cat.weight}</div>
+      <div class="modal-cat-rank">#${cr}</div>
+    </div>`;
+  }).join('');
 
   document.getElementById('modalContent').innerHTML = `
     ${posterHtml}
@@ -34,23 +91,21 @@ export function openModal(idx) {
       ${directorChips ? `<div style="margin-bottom:8px"><span style="font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-right:8px">Dir.</span>${directorChips}</div>` : ''}
       ${writerChips ? `<div style="margin-bottom:8px"><span style="font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-right:8px">Wri.</span>${writerChips}</div>` : ''}
       ${castChips ? `<div style="margin-bottom:8px"><span style="font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-right:8px">Cast</span><div style="display:inline">${castChips}</div></div>` : ''}
+      ${companyChips ? `<div style="margin-bottom:8px"><span style="font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-right:8px">Prod.</span><div style="display:inline">${companyChips}</div></div>` : ''}
     </div>
-    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:20px">
-      <span style="font-family:'Playfair Display',serif;font-size:52px;font-weight:900;color:var(--blue);letter-spacing:-2px">${m.total}</span>
-      <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--dim)">${getLabel(m.total)}</span>
+    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:8px">
+      <span style="font-family:'Playfair Display',serif;font-size:52px;font-weight:900;color:var(--blue);letter-spacing:-2px" id="modal-total-display">${previewTotal}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--dim)" id="modal-total-label">${getLabel(previewTotal)}</span>
     </div>
-    <div>${CATEGORIES.map(cat => {
-      const v = m.scores[cat.key];
-      const cr = catRanks[cat.key];
-      return `<div class="breakdown-row">
-        <div class="breakdown-cat">${cat.label}</div>
-        <div class="breakdown-bar-wrap"><div class="breakdown-bar" style="width:${v||0}%"></div></div>
-        <div class="breakdown-val ${v ? scoreClass(v) : ''}">${v ?? '—'}</div>
-        <div class="breakdown-wt">×${cat.weight}</div>
-        <div class="modal-cat-rank">#${cr}</div>
-      </div>`;
-    }).join('')}</div>
-    ${nearby.length > 0 ? `<div class="compare-section">
+    <div style="margin-bottom:20px">
+      ${editMode
+        ? `<button onclick="modalSaveScores()" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;background:var(--blue);color:white;border:none;padding:8px 18px;cursor:pointer;margin-right:8px">Save scores</button>
+           <button onclick="modalCancelEdit()" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;background:none;color:var(--dim);border:1px solid var(--rule);padding:8px 18px;cursor:pointer">Cancel</button>`
+        : `<button onclick="modalEnterEdit()" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;background:none;color:var(--dim);border:1px solid var(--rule);padding:6px 14px;cursor:pointer">Edit scores</button>`
+      }
+    </div>
+    <div>${breakdownRows}</div>
+    ${!editMode && nearby.length > 0 ? `<div class="compare-section">
       <div class="compare-title">Nearby in the rankings</div>
       ${nearby.map(x => {
         const diff = (x.total - m.total).toFixed(2);
@@ -66,6 +121,48 @@ export function openModal(idx) {
   document.getElementById('filmModal').classList.add('open');
   localStorage.setItem('ledger_last_modal', idx);
 }
+
+window.modalEnterEdit = function() {
+  const m = MOVIES[currentModalIdx];
+  editMode = true;
+  editScores = { ...m.scores };
+  renderModal();
+};
+
+window.modalCancelEdit = function() {
+  editMode = false;
+  editScores = {};
+  renderModal();
+};
+
+window.modalUpdateScore = function(key, val) {
+  editScores[key] = parseInt(val);
+  const valEl = document.getElementById(`modal-edit-val-${key}`);
+  if (valEl) {
+    valEl.textContent = val;
+    valEl.className = `breakdown-val ${scoreClass(parseInt(val))}`;
+  }
+  const lblEl = document.getElementById(`modal-edit-lbl-${key}`);
+  if (lblEl) lblEl.textContent = getLabelSimple(parseInt(val));
+  const newTotal = calcTotal(editScores);
+  const totalEl = document.getElementById('modal-total-display');
+  if (totalEl) totalEl.textContent = newTotal;
+  const totalLblEl = document.getElementById('modal-total-label');
+  if (totalLblEl) totalLblEl.textContent = getLabelSimple(newTotal);
+};
+
+window.modalSaveScores = function() {
+  const m = MOVIES[currentModalIdx];
+  m.scores = { ...editScores };
+  m.total = calcTotal(editScores);
+  editMode = false;
+  editScores = {};
+  recalcAllTotals();
+  saveToStorage();
+  renderRankings();
+  syncToSupabase().catch(e => console.warn('sync failed', e));
+  renderModal();
+};
 
 export function closeModal(e) {
   if (!e || e.target === document.getElementById('filmModal')) {

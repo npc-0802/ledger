@@ -150,7 +150,9 @@ Genres: ${film.genres || 'unknown'}
 Synopsis: ${film.overview || 'not available'}
 
 TASK:
-Predict the scores this user would give this film across all 8 categories. Use the comparable films as the strongest signal — if the director or cast appear in the rated list, weight those patterns heavily. Use the category statistics to calibrate.
+Predict the scores this person would give this film. Use comparable films as the strongest signal. Weight director/cast patterns heavily.
+
+The reasoning must feel personal and specific to THIS person's taste — not a general film analysis. Write like you genuinely understand how they think about film. Reference their actual rated films by name. Focus on what THEY care about based on their scoring patterns. Be direct and confident. 2-3 sentences max. Never describe the film in general terms — always anchor to their specific ratings and patterns.
 
 Respond with this exact JSON structure:
 {
@@ -165,7 +167,7 @@ Respond with this exact JSON structure:
     "uniqueness": <integer 1-100>
   },
   "confidence": "high" | "medium" | "low",
-  "reasoning": "<2-4 sentences explaining the prediction, referencing specific comparable films and patterns>",
+  "reasoning": "<2-3 sentences in second person (you/your). Reference specific films they have rated. Never say the user. Sound like a trusted friend who knows their taste intimately, not a film critic.>",
   "key_comparables": ["<film title>", "<film title>"]
 }`;
 
