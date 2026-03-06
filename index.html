@@ -1503,13 +1503,15 @@ function renderHthCard() {
       <div class="hth-card" onclick="hthChoice('new', '${cat.key}', ${film.scores[cat.key]})">
         <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">New film</div>
         <div class="hth-title">${newFilm.title}</div>
-        <div class="hth-score">Current score: ${myScore}</div>
+        <div class="hth-score">${myScore}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-top:4px">${getLabel(myScore)}</div>
       </div>
       <div class="hth-vs">vs</div>
       <div class="hth-card" onclick="hthChoice('existing', '${cat.key}', ${film.scores[cat.key]})">
         <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">From your list</div>
         <div class="hth-title">${film.title}</div>
-        <div class="hth-score">${cat.label}: ${film.scores[cat.key]}</div>
+        <div class="hth-score">${film.scores[cat.key]}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-top:4px">${getLabel(film.scores[cat.key])}</div>
       </div>
     </div>
     <div class="hth-skip" onclick="hthSkip()">They're equal / skip this one</div>
@@ -1837,6 +1839,7 @@ function renderCalMatchup() {
         <div class="hth-title">${a.title}</div>
         <div class="hth-score">${a.year || ''}</div>
         <div style="font-family:'Playfair Display',serif;font-size:28px;font-weight:900;color:var(--gold);margin-top:8px">${aScore}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-top:4px">${getLabel(aScore)}</div>
       </div>
       <div class="hth-vs">vs</div>
       <div class="hth-card" onclick="calChoose('b')">
@@ -1844,6 +1847,7 @@ function renderCalMatchup() {
         <div class="hth-title">${b.title}</div>
         <div class="hth-score">${b.year || ''}</div>
         <div style="font-family:'Playfair Display',serif;font-size:28px;font-weight:900;color:var(--gold);margin-top:8px">${bScore}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-top:4px">${getLabel(bScore)}</div>
       </div>
     </div>
     <div class="hth-skip" onclick="calChoose('skip')">Too close to call — skip</div>
@@ -1920,7 +1924,7 @@ function showCalReview() {
       const film = MOVIES.find(m => m.title === e.title);
       return `<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--rule)">
         <input type="checkbox" id="caldiff_${i}" checked style="width:16px;height:16px;accent-color:var(--gold);flex-shrink:0"
-          data-title="${e.title.replace(/"/g,'&quot;')}" data-cat="${e.catKey}" data-old="${e.old}" data-new="${e.new}">
+          data-movie-idx="${MOVIES.findIndex(m => m.title === e.title)}" data-cat="${e.catKey}" data-old="${e.old}" data-new="${e.new}">
         <div style="flex:1">
           <div style="font-family:'Playfair Display',serif;font-weight:700;font-size:15px">${e.title}</div>
           <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--dim);margin-top:2px">${catLabels[e.catKey]} · ${film?.year||''}</div>
@@ -1937,10 +1941,10 @@ function applyCalibration() {
   let changed = 0;
   checkboxes.forEach(cb => {
     if (!cb.checked) return;
-    const title = cb.dataset.title;
+    const idx = parseInt(cb.dataset.movieIdx);
     const cat = cb.dataset.cat;
     const newVal = parseInt(cb.dataset.new);
-    const film = MOVIES.find(m => m.title === title);
+    const film = MOVIES[idx];
     if (film && film.scores[cat] !== undefined) {
       film.scores[cat] = newVal;
       film.total = calcTotal(film.scores);
