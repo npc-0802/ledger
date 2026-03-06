@@ -1937,31 +1937,40 @@ function showCalReview() {
 }
 
 function applyCalibration() {
-  const checkboxes = document.querySelectorAll('[id^="caldiff_"]');
-  let changed = 0;
-  checkboxes.forEach(cb => {
-    if (!cb.checked) return;
-    const idx = parseInt(cb.dataset.movieIdx);
-    const cat = cb.dataset.cat;
-    const newVal = parseInt(cb.dataset.new);
-    const film = MOVIES[idx];
-    if (film && film.scores[cat] !== undefined) {
-      film.scores[cat] = newVal;
-      film.total = calcTotal(film.scores);
-      changed++;
-    }
-  });
-  saveToStorage();
-  updateStorageStatus();
-  renderRankings();
-  resetCalibration();
-  // Flash confirmation
-  alert(`Applied ${changed} score change${changed !== 1 ? 's' : ''}. Rankings updated.`);
-  // Go to rankings
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById('rankings').classList.add('active');
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  document.querySelector('.nav-btn[onclick*="rankings"]').classList.add('active');
+  try {
+    const checkboxes = document.querySelectorAll('[id^="caldiff_"]');
+    console.log('applyCalibration: found', checkboxes.length, 'checkboxes');
+    let changed = 0;
+    checkboxes.forEach(cb => {
+      if (!cb.checked) return;
+      const idx = parseInt(cb.dataset.movieIdx);
+      const cat = cb.dataset.cat;
+      const newVal = parseInt(cb.dataset.new);
+      const film = MOVIES[idx];
+      console.log('applying:', idx, cat, newVal, film?.title);
+      if (film && film.scores[cat] !== undefined) {
+        film.scores[cat] = newVal;
+        film.total = calcTotal(film.scores);
+        changed++;
+      }
+    });
+    console.log('changed:', changed);
+    recalcAllTotals();
+    saveToStorage();
+    syncToSupabase().catch(e => console.warn('sync error:', e));
+    updateStorageStatus();
+    renderRankings();
+    // Go to rankings
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('rankings').classList.add('active');
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.nav-btn[onclick*="rankings"]').classList.add('active');
+    resetCalibration();
+    alert(`Applied ${changed} score change${changed !== 1 ? 's' : ''}. Rankings updated.`);
+  } catch(e) {
+    console.error('applyCalibration error:', e);
+    alert('Error applying changes: ' + e.message);
+  }
 }
 
 function resetCalibration() {
