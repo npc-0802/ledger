@@ -2213,6 +2213,10 @@ function renderObStep() {
         <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);letter-spacing:1px">Been here before? &nbsp;</span>
         <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);letter-spacing:1px;cursor:pointer;text-decoration:underline" onclick="obShowReturning()">Restore your profile →</span>
       </div>
+      <div style="text-align:center;margin-top:10px">
+        <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);letter-spacing:1px">Have a film_rankings.json? &nbsp;</span>
+        <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);letter-spacing:1px;cursor:pointer;text-decoration:underline" onclick="obShowImport()">Import existing list →</span>
+      </div>
     `;
     setTimeout(() => document.getElementById('ob-name-field')?.focus(), 50);
   } else if (obStep === 'returning') {
@@ -2228,6 +2232,22 @@ function renderObStep() {
       </div>
     `;
     setTimeout(() => document.getElementById('ob-returning-field')?.focus(), 50);
+  } else if (obStep === 'import') {
+    card.innerHTML = `
+      <div class="ob-eyebrow">ledger · import</div>
+      <div class="ob-title">Import your films.</div>
+      <div class="ob-sub">Select your <em>film_rankings.json</em> file exported from a previous version of ledger. Your films will be imported and synced to your new profile.</div>
+      <div id="ob-import-drop" style="border:2px dashed var(--rule-dark);padding:40px 24px;text-align:center;cursor:pointer;margin-bottom:16px;transition:border-color 0.15s" onclick="document.getElementById('ob-import-file').click()" ondragover="event.preventDefault();this.style.borderColor='var(--blue)'" ondragleave="this.style.borderColor='var(--rule-dark)'" ondrop="obHandleImportDrop(event)">
+        <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);letter-spacing:1px">Click to select or drag file here</div>
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--rule-dark);margin-top:6px">film_rankings.json</div>
+      </div>
+      <input type="file" id="ob-import-file" accept=".json" style="display:none" onchange="obHandleImportFile(this)">
+      <div id="ob-import-status" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);margin-bottom:16px;min-height:18px"></div>
+      <button class="ob-btn" id="ob-import-btn" onclick="obConfirmImport()" disabled>Continue with imported films →</button>
+      <div style="text-align:center;margin-top:20px">
+        <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);letter-spacing:1px;cursor:pointer;text-decoration:underline" onclick="obStep='name';renderObStep()">← Back</span>
+      </div>
+    `;
   } else if (typeof obStep === 'number') {
     const q = OB_QUESTIONS[obStep];
     const pct = Math.round((obStep / 6) * 100);
@@ -2304,6 +2324,61 @@ function obSubmitName() {
 
 function obShowReturning() {
   obStep = 'returning';
+  renderObStep();
+}
+
+function obShowImport() {
+  obStep = 'import';
+  obImportedMovies = null;
+  renderObStep();
+}
+
+let obImportedMovies = null;
+
+function obHandleImportDrop(e) {
+  e.preventDefault();
+  document.getElementById('ob-import-drop').style.borderColor = 'var(--rule-dark)';
+  const file = e.dataTransfer.files[0];
+  if (file) obReadImportFile(file);
+}
+
+function obHandleImportFile(input) {
+  const file = input.files[0];
+  if (file) obReadImportFile(file);
+}
+
+function obReadImportFile(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      if (!Array.isArray(parsed) || parsed.length === 0) throw new Error('invalid');
+      // Validate it looks like ledger data
+      if (!parsed[0].scores || !parsed[0].title) throw new Error('invalid');
+      obImportedMovies = parsed;
+      const statusEl = document.getElementById('ob-import-status');
+      const btn = document.getElementById('ob-import-btn');
+      const dropEl = document.getElementById('ob-import-drop');
+      statusEl.textContent = `✓ ${parsed.length} films ready to import`;
+      statusEl.style.color = 'var(--green)';
+      dropEl.style.borderColor = 'var(--green)';
+      dropEl.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--green);letter-spacing:1px">${file.name}</div>`;
+      btn.disabled = false;
+    } catch(err) {
+      const statusEl = document.getElementById('ob-import-status');
+      statusEl.textContent = 'That doesn\'t look like a valid ledger JSON file.';
+      statusEl.style.color = 'var(--red)';
+    }
+  };
+  reader.readAsText(file);
+}
+
+function obConfirmImport() {
+  if (!obImportedMovies) return;
+  // Load films and proceed to quiz
+  MOVIES.length = 0;
+  obImportedMovies.forEach(m => MOVIES.push(m));
+  obStep = 0;
   renderObStep();
 }
 
