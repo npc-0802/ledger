@@ -1061,6 +1061,10 @@ function calcTotal(scores) {
   return wsum > 0 ? Math.round((sum / wsum) * 100) / 100 : 0;
 }
 
+function recalcAllTotals() {
+  MOVIES.forEach(m => { m.total = calcTotal(m.scores); });
+}
+
 function scoreClass(s) {
   if (s >= 90) return 's90'; if (s >= 80) return 's80'; if (s >= 70) return 's70';
   if (s >= 60) return 's60'; if (s >= 50) return 's50'; if (s >= 40) return 's40';
@@ -2086,6 +2090,7 @@ function applyUserWeights() {
   CATEGORIES.forEach(cat => {
     if (w[cat.key] != null) cat.weight = w[cat.key];
   });
+  recalcAllTotals();
 }
 
 function updateMastheadProfile() {
@@ -2410,6 +2415,7 @@ async function obLookupUser() {
     saveUserLocally();
     saveToStorage();
     applyUserWeights();
+    recalcAllTotals();
     document.getElementById('onboarding-overlay').style.display = 'none';
     updateMastheadProfile();
     renderRankings();
@@ -2504,6 +2510,7 @@ async function obFinish(primary, secondary, weights, harmonySensitivity) {
   };
 
   applyUserWeights();
+  recalcAllTotals();
 
   // Close overlay and enter the app immediately — don't wait on Supabase
   document.getElementById('onboarding-overlay').style.display = 'none';
