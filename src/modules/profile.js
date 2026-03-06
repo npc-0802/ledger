@@ -71,19 +71,38 @@ function scoreBars(movies) {
   }).join('');
 }
 
+function badgeColor(score) {
+  if (score == null) return 'rgba(12,11,9,0.65)';
+  if (score >= 90) return '#C4922A';
+  if (score >= 80) return '#1F4A2A';
+  if (score >= 70) return '#4A5830';
+  if (score >= 60) return '#6B4820';
+  return 'rgba(12,11,9,0.65)';
+}
+
 function signatureFilms(movies) {
   const top = [...movies].sort((a, b) => b.total - a.total).slice(0, 5);
   if (!top.length) return '<p style="font-family:\'DM Sans\',sans-serif;font-size:14px;color:var(--dim)">Rate some films to see your signature picks.</p>';
-  return top.map((m, i) => `
-    <div style="display:flex;align-items:center;gap:16px;padding:12px 0;border-bottom:1px solid var(--rule);cursor:pointer" onclick="openModal(${MOVIES.indexOf(m)})">
-      <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);width:16px;flex-shrink:0">${i + 1}</span>
-      <div style="flex:1">
-        <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:16px;color:var(--ink)">${m.title}</div>
-        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-top:2px">${m.year || ''}${m.director ? ' · ' + m.director.split(',')[0] : ''}</div>
+  return top.map((m, i) => {
+    const poster = m.poster
+      ? `<img style="width:34px;height:51px;object-fit:cover;display:block;flex-shrink:0" src="https://image.tmdb.org/t/p/w92${m.poster}" alt="" loading="lazy">`
+      : `<div style="width:34px;height:51px;background:var(--cream);flex-shrink:0"></div>`;
+    const total = m.total != null ? (Math.round(m.total * 10) / 10).toFixed(1) : '—';
+    return `
+      <div style="display:flex;align-items:center;gap:16px;border-bottom:1px solid var(--rule);min-height:63px;cursor:pointer;transition:background 0.12s"
+           onclick="openModal(${MOVIES.indexOf(m)})"
+           onmouseover="this.style.background='var(--cream)'"
+           onmouseout="this.style.background=''">
+        <div style="display:flex;align-items:center;justify-content:center;padding:4px 6px 4px 0;height:63px;flex-shrink:0">${poster}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--rule-dark);width:24px;flex-shrink:0;text-align:center">${i + 1}</div>
+        <div style="flex:1">
+          <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:15px;font-weight:700;line-height:1.2;color:var(--ink)">${m.title}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-top:3px">${m.year || ''}${m.director ? ' · ' + m.director.split(',')[0] : ''}</div>
+        </div>
+        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:18px;color:white;padding:4px 11px 3px;background:${badgeColor(m.total)};border-radius:4px;flex-shrink:0">${total}</div>
       </div>
-      <span style="font-family:'DM Mono',monospace;font-size:13px;color:var(--blue);font-weight:500">${m.total}</span>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 function shareCard(user, movies) {
@@ -143,15 +162,16 @@ export function renderProfile() {
 
       <!-- ARCHETYPE -->
       <div style="margin-bottom:40px;padding-bottom:32px;border-bottom:1px solid var(--rule)">
-        <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:16px">Archetype</div>
-        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:36px;color:var(--blue);margin-bottom:12px">${user.archetype}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:16px">Palate</div>
+        <div style="background:var(--surface-dark);padding:28px 32px;margin-bottom:20px">
+          <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--on-dark-dim);margin-bottom:10px">primary</div>
+          <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:40px;color:var(--on-dark);line-height:1;margin-bottom:14px">${user.archetype}</div>
+          ${user.archetype_secondary ? `
+          <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--on-dark-dim);margin-bottom:6px;margin-top:16px">secondary</div>
+          <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:22px;color:var(--on-dark);opacity:0.75">${user.archetype_secondary}</div>` : ''}
+        </div>
         <p style="font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.75;color:var(--ink);margin:0 0 10px;max-width:520px">${arch.description || ''}</p>
-        <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);letter-spacing:0.5px;margin-bottom:${user.archetype_secondary ? '20px' : '16px'}">${arch.quote || ''}</div>
-        ${user.archetype_secondary ? `
-        <div style="margin-bottom:16px">
-          <span style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--dim)">Secondary &nbsp;</span>
-          <span style="font-family:'Playfair Display',serif;font-style:italic;font-size:18px;color:var(--ink)">${user.archetype_secondary}</span>
-        </div>` : ''}
+        <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);letter-spacing:0.5px;margin-bottom:16px">${arch.quote || ''}</div>
         <span onclick="openArchetypeModal()" style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--blue);cursor:pointer;text-decoration:underline">Edit weights →</span>
       </div>
 
@@ -176,18 +196,18 @@ export function renderProfile() {
           </div>
         </div>
         ${movies.length > 0 ? `
-        <div style="display:flex;gap:32px;flex-wrap:wrap;margin-top:24px;padding-top:20px;border-top:1px solid var(--rule)">
-          <div>
-            <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);margin-bottom:4px">films rated</div>
-            <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:28px;color:var(--ink)">${movies.length}</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:24px;border-top:2px solid var(--ink)">
+          <div style="padding:16px 20px 16px 0;border-right:1px solid var(--rule)">
+            <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);margin-bottom:6px">Films rated</div>
+            <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:40px;color:var(--ink);line-height:1;letter-spacing:-1px">${movies.length}</div>
           </div>
-          <div>
-            <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);margin-bottom:4px">avg total</div>
-            <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:28px;color:var(--ink)">${avgTotal}</div>
+          <div style="padding:16px 20px;border-right:1px solid var(--rule)">
+            <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);margin-bottom:6px">Avg total</div>
+            <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:40px;color:var(--ink);line-height:1;letter-spacing:-1px">${avgTotal}</div>
           </div>
-          ${topCat ? `<div>
-            <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);margin-bottom:4px">strongest category</div>
-            <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:24px;color:var(--blue)">${CAT_LABELS[topCat.c]}</div>
+          ${topCat ? `<div style="padding:16px 0 16px 20px">
+            <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);margin-bottom:6px">Strongest</div>
+            <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:32px;color:var(--blue);line-height:1;letter-spacing:-1px">${CAT_LABELS[topCat.c]}</div>
           </div>` : ''}
         </div>` : ''}
       </div>

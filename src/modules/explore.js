@@ -167,8 +167,14 @@ export function exploreEntity(type, name) {
       ` : ''}
 
       <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--dim);margin:24px 0 12px">Films</div>
-      ${films.map((f,i) => `
+      ${films.map((f,i) => {
+        const poster = f.poster
+          ? `<img class="film-poster-thumb" src="https://image.tmdb.org/t/p/w92${f.poster}" alt="" loading="lazy">`
+          : `<div class="film-poster-none"></div>`;
+        const total = f.total != null ? (Math.round(f.total * 10) / 10).toFixed(1) : '—';
+        return `
         <div class="film-row" onclick="openModal(${MOVIES.indexOf(f)})" style="cursor:pointer">
+          <div class="film-poster-cell">${poster}</div>
           <div class="film-rank">${i+1}</div>
           <div class="film-title-cell">
             <div class="film-title-main">${f.title}</div>
@@ -177,8 +183,9 @@ export function exploreEntity(type, name) {
           ${['plot','execution','acting','production','enjoyability','rewatchability','ending','uniqueness'].map(k =>
             `<div class="film-score ${f.scores[k]?scoreClass(f.scores[k]):'}'}">${f.scores[k]??'—'}</div>`
           ).join('')}
-          <div class="film-total">${f.total}</div>
-        </div>`).join('')}
+          <div class="film-total">${total}</div>
+        </div>`;
+      }).join('')}
     </div>
   `;
 }

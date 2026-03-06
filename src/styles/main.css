@@ -3,21 +3,40 @@
    Palette: paper/ink + slate blue + persimmon CTA
 ═══════════════════════════════════════════════ */
 :root {
-  --ink:        #0c0b09;
-  --paper:      #f4efe6;
-  --cream:      #ece5d8;
-  --deep-cream: #e2d9c8;
-  --blue:       #3d5a80;
-  --blue-dark:  #2a3f5a;
-  --blue-pale:  #dce8f5;
-  --action:     #e8623a;
-  --action-dark:#c94e28;
-  --dim:        #837a6a;
-  --rule:       #d8d0c0;
-  --rule-dark:  #b0a898;
-  --card-bg:    #faf6f0;
-  --red:        #8b2020;
-  --green:      #2a6b3c;
+  /* ── Core palette ── */
+  --ink:          #0c0b09;
+  --paper:        #f4efe6;
+  --cream:        #ece5d8;
+  --deep-cream:   #e2d9c8;
+  --blue:         #3d5a80;
+  --blue-dark:    #2a3f5a;
+  --blue-pale:    #dce8f5;
+  --action:       #e8623a;
+  --action-dark:  #c94e28;
+  --dim:          #837a6a;
+  --rule:         #d8d0c0;
+  --rule-dark:    #b0a898;
+  --card-bg:      #faf6f0;
+  --red:          #8b2020;
+  --green:        #2a6b3c;
+
+  /* ── Dark surfaces ── */
+  --surface-dark:   #0c0b09;
+  --surface-dark-2: #1a1916;
+  --surface-dark-3: #252320;
+  --on-dark:        #f4efe6;
+  --on-dark-dim:    #837a6a;
+
+  /* ── Spacing scale (8pt) ── */
+  --s1:  8px;
+  --s2:  16px;
+  --s3:  24px;
+  --s4:  32px;
+  --s5:  40px;
+  --s6:  48px;
+  --s8:  64px;
+  --s10: 80px;
+  --s12: 96px;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -133,6 +152,7 @@ body {
 .nav-btn.action-tab:hover { background: var(--action-dark); color: white; border-bottom-color: transparent; }
 .nav-btn.action-tab.active { background: var(--action-dark); color: white; border-bottom-color: transparent; }
 #rankings.empty .rankings-header { display: none; }
+#rankings.grid-mode .rankings-header { display: none; }
 
 /* ── SCREENS ── */
 .screen { display: none; padding: 40px 56px 80px; animation: fadeIn 0.2s ease; }
@@ -142,10 +162,10 @@ body {
 /* ── RANKINGS TABLE ── */
 .rankings-header {
   display: grid;
-  grid-template-columns: 44px 1fr repeat(8, 52px) 80px;
+  grid-template-columns: 52px 44px 1fr repeat(8, 48px) 68px;
   border-top: 2px solid var(--ink);
   border-bottom: 1px solid var(--ink);
-  padding: 9px 0;
+  padding: 10px 0;
   position: sticky;
   top: 0;
   background: var(--paper);
@@ -159,53 +179,79 @@ body {
   color: var(--dim);
   text-align: center;
 }
-.col-head:nth-child(2) { text-align: left; padding-left: 12px; }
+.col-head:nth-child(3) { text-align: left; padding-left: 12px; }
 
 .film-row {
   display: grid;
-  grid-template-columns: 44px 1fr repeat(8, 52px) 80px;
+  grid-template-columns: 52px 44px 1fr repeat(8, 48px) 68px;
   border-bottom: 1px solid var(--rule);
-  padding: 10px 0;
   align-items: center;
   cursor: pointer;
-  transition: background 0.1s;
+  transition: background 0.12s;
+  min-height: 63px;
 }
 .film-row:hover { background: var(--cream); }
-.film-row:hover .film-rank { color: var(--blue); }
+.film-row:hover .film-rank { color: var(--ink); }
+.film-row:hover .film-title-main { color: var(--blue); }
+
+.film-poster-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px 4px 0;
+  height: 63px;
+}
+.film-poster-thumb {
+  width: 34px;
+  height: 51px;
+  object-fit: cover;
+  display: block;
+  flex-shrink: 0;
+}
+.film-poster-none {
+  width: 34px;
+  height: 51px;
+  background: var(--cream);
+  flex-shrink: 0;
+}
 
 .film-rank {
   font-family: 'DM Mono', monospace;
   font-size: 11px;
   color: var(--rule-dark);
   text-align: center;
-  transition: color 0.1s;
+  transition: color 0.12s;
 }
 .film-title-cell { padding-left: 12px; }
 .film-title-main {
   font-family: 'Playfair Display', serif;
+  font-style: italic;
   font-size: 15px;
   font-weight: 700;
   line-height: 1.2;
+  transition: color 0.12s;
 }
 .film-title-sub {
   font-family: 'DM Mono', monospace;
   font-size: 10px;
   color: var(--dim);
-  margin-top: 2px;
+  margin-top: 3px;
   letter-spacing: 0.3px;
 }
 .film-score {
   font-family: 'DM Mono', monospace;
-  font-size: 12px;
+  font-size: 11px;
   text-align: center;
   color: var(--dim);
 }
 .film-total {
   font-family: 'Playfair Display', serif;
-  font-size: 18px;
-  font-weight: 700;
+  font-style: italic;
+  font-size: 20px;
+  font-weight: 900;
   text-align: center;
   letter-spacing: -0.5px;
+  color: var(--ink);
 }
 
 /* Sortable columns */

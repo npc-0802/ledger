@@ -1,5 +1,5 @@
 import { MOVIES, currentUser, setCurrentUser, setMovies, CATEGORIES, recalcAllTotals, applyUserWeights } from './state.js';
-import { renderRankings, sortBy } from './modules/rankings.js';
+import { renderRankings, sortBy, setViewMode } from './modules/rankings.js';
 import { openModal, closeModal } from './modules/modal.js';
 import { renderExploreIndex, exploreEntity } from './modules/explore.js';
 import { renderAnalysis } from './modules/analysis.js';
@@ -130,7 +130,7 @@ window.__ledger = {
   selectCalInt, applyCalibration, resetCalibration, launchOnboarding,
   liveSearch, tmdbSelect, toggleCast, showMoreCast, toggleCompany,
   resetToSearch, confirmTmdbData, goToStep3, goToStep4, saveFilm, goToStep,
-  renderProfile,
+  renderProfile, setViewMode,
   showSyncPanel, openArchetypeModal, closeArchetypeModal, previewWeight,
   resetArchetypeWeights, saveArchetypeWeights, exportData, resetStorage,
   updateStorageStatus, updateMastheadProfile, setCloudStatus
@@ -143,7 +143,7 @@ const bridge = [
   'startCalibration','selectCalCat','selectCalInt','applyCalibration','resetCalibration',
   'launchOnboarding','liveSearch','tmdbSelect','toggleCast','showMoreCast','toggleCompany',
   'resetToSearch','confirmTmdbData','goToStep3','goToStep4','saveFilm','goToStep',
-  'renderProfile',
+  'renderProfile', 'setViewMode',
   'showSyncPanel','openArchetypeModal','closeArchetypeModal','previewWeight',
   'resetArchetypeWeights','saveArchetypeWeights','exportData','resetStorage'
 ];

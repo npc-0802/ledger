@@ -1,6 +1,44 @@
 import { MOVIES, CATEGORIES, scoreClass } from '../state.js';
 
-let currentSort = { key: 'rank', dir: 'desc' };
+let currentSort = { key: 'total', dir: 'desc' };
+let viewMode = 'grid';
+
+const SORT_CATS = [
+  { key: 'total',         label: 'Total' },
+  { key: 'plot',          label: 'Plot' },
+  { key: 'execution',     label: 'Exec' },
+  { key: 'acting',        label: 'Acting' },
+  { key: 'production',    label: 'Prod' },
+  { key: 'enjoyability',  label: 'Enjoy' },
+  { key: 'rewatchability',label: 'Rewatch' },
+  { key: 'ending',        label: 'Ending' },
+  { key: 'uniqueness',    label: 'Unique' },
+];
+
+function badgeClass(score) {
+  if (score == null) return 'badge-dim';
+  if (score >= 90) return 'badge-gold';
+  if (score >= 80) return 'badge-green';
+  if (score >= 70) return 'badge-olive';
+  if (score >= 60) return 'badge-amber';
+  return 'badge-dim';
+}
+
+function getSorted() {
+  const { key, dir } = currentSort;
+  if (key === 'rank' || key === 'total') {
+    return [...MOVIES].sort((a, b) => dir === 'desc' ? b.total - a.total : a.total - b.total);
+  } else if (key === 'title') {
+    return [...MOVIES].sort((a, b) => dir === 'desc' ? b.title.localeCompare(a.title) : a.title.localeCompare(b.title));
+  } else {
+    return [...MOVIES].sort((a, b) => dir === 'desc' ? (b.scores[key]||0) - (a.scores[key]||0) : (a.scores[key]||0) - (b.scores[key]||0));
+  }
+}
+
+export function setViewMode(mode) {
+  viewMode = mode;
+  renderRankings();
+}
 
 export function sortBy(key) {
   if (currentSort.key === key) {
@@ -19,12 +57,15 @@ export function sortBy(key) {
 }
 
 export function renderRankings() {
-  const list = document.getElementById('filmList');
-  const rankingsEl = document.getElementById('rankings');
+  const list        = document.getElementById('filmList');
+  const rankingsEl  = document.getElementById('rankings');
+  const controls    = document.getElementById('rankings-controls');
 
   if (MOVIES.length === 0) {
     rankingsEl.classList.add('empty');
+    rankingsEl.classList.remove('grid-mode');
     document.getElementById('mastheadCount').textContent = '0 films ranked';
+    if (controls) controls.innerHTML = '';
     list.innerHTML = `
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:80px 24px 40px">
         <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--dim);margin-bottom:28px">your canon · film</div>
@@ -37,34 +78,85 @@ export function renderRankings() {
   }
 
   rankingsEl.classList.remove('empty');
+  document.getElementById('mastheadCount').textContent = MOVIES.length + ' films ranked';
+
+  const sorted = getSorted();
+  viewMode === 'grid' ? renderGrid(sorted, list, controls, rankingsEl) : renderTable(sorted, list, controls, rankingsEl);
+}
+
+function toolbar(active) {
+  const sortKey = currentSort.key;
+  const pills = viewMode === 'grid' ? `
+    <div class="sort-pills">
+      ${SORT_CATS.map(c => `<button class="sort-pill${sortKey === c.key ? ' active' : ''}" onclick="sortBy('${c.key}')">${c.label}</button>`).join('')}
+    </div>` : '<div></div>';
+  return `<div class="rankings-toolbar">
+    ${pills}
+    <div class="view-toggle">
+      <button class="view-btn${active === 'grid' ? ' active' : ''}" onclick="setViewMode('grid')" title="Grid view">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="0" y="0" width="6" height="6" fill="currentColor"/><rect x="8" y="0" width="6" height="6" fill="currentColor"/><rect x="0" y="8" width="6" height="6" fill="currentColor"/><rect x="8" y="8" width="6" height="6" fill="currentColor"/></svg>
+      </button>
+      <button class="view-btn${active === 'table' ? ' active' : ''}" onclick="setViewMode('table')" title="Table view">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="0" y="1" width="14" height="2" fill="currentColor"/><rect x="0" y="6" width="14" height="2" fill="currentColor"/><rect x="0" y="11" width="14" height="2" fill="currentColor"/></svg>
+      </button>
+    </div>
+  </div>`;
+}
+
+function renderGrid(sorted, list, controls, rankingsEl) {
+  rankingsEl.classList.add('grid-mode');
+  if (controls) controls.innerHTML = toolbar('grid');
+
+  const scoreKey = ['total','rank','title'].includes(currentSort.key) ? 'total' : currentSort.key;
+
+  list.innerHTML = `<div class="film-grid">
+    ${sorted.map((m, i) => {
+      const raw   = scoreKey === 'total' ? m.total : (m.scores?.[scoreKey] ?? null);
+      const label = raw != null ? (scoreKey === 'total' ? (Math.round(raw * 10) / 10).toFixed(1) : raw) : '—';
+      const bClass = badgeClass(raw);
+      const img   = m.poster
+        ? `<img class="film-card-poster" src="https://image.tmdb.org/t/p/w342${m.poster}" alt="" loading="lazy">`
+        : `<div class="film-card-poster-none"></div>`;
+      return `<div class="film-card" onclick="openModal(${MOVIES.indexOf(m)})">
+        <div class="film-card-poster-wrap">
+          ${img}
+          <div class="film-card-rank">${i + 1}</div>
+          <div class="film-card-score ${bClass}">${label}</div>
+        </div>
+        <div class="film-card-meta">
+          <div class="film-card-title">${m.title}</div>
+          <div class="film-card-sub">${m.year || ''}${m.director ? ' · ' + m.director.split(',')[0] : ''}</div>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function renderTable(sorted, list, controls, rankingsEl) {
+  rankingsEl.classList.remove('grid-mode');
+  if (controls) controls.innerHTML = toolbar('table');
 
   const baseSort = [...MOVIES].sort((a, b) => b.total - a.total);
-  const rankMap = new Map(baseSort.map((m, i) => [m.title, i + 1]));
+  const rankMap  = new Map(baseSort.map((m, i) => [m.title, i + 1]));
 
-  let sorted;
-  const { key, dir } = currentSort;
-  if (key === 'rank' || key === 'total') {
-    sorted = [...MOVIES].sort((a, b) => dir === 'desc' ? b.total - a.total : a.total - b.total);
-  } else if (key === 'title') {
-    sorted = [...MOVIES].sort((a, b) => dir === 'desc' ? b.title.localeCompare(a.title) : a.title.localeCompare(b.title));
-  } else {
-    sorted = [...MOVIES].sort((a, b) => dir === 'desc' ? (b.scores[key]||0) - (a.scores[key]||0) : (a.scores[key]||0) - (b.scores[key]||0));
-  }
-
-  document.getElementById('mastheadCount').textContent = sorted.length + ' films ranked';
   list.innerHTML = sorted.map((m) => {
-    const s = m.scores;
-    const rank = rankMap.get(m.title);
+    const s     = m.scores;
+    const rank  = rankMap.get(m.title);
+    const total = m.total != null ? (Math.round(m.total * 10) / 10).toFixed(1) : '—';
+    const poster = m.poster
+      ? `<img class="film-poster-thumb" src="https://image.tmdb.org/t/p/w92${m.poster}" alt="" loading="lazy">`
+      : `<div class="film-poster-none"></div>`;
     return `<div class="film-row" onclick="openModal(${MOVIES.indexOf(m)})">
+      <div class="film-poster-cell">${poster}</div>
       <div class="film-rank">${rank}</div>
       <div class="film-title-cell">
         <div class="film-title-main">${m.title}</div>
-        <div class="film-title-sub">${m.year || ''} ${m.director ? '· ' + m.director.split(',')[0] : ''}</div>
+        <div class="film-title-sub">${m.year || ''}${m.director ? ' · ' + m.director.split(',')[0] : ''}</div>
       </div>
       ${['plot','execution','acting','production','enjoyability','rewatchability','ending','uniqueness'].map(k =>
         `<div class="film-score ${s[k] ? scoreClass(s[k]) : ''}">${s[k] ?? '—'}</div>`
       ).join('')}
-      <div class="film-total">${m.total}</div>
+      <div class="film-total">${total}</div>
     </div>`;
   }).join('');
 }
