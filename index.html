@@ -2180,7 +2180,13 @@ const ARCHETYPES = {
   Atmospherist:   { weights: { plot:1, execution:2, acting:1, production:2, enjoyability:3, rewatchability:5, ending:1, uniqueness:1 }, quote: '"The right film at the right moment is everything."' },
 };
 
-let obAnswers = {};
+let obRevealResult = null;
+
+function obFinishFromReveal() {
+  if (!obRevealResult) return;
+  const arch = ARCHETYPES[obRevealResult.primary];
+  obFinish(obRevealResult.primary, obRevealResult.secondary || '', arch.weights, obRevealResult.harmonySensitivity);
+}
 let obStep = 0; // 'name' | 0..5 | 'reveal'
 let obDisplayName = '';
 
@@ -2224,6 +2230,7 @@ function renderObStep() {
     `;
   } else if (obStep === 'reveal') {
     const result = deriveArchetype(obAnswers);
+    obRevealResult = result;
     const arch = ARCHETYPES[result.primary];
     const arch2 = ARCHETYPES[result.secondary];
     card.innerHTML = `
@@ -2243,7 +2250,7 @@ function renderObStep() {
           </div>`).join('')}
       </div>
       <div class="ob-sub" style="margin-top:16px;margin-bottom:24px">Weights shape how your scores are calculated. You can adjust them anytime from the Rankings view.</div>
-      <button class="ob-btn" onclick="obFinish('${result.primary}', '${result.secondary || ''}', ${JSON.stringify(arch.weights)}, ${result.harmonySensitivity})">
+      <button class="ob-btn" onclick="obFinishFromReveal()">
         Enter ledger →
       </button>
     `;
