@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ledger — personal film record</title>
+<title>canon — taste intelligence</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script type="module" crossorigin src="/ledger/assets/index-2jHYhG8r.js"></script>
@@ -11,19 +11,41 @@
 </head>
 <body>
 
+<!-- ══════════════ COLD LANDING ══════════════ -->
+<div id="cold-landing" style="display:none;position:fixed;inset:0;background:var(--paper);z-index:200;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px">
+  <div style="max-width:560px;width:100%;text-align:center">
+    <div style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--dim);margin-bottom:32px">canon</div>
+    <h1 style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(36px,6vw,64px);line-height:1.1;letter-spacing:-1px;color:var(--ink);margin:0 0 24px">
+      Make it canon.
+    </h1>
+    <p style="font-family:'DM Sans',sans-serif;font-size:18px;line-height:1.7;color:var(--dim);margin:0 0 12px;font-weight:300">
+      Everyone has a palate.
+    </p>
+    <p style="font-family:'DM Sans',sans-serif;font-size:16px;line-height:1.7;color:var(--dim);margin:0 0 48px;font-weight:300">
+      The films you love are trying to tell you something about yourself. Canon listens — and shows you the pattern.
+    </p>
+    <button onclick="startFromLanding()" style="font-family:'DM Mono',monospace;font-size:12px;letter-spacing:2px;text-transform:uppercase;background:#E8623A;color:white;border:none;padding:16px 40px;cursor:pointer;transition:opacity 0.2s" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+      Discover your taste →
+    </button>
+    <div style="margin-top:24px;font-family:'DM Mono',monospace;font-size:10px;color:var(--rule-dark);letter-spacing:1px">
+      Starting with film. Expanding to everything.
+    </div>
+  </div>
+</div>
+
 <!-- ══════════════ ONBOARDING OVERLAY ══════════════ -->
 <div id="onboarding-overlay" style="display:none">
   <div class="ob-card" id="ob-card-content"></div>
 </div>
 
 <div class="masthead">
-  <span class="masthead-wordmark">ledger</span>
+  <span class="masthead-wordmark">canon</span>
   <div class="masthead-rules">
     <div class="masthead-rule-thick"></div>
     <div class="masthead-rule-thin"></div>
   </div>
   <div class="masthead-meta">
-    <div class="masthead-meta-left" id="mastheadLeft">A personal film record &nbsp;·&nbsp; ongoing</div>
+    <div class="masthead-meta-left" id="mastheadLeft">taste intelligence &nbsp;·&nbsp; film</div>
     <div class="masthead-meta-right">
       <span class="cloud-status" id="cloudStatus" onclick="showSyncPanel()" title="Cloud sync">
         <span class="cloud-dot" id="cloudDot"></span>
