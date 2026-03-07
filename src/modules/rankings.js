@@ -43,19 +43,14 @@ export function updateTasteBanner() {
     const remaining = MIN - MOVIES.length;
     const pct = Math.round((MOVIES.length / MIN) * 100);
     banner.innerHTML = `
-      <div style="background:#FDF1EC;border-bottom:1px solid rgba(232,98,58,0.25);padding:10px 56px;display:flex;align-items:center;justify-content:space-between;gap:20px">
-        <div style="flex:1;min-width:0;display:flex;align-items:center;gap:16px">
-          <div style="flex:1;min-width:0">
-            <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
-              <span style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--action)">Your palate is forming &nbsp;·&nbsp; ${MOVIES.length} of ${MIN}</span>
-              <span style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--ink)">Rate <strong>${remaining} more film${remaining !== 1 ? 's' : ''}</strong> to unlock Predict and full taste insights.</span>
-            </div>
-            <div style="height:2px;background:rgba(232,98,58,0.18);border-radius:1px">
-              <div style="height:2px;width:${pct}%;background:var(--action);border-radius:1px;transition:width 0.4s ease"></div>
-            </div>
-          </div>
+      <div style="background:#FDF1EC;border-bottom:1px solid rgba(232,98,58,0.25);padding:9px 56px">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:7px">
+          <span style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--action);white-space:nowrap">${MOVIES.length} of ${MIN}</span>
+          <span style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--ink)">Rate <strong>${remaining} more film${remaining !== 1 ? 's' : ''}</strong> to unlock Predict and full taste insights.</span>
         </div>
-        <button onclick="document.querySelector('.nav-btn.action-tab').click()" style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:8px 16px;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:opacity 0.15s" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Add a film →</button>
+        <div style="height:2px;background:rgba(232,98,58,0.18);border-radius:1px">
+          <div style="height:2px;width:${pct}%;background:var(--action);border-radius:1px;transition:width 0.4s ease"></div>
+        </div>
       </div>`;
   } else {
     banner.innerHTML = '';
