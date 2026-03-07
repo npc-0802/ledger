@@ -14,6 +14,8 @@ let searchDebounceTimer = null;
 let friendMoviesCache = null;
 let friendColorCache = null;
 let friendEntityMapsCache = {};
+let currentFriendCache = null;
+let overlapPredictDebounceTimer = null;
 
 // ── PUBLIC ──
 
@@ -395,13 +397,22 @@ window.openEntityStub = async function(name, isPerson) {
       </div>` : '';
 
     const ratedTitles = new Set((MOVIES || []).map(m => m.title?.toLowerCase()));
+    window._esFilms = tmdbFilms.map(f => ({
+      tmdbId: f.id,
+      title: f.title || f.name || '',
+      year: (f.release_date || '').split('-')[0],
+      poster: f.poster_path || null,
+      overview: f.overview || '',
+      director: ''
+    }));
     const tmdbFilmsHTML = tmdbFilms.length > 0 ? `
       <div>
         <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:10px">${userFilms.length > 0 ? 'More films' : 'Known for'}</div>
-        ${tmdbFilms.map(f => {
+        ${tmdbFilms.map((f, idx) => {
           const title = f.title || f.name || '';
           const year = (f.release_date || '').split('-')[0];
           const alreadyRated = ratedTitles.has(title.toLowerCase());
+          const safeTitle = title.replace(/'/g,"&#39;");
           return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--rule)">
             <img src="https://image.tmdb.org/t/p/w92${f.poster_path}" style="width:24px;height:36px;object-fit:cover;flex-shrink:0">
             <div style="flex:1;min-width:0">
@@ -410,7 +421,10 @@ window.openEntityStub = async function(name, isPerson) {
             </div>
             ${alreadyRated
               ? `<span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);flex-shrink:0">Rated ✓</span>`
-              : `<button onclick="document.getElementById('entity-stub-modal').remove();window.showScreen('add');setTimeout(()=>window.liveSearch&&(document.getElementById('tmdb-search-input')&&(document.getElementById('tmdb-search-input').value='${title.replace(/'/g,"&#39;")}'),window.liveSearch()),100)" style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:5px 10px;cursor:pointer;flex-shrink:0">+ Add</button>`
+              : `<div style="display:flex;gap:5px;flex-shrink:0">
+                  <button onclick="esWatchlist(${idx})" style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:0.5px;background:none;color:var(--dim);border:1px solid var(--rule-dark);padding:5px 8px;cursor:pointer;white-space:nowrap">＋ Watchlist</button>
+                  <button onclick="document.getElementById('entity-stub-modal').remove();window.showScreen('add');setTimeout(()=>{const inp=document.getElementById('f-search');if(inp){inp.value='${safeTitle}';window.liveSearch&&window.liveSearch('${safeTitle}');}},100)" style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:5px 10px;cursor:pointer;white-space:nowrap">Rate →</button>
+                </div>`
             }
           </div>`;
         }).join('')}
@@ -430,6 +444,18 @@ window.openEntityStub = async function(name, isPerson) {
     const content = document.getElementById('entity-stub-content');
     if (content) content.textContent = 'Could not load data.';
   }
+};
+
+window.esWatchlist = function(idx) {
+  const item = window._esFilms?.[idx];
+  if (!item) return;
+  import('./watchlist.js').then(({ addToWatchlist }) => addToWatchlist(item));
+};
+
+window.overlapWatchlist = function() {
+  const item = window._overlapPredictFilm;
+  if (!item) return;
+  import('./watchlist.js').then(({ addToWatchlist }) => addToWatchlist(item));
 };
 
 window.toggleFriendEntity = function(entityId) {
@@ -623,7 +649,35 @@ function friendListHTML(friends, incoming = [], outgoing = []) {
 
 // ── FRIEND PROFILE ──
 
+function sharedWatchlistHTML(friend, color) {
+  const myList = currentUser?.watchlist || [];
+  const friendList = friend?.watchlist || [];
+  if (!myList.length || !friendList.length) return '';
+  const friendTmdbIds = new Set(friendList.map(w => String(w.tmdbId)));
+  const shared = myList.filter(w => friendTmdbIds.has(String(w.tmdbId)));
+  if (!shared.length) return '';
+  return `
+    <div style="padding-bottom:28px;margin-bottom:28px;border-bottom:1px solid var(--rule)">
+      <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:6px">Both want to watch</div>
+      <div style="font-family:'DM Sans',sans-serif;font-size:12px;color:var(--dim);margin-bottom:14px">Films on both your watch lists — worth making a plan.</div>
+      ${shared.map(item => {
+        const poster = item.poster
+          ? `<img src="https://image.tmdb.org/t/p/w92${item.poster}" style="width:32px;height:48px;object-fit:cover;flex-shrink:0">`
+          : `<div style="width:32px;height:48px;background:var(--rule);flex-shrink:0"></div>`;
+        return `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--rule)">
+          ${poster}
+          <div style="flex:1;min-width:0">
+            <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:15px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.title}</div>
+            <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);margin-top:2px">${item.year || ''}${item.director ? ' · '+item.director.split(',')[0] : ''}</div>
+          </div>
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:${color};letter-spacing:0.5px;flex-shrink:0">Both watching</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
 function renderFriendProfile(el, friend) {
+  currentFriendCache = friend;
   const arch = ARCHETYPES[friend.archetype] || {};
   const color = arch.palette || '#3D5A80';
   const compat = computeCompatibility(currentUser.weights || {}, friend.weights || {}, MOVIES, friend.movies || []);
@@ -673,6 +727,8 @@ function renderFriendProfile(el, friend) {
           </div>
         </div>
 
+        ${sharedWatchlistHTML(friend, color)}
+
         <div style="padding-bottom:28px;margin-bottom:28px;border-bottom:1px solid var(--rule)">
           <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:20px">Taste Fingerprint Overlap</div>
           <div style="display:flex;flex-direction:column;align-items:center;overflow-x:auto;width:100%">
@@ -686,9 +742,19 @@ function renderFriendProfile(el, friend) {
 
         ${coRatedHTML(compat.coRated, color)}
 
-        <div style="padding-bottom:48px">
+        <div style="padding-bottom:28px;margin-bottom:28px;border-bottom:1px solid var(--rule)">
           <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:12px">Taste Analysis</div>
           <div id="friend-insight" style="font-family:'DM Sans',sans-serif;font-size:14px;color:var(--dim);font-style:italic;line-height:1.8">Analyzing…</div>
+        </div>
+
+        <div style="padding-bottom:48px">
+          <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:6px">Predict for both</div>
+          <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--dim);line-height:1.6;margin-bottom:16px">Search a film to see how it would land for the two of you together.</div>
+          <div style="display:flex;gap:8px">
+            <input id="overlap-predict-search" type="text" placeholder="Search a film…" oninput="overlapPredictDebounce()" style="flex:1;padding:12px 14px;border:1px solid var(--rule-dark);background:white;font-family:'DM Sans',sans-serif;font-size:15px;outline:none;color:var(--ink)">
+          </div>
+          <div id="overlap-predict-results" style="margin-top:4px"></div>
+          <div id="overlap-predict-result" style="margin-top:20px"></div>
         </div>
       </div>
 
@@ -1006,6 +1072,187 @@ function computeCompatibility(weightsA, weightsB, moviesA, moviesB) {
 }
 
 // ── AI INSIGHT ──
+
+// ── OVERLAP PREDICT ──
+
+window.overlapPredictDebounce = function() {
+  clearTimeout(overlapPredictDebounceTimer);
+  overlapPredictDebounceTimer = setTimeout(overlapPredictSearch, 500);
+};
+
+window.overlapPredictSearch = async function() {
+  const q = document.getElementById('overlap-predict-search')?.value.trim();
+  if (!q || q.length < 2) return;
+  const resultsEl = document.getElementById('overlap-predict-results');
+  if (!resultsEl) return;
+  resultsEl.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);padding:8px 0">Searching…</div>`;
+  try {
+    const res = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${TMDB_KEY}&query=${encodeURIComponent(q)}&language=en-US&page=1`);
+    const data = await res.json();
+    const results = (data.results || []).slice(0, 5);
+    if (!results.length) { resultsEl.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);padding:8px 0">No results.</div>`; return; }
+    resultsEl.innerHTML = results.map(m => {
+      const year = m.release_date?.slice(0,4) || '';
+      const poster = m.poster_path
+        ? `<img src="https://image.tmdb.org/t/p/w92${m.poster_path}" style="width:24px;height:36px;object-fit:cover;flex-shrink:0">`
+        : `<div style="width:24px;height:36px;background:var(--rule);flex-shrink:0"></div>`;
+      const safeTitle = (m.title || '').replace(/'/g, "\\'");
+      return `<div onclick="overlapPredictSelect(${m.id},'${safeTitle}','${year}')" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--rule);cursor:pointer" onmouseover="this.style.background='var(--cream)'" onmouseout="this.style.background=''">
+        ${poster}
+        <div>
+          <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--ink)">${m.title}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">${year}</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    resultsEl.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);padding:8px 0">Search failed.</div>`;
+  }
+};
+
+window.overlapPredictSelect = async function(tmdbId, title, year) {
+  const resultsEl = document.getElementById('overlap-predict-results');
+  const resultEl = document.getElementById('overlap-predict-result');
+  const searchEl = document.getElementById('overlap-predict-search');
+  if (resultsEl) resultsEl.innerHTML = '';
+  if (searchEl) searchEl.value = title;
+  if (resultEl) resultEl.innerHTML = `
+    <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:18px;color:var(--dim);padding:20px 0">Analyzing both palates…</div>`;
+
+  let detail = {}, credits = {};
+  try {
+    const [dRes, cRes] = await Promise.all([
+      fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${TMDB_KEY}`),
+      fetch(`https://api.themoviedb.org/3/movie/${tmdbId}/credits?api_key=${TMDB_KEY}`)
+    ]);
+    detail = await dRes.json();
+    credits = await cRes.json();
+  } catch(e) {}
+
+  const director = (credits.crew||[]).filter(c=>c.job==='Director').map(c=>c.name).join(', ');
+  const cast = (credits.cast||[]).slice(0,8).map(c=>c.name).join(', ');
+  const genres = (detail.genres||[]).map(g=>g.name).join(', ');
+  const overview = detail.overview || '';
+  const poster = detail.poster_path || null;
+
+  const film = { tmdbId, title, year, director, cast, genres, overview, poster };
+  const friend = currentFriendCache;
+  if (!friend) { if (resultEl) resultEl.innerHTML = ''; return; }
+
+  await runOverlapPrediction(film, friend, resultEl);
+};
+
+function buildOverlapProfile(movies, weights, archetype, displayName) {
+  const sorted = [...(movies||[])].sort((a,b) => b.total - a.total);
+  const top10 = sorted.slice(0,10).map(m => `${m.title} (${m.total})`).join(', ');
+  const bottom5 = sorted.slice(-5).map(m => `${m.title} (${m.total})`).join(', ');
+  const weightStr = CATS.map(c => `${c}:${(weights||{})[c]||1}`).join(', ');
+  const avgs = {};
+  CATS.forEach(cat => {
+    const vals = (movies||[]).filter(m=>m.scores?.[cat]!=null).map(m=>m.scores[cat]);
+    avgs[cat] = vals.length ? Math.round(vals.reduce((s,v)=>s+v,0)/vals.length*10)/10 : '—';
+  });
+  return { displayName, archetype, totalFilms: (movies||[]).length, top10, bottom5, weightStr, avgs };
+}
+
+function overlapFindComps(film, movies) {
+  const dirs = (film.director||'').split(',').map(s=>s.trim()).filter(Boolean);
+  const cast = (film.cast||'').split(',').map(s=>s.trim()).filter(Boolean);
+  return (movies||[]).filter(m => {
+    const mDirs = (m.director||'').split(',').map(s=>s.trim());
+    const mCast = (m.cast||'').split(',').map(s=>s.trim());
+    return dirs.some(d=>mDirs.includes(d)) || cast.some(c=>mCast.includes(c));
+  }).sort((a,b)=>b.total-a.total).slice(0,5);
+}
+
+async function runOverlapPrediction(film, friend, resultEl) {
+  const me = buildOverlapProfile(MOVIES, currentUser.weights, currentUser.archetype, currentUser.display_name);
+  const them = buildOverlapProfile(friend.movies, friend.weights, friend.archetype, friend.display_name);
+  const myComps = overlapFindComps(film, MOVIES);
+  const friendComps = overlapFindComps(film, friend.movies);
+
+  const compStr = (arr, label) => arr.length
+    ? arr.map(m=>`  - ${m.title} (${m.total})`).join('\n')
+    : '  None';
+
+  const prompt = `Two users want to know how a film would land for them watching together. Predict a single combined score and explain what each would respond to specifically.
+
+USER 1 — ${me.displayName} (${me.archetype}):
+Films rated: ${me.totalFilms} · Weights: ${me.weightStr}
+Category avgs: ${Object.entries(me.avgs).map(([k,v])=>`${k}:${v}`).join(', ')}
+Top 10: ${me.top10 || 'N/A'} · Bottom 5: ${me.bottom5 || 'N/A'}
+Relevant comparables:
+${compStr(myComps)}
+
+USER 2 — ${them.displayName} (${them.archetype}):
+Films rated: ${them.totalFilms} · Weights: ${them.weightStr}
+Category avgs: ${Object.entries(them.avgs).map(([k,v])=>`${k}:${v}`).join(', ')}
+Top 10: ${them.top10 || 'N/A'} · Bottom 5: ${them.bottom5 || 'N/A'}
+Relevant comparables:
+${compStr(friendComps)}
+
+FILM TO PREDICT:
+Title: ${film.title}
+Year: ${film.year}
+Director: ${film.director || 'unknown'}
+Genres: ${film.genres || 'unknown'}
+Synopsis: ${film.overview || 'not available'}
+
+TASK: Predict one combined score (0–100). Write 2–3 sentences that distinguish what ${me.displayName} would specifically respond to versus what ${them.displayName} would respond to. Ground it in their actual rated films by name. Use their names directly — never say "User 1" or "User 2."
+
+Respond with valid JSON only:
+{"predicted_score":<integer>,"confidence":"high"|"medium"|"low","reasoning":"<2-3 sentences using both users names and specific films>"}`;
+
+  try {
+    const res = await fetch(PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system: 'You are a precise film taste prediction engine. Respond ONLY with valid JSON — no preamble, no markdown.',
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const data = await res.json();
+    const text = data.content?.[0]?.text || '';
+    const prediction = JSON.parse(text.replace(/```json|```/g,'').trim());
+
+    const arch = ARCHETYPES[friend.archetype] || {};
+    const color = arch.palette || '#3D5A80';
+    const posterHtml = film.poster
+      ? `<img src="https://image.tmdb.org/t/p/w185${film.poster}" style="width:56px;height:84px;object-fit:cover;flex-shrink:0">`
+      : `<div style="width:56px;height:84px;background:var(--rule);flex-shrink:0"></div>`;
+    const confLabel = { high:'High confidence', medium:'Medium confidence', low:'Low confidence' }[prediction.confidence] || '';
+
+    const watchlistItem = { tmdbId: film.tmdbId, title: film.title, year: film.year, poster: film.poster, director: film.director, overview: film.overview };
+    window._overlapPredictFilm = watchlistItem;
+
+    if (resultEl) resultEl.innerHTML = `
+      <div style="display:flex;gap:16px;align-items:flex-start;margin-bottom:20px">
+        ${posterHtml}
+        <div style="flex:1">
+          <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:22px;color:var(--ink);margin-bottom:4px">${film.title}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-bottom:12px">${film.year}${film.director ? ' · '+film.director : ''}</div>
+          <div style="display:flex;align-items:baseline;gap:8px">
+            <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:48px;color:${color};line-height:1;letter-spacing:-2px">${prediction.predicted_score}</div>
+            <div>
+              <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim)">/100 combined</div>
+              <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);margin-top:2px">${confLabel}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="padding:16px 18px;background:var(--surface-dark);margin-bottom:16px">
+        <div style="font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-dark-dim);margin-bottom:8px">Why this score</div>
+        <div style="font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.7;color:var(--on-dark)">${prediction.reasoning}</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="overlapWatchlist()" style="font-family:'DM Mono',monospace;font-size:10px;padding:10px 14px;background:none;border:1px solid var(--rule-dark);color:var(--dim);cursor:pointer;letter-spacing:0.5px">＋ Watchlist</button>
+        <button onclick="document.getElementById('overlap-predict-search').value='';document.getElementById('overlap-predict-result').innerHTML=''" style="font-family:'DM Mono',monospace;font-size:10px;padding:10px 14px;background:none;border:1px solid var(--rule-dark);color:var(--dim);cursor:pointer;letter-spacing:0.5px">← New search</button>
+      </div>`;
+  } catch(e) {
+    if (resultEl) resultEl.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);padding:12px 0">Prediction failed. Try again.</div>`;
+  }
+}
 
 async function loadFriendInsight(friend, compat, color) {
   const el = document.getElementById('friend-insight');

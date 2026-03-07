@@ -15,6 +15,8 @@ import {
 import { showSyncPanel, openArchetypeModal, closeArchetypeModal, previewWeight, resetArchetypeWeights, saveArchetypeWeights } from './modules/archetypemodal.js';
 import { renderProfile } from './modules/profile.js';
 import { renderFriends, handleFriendInvite, updateFriendsNotificationDot } from './modules/friends.js';
+import { renderWatchlist, addToWatchlist } from './modules/watchlist.js';
+import { predictAddToWatchlist } from './modules/predict.js';
 
 // ── SCREEN NAVIGATION ──
 export function showScreen(id) {
@@ -28,6 +30,7 @@ export function showScreen(id) {
   if (id === 'predict') initPredict();
   if (id === 'profile') renderProfile();
   if (id === 'friends') renderFriends();
+  if (id === 'watchlist') renderWatchlist();
   localStorage.setItem('palatemap_last_screen', id);
 }
 
@@ -176,6 +179,7 @@ async function init() {
     if (lastScreen === 'analysis') renderAnalysis();
     if (lastScreen === 'profile') renderProfile();
     if (lastScreen === 'friends') renderFriends();
+    if (lastScreen === 'watchlist') renderWatchlist();
   }
 }
 
@@ -228,7 +232,7 @@ window.__ledger = {
   showSyncPanel, openArchetypeModal, closeArchetypeModal, previewWeight,
   resetArchetypeWeights, saveArchetypeWeights, exportData, resetStorage,
   updateStorageStatus, updateMastheadProfile, setCloudStatus, showToast,
-  renderFriends, updateTasteBanner
+  renderFriends, updateTasteBanner, renderWatchlist, addToWatchlist, predictAddToWatchlist
 };
 
 // Bridge window globals for inline onclick= attributes in HTML
@@ -241,7 +245,7 @@ const bridge = [
   'renderProfile', 'setViewMode',
   'showSyncPanel','openArchetypeModal','closeArchetypeModal','previewWeight',
   'resetArchetypeWeights','saveArchetypeWeights','exportData','resetStorage',
-  'renderAnalysis','renderFriends','updateTasteBanner'
+  'renderAnalysis','renderFriends','updateTasteBanner','renderWatchlist','addToWatchlist','predictAddToWatchlist'
 ];
 bridge.forEach(fn => { window[fn] = window.__ledger[fn]; });
 

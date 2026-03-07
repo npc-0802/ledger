@@ -296,9 +296,22 @@ function renderPrediction(film, prediction, comps) {
 
     <div class="btn-row" style="margin-top:32px">
       <button class="btn btn-outline" onclick="initPredict()">← New prediction</button>
-      <button class="btn btn-action" onclick="predictAddToList()">Add to list & rate it →</button>
+      <button class="btn btn-outline" onclick="predictAddToWatchlist()">＋ Watchlist</button>
+      <button class="btn btn-action" onclick="predictAddToList()">Rate now →</button>
     </div>
   `;
+}
+
+export function predictAddToWatchlist() {
+  if (!predictSelectedFilm) return;
+  import('./watchlist.js').then(({ addToWatchlist }) => addToWatchlist({
+    tmdbId: predictSelectedFilm.tmdbId,
+    title: predictSelectedFilm.title,
+    year: predictSelectedFilm.year,
+    poster: predictSelectedFilm.poster,
+    director: predictSelectedFilm.director,
+    overview: predictSelectedFilm.overview
+  }));
 }
 
 export function predictAddToList() {

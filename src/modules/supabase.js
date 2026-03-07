@@ -69,7 +69,8 @@ async function _applyUserData(data) {
     id: data.id, username: data.username, display_name: data.display_name,
     archetype: data.archetype, archetype_secondary: data.archetype_secondary,
     weights: data.weights, harmony_sensitivity: data.harmony_sensitivity,
-    email: data.email, auth_id: data.auth_id
+    email: data.email, auth_id: data.auth_id,
+    watchlist: data.watchlist || []
   });
 
   if (data.movies && Array.isArray(data.movies) && data.movies.length >= MOVIES.length) {
@@ -103,7 +104,8 @@ export async function syncToSupabase() {
     archetype: user.archetype, archetype_secondary: user.archetype_secondary,
     weights: user.weights, harmony_sensitivity: user.harmony_sensitivity || 0.3,
     movies: MOVIES, updated_at: new Date().toISOString(),
-    email: user.email || null, auth_id: user.auth_id || null
+    email: user.email || null, auth_id: user.auth_id || null,
+    watchlist: user.watchlist || []
   };
   const MAX_RETRIES = 2;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -161,7 +163,7 @@ export async function loadFriends(userId) {
 export async function loadFriendFull(friendId) {
   try {
     const { data } = await sb.from('palatemap_users')
-      .select('id, display_name, username, archetype, archetype_secondary, weights, movies')
+      .select('id, display_name, username, archetype, archetype_secondary, weights, movies, watchlist')
       .eq('id', friendId).single();
     return data || null;
   } catch(e) { return null; }

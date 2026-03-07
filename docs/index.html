@@ -25,7 +25,7 @@
 <meta name="description" content="Everyone has a palate. Rate the films you love, discover your taste archetype, and compare with friends.">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230c0b09'/%3E%3Crect x='0' y='28' width='32' height='4' fill='%23D4A84B'/%3E%3Ctext x='16' y='21' text-anchor='middle' font-family='Georgia,serif' font-style='italic' font-weight='900' font-size='14' fill='white'%3EPM%3C/text%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/index-D1HDrYEW.js"></script>
+  <script type="module" crossorigin src="/assets/index-BRagZxlr.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/index-BuIFoyDd.css">
 </head>
 <body>
@@ -83,6 +83,7 @@
     <button class="nav-btn" onclick="showScreen('predict')">Predict</button>
     <button class="nav-btn" onclick="showScreen('analysis')">Analysis</button>
     <button class="nav-btn" id="nav-friends" onclick="showScreen('friends')" style="position:relative">Friends</button>
+    <button class="nav-btn" onclick="showScreen('watchlist')">Watch List</button>
     <button class="nav-btn" id="nav-profile" onclick="showScreen('profile')">Profile</button>
     <button class="nav-btn invite-tab" onclick="openInviteModal()">Invite a friend →</button>
     <button class="nav-btn action-tab" onclick="showScreen('add')">+ Add Film</button>
@@ -107,6 +108,10 @@
   <button class="nav-mobile-btn" id="nav-mobile-friends" onclick="showScreen('friends')" style="position:relative">
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="6" cy="5" r="3" fill="currentColor"/><path d="M0 16c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="14" cy="5" r="2.5" fill="currentColor" opacity="0.5"/><path d="M11.5 16c0-2.5 1.1-4.7 2.5-5.5" stroke="currentColor" stroke-width="1.5" fill="none" opacity="0.5"/></svg>
     <span>Friends</span>
+  </button>
+  <button class="nav-mobile-btn" onclick="showScreen('watchlist')">
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 1h12a1 1 0 0 1 1 1v14l-7-4-7 4V2a1 1 0 0 1 1-1z" fill="currentColor"/></svg>
+    <span>Watch</span>
   </button>
   <button class="nav-mobile-btn" onclick="showScreen('profile')">
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="6" r="4" fill="currentColor"/><path d="M1 17c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
@@ -143,7 +148,7 @@
 <div id="add" class="screen">
 <div class="add-layout">
   <h1 class="add-title">Rate a new film</h1>
-  <p class="add-sub">The calibration system uses your existing rankings as anchors — instead of picking numbers in isolation, you'll compare against films you already know. Produces more consistent, defensible scores.</p>
+  <p class="add-sub">Score each of the 8 categories from 0–100. Don't stress about exact numbers — just go with your gut. You'll calibrate against other films over time, and your scores will sharpen as your list grows.</p>
 
   <div class="steps-bar">
     <div class="step-item">
@@ -221,7 +226,7 @@
   <!-- STEP 2: Calibrate -->
   <div class="step-panel" id="step2">
     <div class="calibration-intro">
-      <strong>How this works:</strong> For each category, you'll pick an anchor film — one from your list that feels closest to the new film in that dimension. The slider then lets you fine-tune relative to that anchor. This stops you from inflating scores in isolation.
+      <strong>Score guide:</strong> 90+ = all-time favorite · 80s = excellent · 70s = solid · 60s = mixed · below 60 = flawed. Don't overthink the number — you'll calibrate against your other films over time.
     </div>
     <div id="calibrationCategories"></div>
     <div class="btn-row">
@@ -347,6 +352,11 @@
 <!-- ══════════════ FRIENDS ══════════════ -->
 <div id="friends" class="screen">
   <div id="friendsContent"></div>
+</div>
+
+<!-- ══════════════ WATCHLIST ══════════════ -->
+<div id="watchlist" class="screen">
+  <div id="watchlistContent"></div>
 </div>
 
 <!-- ══════════════ MODALS ══════════════ -->
