@@ -94,18 +94,38 @@ async function init() {
     setCloudStatus('syncing');
     const loaded = await loadFromSupabaseByAuth(session.user.id, session.user.email);
     if (!loaded) {
-      // Authenticated but no profile yet — new user after Google/magic link
-      const pendingName = localStorage.getItem('palatemap_pending_name')
-        || session.user.user_metadata?.full_name
-        || session.user.user_metadata?.name
-        || session.user.email?.split('@')[0]
-        || '';
-      localStorage.removeItem('palatemap_pending_name');
-      window._pendingAuthSession = session;
-      renderRankings();
-      updateStorageStatus();
-      launchOnboarding({ skipToQuiz: true, name: pendingName });
-      return;
+      // Check for a locally-stored legacy profile to link to this auth session
+      loadUserLocally();
+      if (currentUser && !currentUser.auth_id) {
+        // User authenticated — link their auth session to their existing profile
+        const { sb: supabase } = await import('./modules/supabase.js');
+        await supabase.from('palatemap_users').update({
+          auth_id: session.user.id,
+          email: session.user.email || null
+        }).eq('id', currentUser.id);
+        setCurrentUser({ ...currentUser, auth_id: session.user.id, email: session.user.email || null });
+        saveUserLocally();
+        // Now load properly from Supabase
+        const linked = await loadFromSupabaseByAuth(session.user.id, session.user.email);
+        if (!linked) {
+          // Profile exists locally but not yet in Supabase — sync it up
+          const { syncToSupabase } = await import('./modules/supabase.js');
+          await syncToSupabase();
+        }
+      } else if (!currentUser) {
+        // Genuinely new user — send them through onboarding quiz
+        const pendingName = localStorage.getItem('palatemap_pending_name')
+          || session.user.user_metadata?.full_name
+          || session.user.user_metadata?.name
+          || session.user.email?.split('@')[0]
+          || '';
+        localStorage.removeItem('palatemap_pending_name');
+        window._pendingAuthSession = session;
+        renderRankings();
+        updateStorageStatus();
+        launchOnboarding({ skipToQuiz: true, name: pendingName });
+        return;
+      }
     }
   } else {
     // No auth session — fall back to legacy localStorage user
