@@ -116,15 +116,15 @@ function tasteNoteCard(user, movies) {
   const quote = arch.quote || '';
   const palette = arch.palette || '#3d5a80';
   return `
-    <div style="width:320px;border:1px solid var(--ink);background:var(--paper);overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;min-height:400px">
+    <div style="width:320px;height:440px;flex-shrink:0;border:1px solid var(--ink);background:var(--paper);overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;box-sizing:border-box">
       <div style="padding:28px 28px 0">
         <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:3px;text-transform:uppercase;color:var(--dim);margin-bottom:40px">palate map · taste note</div>
-        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(22px,4vw,28px);line-height:1.25;color:var(--ink);letter-spacing:-0.5px;margin-bottom:24px">${quote}</div>
+        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:26px;line-height:1.25;color:var(--ink);letter-spacing:-0.5px;margin-bottom:24px">${quote}</div>
         <div style="width:32px;height:2px;background:${palette};margin-bottom:20px"></div>
         <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:18px;color:var(--ink);margin-bottom:4px">${user.display_name}</div>
         <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);letter-spacing:1px">${user.archetype}${user.archetype_secondary ? ' · ' + user.archetype_secondary : ''}</div>
       </div>
-      <div style="padding:0 28px 24px;margin-top:40px">
+      <div style="padding:0 28px 24px">
         <div style="border-top:1px solid var(--rule);padding-top:14px;display:flex;justify-content:space-between;font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">
           <span>${movies.length} films</span>
           ${topCat ? `<span>best: ${CAT_LABELS[topCat.c]}</span>` : `<span>avg ${avgTotal}</span>`}
@@ -140,24 +140,26 @@ function shareCard(user, movies) {
   const avgTotal = movies.length ? (movies.reduce((s, m) => s + m.total, 0) / movies.length).toFixed(1) : '—';
   const arch = ARCHETYPES[user.archetype] || {};
   return `
-    <div style="width:320px;border:1px solid var(--ink);background:var(--paper);overflow:hidden">
-      <div style="background:var(--surface-dark);padding:20px 24px 20px;border-bottom:3px solid ${arch.palette || '#3d5a80'}">
+    <div style="width:320px;height:440px;flex-shrink:0;border:1px solid var(--ink);background:var(--paper);overflow:hidden;display:flex;flex-direction:column;box-sizing:border-box">
+      <div style="background:var(--surface-dark);padding:20px 24px 20px;border-bottom:3px solid ${arch.palette || '#3d5a80'};flex-shrink:0">
         <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:3px;text-transform:uppercase;color:var(--on-dark-dim);margin-bottom:14px">palate map</div>
         <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:28px;color:var(--on-dark);line-height:1;margin-bottom:4px">${user.display_name}</div>
         <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim);margin-bottom:14px">${user.username}</div>
         <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:22px;color:${arch.palette || 'var(--on-dark)'};margin-bottom:4px">${user.archetype}</div>
         ${user.archetype_secondary ? `<div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim)">+ ${user.archetype_secondary}</div>` : ''}
       </div>
-      <div style="padding:16px 24px">
-        <div style="font-family:'DM Sans',sans-serif;font-size:11px;line-height:1.65;color:var(--dim);margin-bottom:12px">${arch.description || ''}</div>
-      <div style="border-top:1px solid var(--rule);padding-top:12px;margin-bottom:4px">
-        ${top3.map(m => `<div style="font-family:'DM Sans',sans-serif;font-size:11px;color:var(--ink);margin-bottom:5px;display:flex;justify-content:space-between"><span>${m.title}</span><span style="color:var(--dim);font-family:'DM Mono',monospace;font-size:10px">${m.total}</span></div>`).join('')}
-      </div>
-      <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--rule);font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);display:flex;justify-content:space-between">
-        <span>${movies.length} films</span>
-        <span>avg ${avgTotal}</span>
-        <span>palatemap.com</span>
-      </div>
+      <div style="padding:16px 24px;flex:1;display:flex;flex-direction:column;justify-content:space-between">
+        <div>
+          <div style="font-family:'DM Sans',sans-serif;font-size:11px;line-height:1.65;color:var(--dim);margin-bottom:12px">${arch.description || ''}</div>
+          <div style="border-top:1px solid var(--rule);padding-top:12px;margin-bottom:4px">
+            ${top3.map(m => `<div style="font-family:'DM Sans',sans-serif;font-size:11px;color:var(--ink);margin-bottom:5px;display:flex;justify-content:space-between"><span>${m.title}</span><span style="color:var(--dim);font-family:'DM Mono',monospace;font-size:10px">${m.total}</span></div>`).join('')}
+          </div>
+        </div>
+        <div style="padding-top:10px;border-top:1px solid var(--rule);font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);display:flex;justify-content:space-between">
+          <span>${movies.length} films</span>
+          <span>avg ${avgTotal}</span>
+          <span>palatemap.com</span>
+        </div>
       </div>
     </div>
   `;
@@ -254,7 +256,7 @@ export function renderProfile() {
       <div style="margin-bottom:40px">
         <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:6px">Your Palate Map Card</div>
         <div style="font-family:'DM Sans',sans-serif;font-size:12px;color:var(--dim);margin-bottom:20px">Screenshot to share.</div>
-        <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start">
+        <div style="display:flex;gap:20px;align-items:flex-start">
           ${shareCard(user, movies)}
           ${tasteNoteCard(user, movies)}
         </div>
