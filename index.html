@@ -314,5 +314,38 @@
 </div>
 
 <script type="module" src="src/main.js"></script>
+<script>
+window.backfillProductionCompanies = async function() {
+  const KEY = 'filmRankings_v1';
+  const TMDB = 'https://api.themoviedb.org/3';
+  const API = 'f5a446a5f70a9f6a16a8ddd052c121f2';
+  const movies = JSON.parse(localStorage.getItem(KEY) || '[]');
+  const missing = movies.filter(m => !m.productionCompanies);
+  if (!missing.length) { console.log('All films already have production company data.'); return; }
+  console.log(`Backfilling ${missing.length} films…`);
+  let done = 0, failed = 0;
+  for (const film of missing) {
+    try {
+      const q = encodeURIComponent(film.title);
+      const yr = film.year ? `&year=${film.year}` : '';
+      const sr = await fetch(`${TMDB}/search/movie?api_key=${API}&query=${q}${yr}&include_adult=false`);
+      const sd = await sr.json();
+      const match = sd.results?.[0];
+      if (!match) { console.warn(`No match: ${film.title}`); failed++; continue; }
+      const dr = await fetch(`${TMDB}/movie/${match.id}?api_key=${API}`);
+      const dd = await dr.json();
+      film.productionCompanies = (dd.production_companies || []).map(c => c.name).join(', ');
+      done++;
+      console.log(`[${done}/${missing.length}] ${film.title} → ${film.productionCompanies || '(none)'}`);
+    } catch(e) {
+      console.warn(`Error: ${film.title}:`, e.message);
+      failed++;
+    }
+    await new Promise(r => setTimeout(r, 275));
+  }
+  localStorage.setItem(KEY, JSON.stringify(movies));
+  console.log(`Done. ${done} updated, ${failed} failed. Reload the page to sync.`);
+};
+</script>
 </body>
 </html>
