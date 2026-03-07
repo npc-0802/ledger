@@ -181,6 +181,7 @@ async function init() {
     navBtns.forEach(b => { if (b.getAttribute('onclick')?.includes(lastScreen)) b.classList.add('active'); });
     if (lastScreen === 'analysis') renderAnalysis();
     if (lastScreen === 'profile') renderProfile();
+    if (lastScreen === 'friends') renderFriends();
   }
 }
 
