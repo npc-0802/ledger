@@ -141,7 +141,7 @@ function shareCard(user, movies) {
   const arch = ARCHETYPES[user.archetype] || {};
   return `
     <div style="width:320px;height:440px;flex-shrink:0;border:1px solid var(--ink);background:var(--paper);overflow:hidden;display:flex;flex-direction:column;box-sizing:border-box">
-      <div style="background:var(--surface-dark);padding:20px 24px 20px;border-bottom:3px solid ${arch.palette || '#3d5a80'};flex-shrink:0">
+      <div class="dark-grid" style="background:var(--surface-dark);padding:20px 24px 20px;border-bottom:3px solid ${arch.palette || '#3d5a80'};flex-shrink:0">
         <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:3px;text-transform:uppercase;color:var(--on-dark-dim);margin-bottom:14px">palate map</div>
         <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:28px;color:var(--on-dark);line-height:1;margin-bottom:4px">${user.display_name}</div>
         <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim);margin-bottom:14px">${user.username}</div>
@@ -197,7 +197,7 @@ export function renderProfile() {
       <!-- ARCHETYPE -->
       <div style="margin-bottom:40px;padding-bottom:32px;border-bottom:1px solid var(--rule)">
         <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:16px">Palate</div>
-        <div style="background:var(--surface-dark);padding:28px 32px;margin-bottom:20px;border-top:3px solid ${arch.palette || '#3d5a80'}">
+        <div class="dark-grid" style="background:var(--surface-dark);padding:28px 32px;margin-bottom:20px;border-top:3px solid ${arch.palette || '#3d5a80'}">
           <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--on-dark-dim);margin-bottom:10px">primary</div>
           <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:40px;color:${arch.palette || 'var(--on-dark)'};line-height:1;margin-bottom:14px">${user.archetype}</div>
           ${user.archetype_secondary ? `

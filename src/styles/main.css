@@ -302,3 +302,90 @@ body {
 }
 
 @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.3 } }
+
+/* ── MOBILE NAV ── */
+.nav-mobile {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--paper);
+  border-top: 1px solid var(--rule-dark);
+  z-index: 100;
+  padding-bottom: env(safe-area-inset-bottom);
+  align-items: stretch;
+}
+.nav-mobile-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 4px 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--dim);
+  font-family: 'DM Mono', monospace;
+  font-size: 8px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  transition: color 0.15s;
+}
+.nav-mobile-btn.active { color: var(--ink); }
+.nav-mobile-btn:hover  { color: var(--ink); }
+.nav-mobile-add {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+}
+.nav-mobile-add-inner {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--action);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  transition: background 0.15s;
+}
+.nav-mobile-add:hover .nav-mobile-add-inner { background: var(--action-dark); }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 768px) {
+  .nav-strip { display: none; }
+  .nav-mobile { display: flex; }
+
+  .masthead { padding: 24px 20px 0; }
+  .masthead-wordmark { font-size: 36px; }
+  .masthead-meta { margin-bottom: 12px; }
+  .masthead-rules { margin-top: 10px; }
+
+  .screen { padding: 24px 20px calc(72px + env(safe-area-inset-bottom)); }
+
+  /* Rankings table: hide score columns, show title+total only */
+  .rankings-header { display: none; }
+  .film-row {
+    grid-template-columns: 44px 32px 1fr 56px;
+  }
+  .film-row > .film-score { display: none; }
+  .film-poster-cell { display: none; }
+
+  /* Film grid: 2 columns */
+  .film-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; }
+
+  /* Modal: full screen */
+  .modal-overlay { padding: 0; align-items: flex-end; }
+  .modal { max-width: 100%; max-height: 92vh; border-radius: 8px 8px 0 0; padding: 28px 20px; border-left: none; border-right: none; border-bottom: none; }
+
+  /* Analysis/profile content */
+  #analysisContent, #profileContent { max-width: 100%; }
+}

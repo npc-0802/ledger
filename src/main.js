@@ -19,8 +19,9 @@ import { renderProfile } from './modules/profile.js';
 export function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  event.target.classList.add('active');
+  document.querySelectorAll('.nav-btn, .nav-mobile-btn').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('onclick')?.includes(`'${id}'`));
+  });
   if (id === 'analysis') renderAnalysis();
   if (id === 'calibration') resetCalibration();
   if (id === 'predict') initPredict();
