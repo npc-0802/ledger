@@ -105,7 +105,7 @@ export async function syncToSupabase() {
     weights: user.weights, harmony_sensitivity: user.harmony_sensitivity || 0.3,
     movies: MOVIES, updated_at: new Date().toISOString(),
     email: user.email || null, auth_id: user.auth_id || null,
-    watchlist: user.watchlist || []
+    ...(user.watchlist !== undefined ? { watchlist: user.watchlist } : {})
   };
   const MAX_RETRIES = 2;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -163,8 +163,15 @@ export async function loadFriends(userId) {
 export async function loadFriendFull(friendId) {
   try {
     const { data } = await sb.from('palatemap_users')
-      .select('id, display_name, username, archetype, archetype_secondary, weights, movies, watchlist')
+      .select('id, display_name, username, archetype, archetype_secondary, weights, movies')
       .eq('id', friendId).single();
+    if (data) {
+      // Fetch watchlist separately so a missing column doesn't break the whole profile load
+      try {
+        const wlRes = await sb.from('palatemap_users').select('watchlist').eq('id', friendId).single();
+        data.watchlist = wlRes.data?.watchlist || [];
+      } catch(_) { data.watchlist = []; }
+    }
     return data || null;
   } catch(e) { return null; }
 }

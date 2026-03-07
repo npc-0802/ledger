@@ -1,5 +1,5 @@
 Palate Map
-Product Brief · Living Document · v3.7
+Product Brief · Living Document · v3.8
 Last updated: March 2026
 Confidential — do not distribute
 
@@ -58,7 +58,7 @@ Design Principles
 • Mobile: responsive bottom tab bar + layout pass complete (Phase 2). Fixed bottom nav with 5 tabs; modal slides up as sheet; rankings collapse gracefully.
 
 03  Current Architecture
-Status: Phase 1 complete, Phase 2 complete, Phase 3.1–3.2 complete. Vite multi-file vanilla JS.
+Status: Phase 1 complete, Phase 2 complete, Phase 3.1–3.4 complete. Vite multi-file vanilla JS.
 
 File Structure
 palatemap/
@@ -80,7 +80,8 @@ palatemap/
       onboarding.js    quiz, archetype reveal, import, cold landing flow
       profile.js       taste profile — fingerprint, radar, signature films w/ posters, card
       archetypemodal.js  weight editor modal, sign out
-      friends.js       friends list, friend profile, invite modal, overlap + taste views
+      friends.js       friends list, friend profile, invite modal, overlap + taste + predict views
+      watchlist.js     watch list screen — add, remove, rank from queue
       supabase.js      all cloud sync + auth + friends DB logic
       storage.js       localStorage helpers
     styles/
@@ -120,10 +121,20 @@ weights             jsonb  { plot, execution, acting, production,
                             enjoyability, rewatchability, ending, uniqueness }
 harmony_sensitivity numeric 0.0–1.0
 movies              jsonb  [ array of film objects ]
+watchlist           jsonb  [ array of watchlist objects ]
 email               text   (populated on first auth; used for account linking)
 auth_id             text   (Supabase auth user id; populated on first Google/magic link sign-in)
 invite_token        text   (single-use UUID for friend invite links; cleared after use)
 created_at / updated_at  timestamp
+
+Watchlist Object Schema
+tmdbId              number  TMDB film id
+title               string
+year                string
+poster              string  TMDB path e.g. "/abc123.jpg"
+director            string  (may be empty for entity-stub sourced items)
+overview            string
+addedAt             ISO timestamp
 
 palatemap_friendships
 requester_id        uuid → palatemap_users.id
@@ -195,6 +206,12 @@ Add Film
 Nav Strip
 Top bar above nav tabs. Contains: "Add a film" (primary) + "Invite a friend →" (secondary). "Invite a friend →" opens invite modal (not nav to Friends screen).
 
+Watch List (Phase 3.4 — Complete)
+Own nav tab in both desktop strip and mobile bottom nav (bookmark icon).
+Films saved from anywhere in the app: entity stub modal (＋ Watchlist button), Predict result, Overlap Predict result.
+Watch list screen: poster + title + year, Rank it → (navigates to Add Film pre-filled), ✕ remove. Empty state. Count header.
+Syncs to Supabase in user payload (watchlist field).
+
 Friends (Phase 3.2 — Complete)
 Own nav tab in both desktop strip and mobile bottom nav.
 Notification dot: persimmon dot on Friends nav item (desktop + mobile) when there are pending incoming friend requests. Clears when user opens Friends page.
@@ -221,6 +238,8 @@ Rankings tab (default): paginated list of friend's films sorted by score (10 at 
 Taste tab: solo radar (friend's archetype weights normalized by their max weight — same shape as their polygon in the overlap view) + category averages bar chart (Craft / Experience groups) + top-5 entities per type (directors/actors/writers/companies, min 2 films, sorted by avg score). Entities show TMDB portraits/logos loaded async. Each entity is expandable (▾/▴) to show inline film list. Film rows are clickable → score modal.
 
 Overlap tab: compatibility score (cosine similarity on weights + co-rated film agreement), dual radar overlay (both weight vectors in respective palette colors), co-rated films list sorted by biggest disagreement, AI-generated compatibility blurb via Claude proxy.
+Shared Watch List: if both users have watchlisted the same film, it surfaces in the Overlap tab as "Both want to watch."
+Overlap Predict: search bar at the bottom of the Overlap tab. Select any unrated film → sends both taste profiles (films, weights, archetypes) to Claude → returns a combined predicted score + reasoning that distinguishes what each person would respond to by name, anchored to their actual rated films. ＋ Watchlist button on result.
 
 Email notifications (via Resend + Cloudflare Worker)
 • Invite email: branded HTML, sent when user enters friend's email in invite modal.
@@ -251,7 +270,8 @@ Clicking display name navigates to Profile screen.
 • No test coverage. Shipping by feel.
 • Cloudflare Worker URL still uses ledger-proxy.noahparikhcott.workers.dev — cosmetic only, no functional impact. Rename deferred indefinitely.
 • Refreshing while inside a friend's profile page lands on friends list (friend ID not persisted). Acceptable for now.
-• Entity stub "Add" button navigates to Add Film screen and pre-fills search — relies on DOM timing (setTimeout 100ms) which is fragile. Revisit if unreliable.
+• Entity stub "Rate →" button navigates to Add Film screen and pre-fills search — relies on DOM timing (setTimeout 100ms) which is fragile. Revisit if unreliable.
+• Watch list director field is empty for items added from entity stubs (TMDB discovery results don't include director). Acceptable for now — the title pre-fill covers the core use case.
 • Auth quiz loop: mitigated with auto auth_id linking (legacy profiles now link on first sign-in) and "← Wrong account? Sign out" escape hatch on quiz intro when a pending auth session is detected. Root cause (no localStorage on first device) is expected — escape hatch is the UX solution.
 
 08  Full Product Roadmap
@@ -289,10 +309,14 @@ Phase 3 — Growth Features [IN PROGRESS]
   3.2.3 Friend profile ✓ — Rankings | Taste | Overlap tabs; paginated rankings with clickable score modal; solo radar (weight-based); category averages; top-5 entities with TMDB portraits + inline film expansion; overlap radar; compatibility score; co-rated films; AI blurb.
   3.2.4 Group radar — select 2–4 friends, all radars on one chart. [stretch, not started]
 
-• 3.3 Entity stub modal ✓ — clicking portrait or "Explore →" on any entity in a friend's Taste tab opens a modal with: TMDB portrait/logo, bio snippet, user's own ranked films for that entity (if any) with scores, and top TMDB films with "Add" CTA for unrated ones. Row-click expansion preserved; portrait + "Explore →" are separate interaction targets.
+• 3.3 Entity stub modal ✓ — clicking portrait or "Explore →" on any entity in a friend's Taste tab opens a modal with: TMDB portrait/logo, bio snippet, user's own ranked films for that entity (if any) with scores, and top TMDB films with ＋ Watchlist / Rate → split CTAs for unrated ones.
 
-• 3.4 Prediction engine polish — discovery mode, prediction history, confidence calibration.
-• 3.5 Tagging system — context tags (alone / with someone / rewatch / bad week).
+• 3.4 Watch List ✓ — own nav tab; films saved from entity stubs, predict results, and overlap predict; Rank it → launches Add Film pre-filled; synced to Supabase.
+
+• 3.5 Overlap Predict ✓ — search bar on friend Overlap tab; combined Claude prediction using both taste profiles; reasoning distinguishes each user by name with film-specific anchors; shared watchlist surfaces films both users have saved.
+
+• 3.6 Prediction engine polish — discovery mode, prediction history, confidence calibration.
+• 3.7 Tagging system — context tags (alone / with someone / rewatch / bad week).
 
 Phase 4 — Platform
 • 4.1 Universal entity search — global search bar surfacing any director/actor/writer/company regardless of whether the user has rated their films. Entity page shows: TMDB data, user's own rankings (if any), community avg score (requires 4.2). Requires schema change: separate palatemap_ratings table (see below).
@@ -328,4 +352,4 @@ Resend key:            stored in Cloudflare env var RESEND_API_KEY only
 GitHub repo:           github.com/npc-0802/palatemap (private)
 GitHub Pages:          palatemap.com (custom domain)
 
-Palate Map · private product brief · v3.7 · do not distribute
+Palate Map · private product brief · v3.8 · do not distribute
