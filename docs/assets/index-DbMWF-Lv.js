@@ -107,7 +107,7 @@
             <span style="font-family:'DM Mono',monospace;font-size:10px;font-weight:600;color:${I};min-width:36px;text-align:right">${S>0?"+":""}${S}</span>
           </div>`}).join("")}
       </div>`:""})()}
-  `,document.getElementById("filmModal").classList.add("open"),localStorage.setItem("ledger_last_modal",e),T||jt(t)}window.modalEnterEdit=function(){const e=y[ve];T=!0,R={...e.scores},he()};window.modalCancelEdit=function(){T=!1,R={},he()};window.modalUpdateScore=function(e,t){R[e]=parseInt(t);const o=document.getElementById(`modal-edit-val-${e}`);o&&(o.textContent=t,o.className=`breakdown-val ${K(parseInt(t))}`);const i=document.getElementById(`modal-edit-lbl-${e}`);i&&(i.textContent=we(parseInt(t)));const s=Q(R),n=document.getElementById("modal-total-display");n&&(n.textContent=s);const a=document.getElementById("modal-total-label");a&&(a.textContent=we(s))};window.modalSaveScores=function(){const e=y[ve];e.scores={...R},e.total=Q(R),T=!1,R={},le(),Y(),N(),Ie().catch(t=>console.warn("sync failed",t)),he()};async function jt(e){const t=document.getElementById("modal-insight");if(t)try{const{getFilmInsight:o}=await B(async()=>{const{getFilmInsight:s}=await import("./insights-Dm4ndxZY.js");return{getFilmInsight:s}},[]),i=await o(e);if(!document.getElementById("modal-insight"))return;t.innerHTML=`
+  `,document.getElementById("filmModal").classList.add("open"),localStorage.setItem("ledger_last_modal",e),T||jt(t)}window.modalEnterEdit=function(){const e=y[ve];T=!0,R={...e.scores},he()};window.modalCancelEdit=function(){T=!1,R={},he()};window.modalUpdateScore=function(e,t){R[e]=parseInt(t);const o=document.getElementById(`modal-edit-val-${e}`);o&&(o.textContent=t,o.className=`breakdown-val ${K(parseInt(t))}`);const i=document.getElementById(`modal-edit-lbl-${e}`);i&&(i.textContent=we(parseInt(t)));const s=Q(R),n=document.getElementById("modal-total-display");n&&(n.textContent=s);const a=document.getElementById("modal-total-label");a&&(a.textContent=we(s))};window.modalSaveScores=function(){const e=y[ve];e.scores={...R},e.total=Q(R),T=!1,R={},le(),Y(),N(),Ie().catch(t=>console.warn("sync failed",t)),he()};async function jt(e){const t=document.getElementById("modal-insight");if(t)try{const{getFilmInsight:o}=await B(async()=>{const{getFilmInsight:s}=await import("./insights-BYE3OQI1.js");return{getFilmInsight:s}},[]),i=await o(e);if(!document.getElementById("modal-insight"))return;t.innerHTML=`
       <div style="padding:14px 18px;background:var(--surface-dark);border-radius:6px">
         <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-dark-dim);margin-bottom:8px">Why this score</div>
         <div style="font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.7;color:var(--on-dark)">${i}</div>
@@ -189,7 +189,7 @@
           <div class="film-total">${u}</div>
         </div>`}).join("")}
     </div>
-  `,Rt(e,t,n)}async function Rt(e,t,o){const i=document.getElementById("explore-insight");if(i)try{const{getEntityInsight:s}=await B(async()=>{const{getEntityInsight:a}=await import("./insights-Dm4ndxZY.js");return{getEntityInsight:a}},[]),n=await s(e,t,o);if(!document.getElementById("explore-insight"))return;i.innerHTML=`
+  `,Rt(e,t,n)}async function Rt(e,t,o){const i=document.getElementById("explore-insight");if(i)try{const{getEntityInsight:s}=await B(async()=>{const{getEntityInsight:a}=await import("./insights-BYE3OQI1.js");return{getEntityInsight:a}},[]),n=await s(e,t,o);if(!document.getElementById("explore-insight"))return;i.innerHTML=`
       <div style="padding:18px 20px;background:var(--surface-dark);border-radius:8px">
         <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-dark-dim);margin-bottom:10px">Your taste in ${t}</div>
         <div style="font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.7;color:var(--on-dark)">${n}</div>
@@ -198,7 +198,7 @@
 
       <!-- HEADER -->
       <div style="margin-bottom:32px;padding-bottom:20px;border-bottom:2px solid var(--ink)">
-        <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:var(--dim);margin-bottom:10px">taste intelligence</div>
+        <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:var(--dim);margin-bottom:10px">taste is everything</div>
         <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(32px,4vw,48px);line-height:1;color:var(--ink);letter-spacing:-1px;margin-bottom:8px">Your taste, decoded.</div>
         <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);letter-spacing:0.5px">${y.length} film${y.length!==1?"s":""} · weighted scoring</div>
       </div>
