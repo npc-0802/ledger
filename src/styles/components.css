@@ -108,11 +108,12 @@
   font-family: 'DM Mono', monospace; font-size: 11px; color: var(--dim);
 }
 .modal-meta-chip {
+  display: inline-block;
   padding: 4px 12px;
   border: 1px solid var(--rule-dark); border-radius: 20px;
   font-family: 'DM Mono', monospace; font-size: 10px;
   color: var(--dim); cursor: pointer; transition: all 0.15s;
-  background: white;
+  background: white; white-space: nowrap;
 }
 .modal-meta-chip:hover { border-color: var(--blue); color: var(--blue); }
 .modal-overview {
