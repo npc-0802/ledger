@@ -73,8 +73,13 @@ export function renderExploreIndex(tab) {
       : entities.map((e, i) => {
           const safeName = e.name.replace(/'/g, "\\'");
           const singularType = exploreActiveTab === 'companies' ? 'company' : exploreActiveTab === 'years' ? 'year' : exploreActiveTab.slice(0, -1);
-          return `<div style="display:flex;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid var(--rule);cursor:pointer" onclick="exploreEntity('${singularType}','${safeName}')" onmouseover="this.style.background='var(--cream)'" onmouseout="this.style.background=''">
-            <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);min-width:28px;text-align:right">${i+1}</div>
+          const showPortrait = exploreActiveTab !== 'years';
+          const portraitHtml = showPortrait
+            ? `<div style="position:relative;width:40px;height:40px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--rule)"><img id="explore-list-img-${i}" src="" alt="" style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;display:none"></div>`
+            : '';
+          return `<div style="display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--rule);cursor:pointer" onclick="exploreEntity('${singularType}','${safeName}')" onmouseover="this.style.background='var(--cream)'" onmouseout="this.style.background=''">
+            <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);min-width:24px;text-align:right;flex-shrink:0">${i+1}</div>
+            ${portraitHtml}
             <div style="flex:1;min-width:0">
               <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:18px;font-weight:700;color:var(--ink);line-height:1.2">${e.name}</div>
               <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-top:2px">${e.films.length} film${e.films.length!==1?'s':''}</div>
@@ -84,6 +89,10 @@ export function renderExploreIndex(tab) {
         }).join('')
     }
   `;
+
+  if (entities.length > 0 && exploreActiveTab !== 'years') {
+    loadListImages(exploreActiveTab, entities);
+  }
 }
 
 export function exploreEntity(type, name) {
@@ -232,6 +241,22 @@ export function exploreEntity(type, name) {
   loadExploreInsight(type, name, films);
   if (PERSON_TYPES.includes(type)) loadPersonImage(name);
   else if (type === 'company') loadCompanyLogo(name);
+}
+
+async function loadListImages(type, entities) {
+  const isPerson = ['directors','writers','actors'].includes(type);
+  entities.forEach((e, i) => {
+    const promise = isPerson
+      ? fetch(`https://api.themoviedb.org/3/search/person?api_key=${TMDB_KEY}&query=${encodeURIComponent(e.name)}&language=en-US`).then(r=>r.json()).then(d => d.results?.[0]?.profile_path ? `https://image.tmdb.org/t/p/w185${d.results[0].profile_path}` : null)
+      : fetch(`https://api.themoviedb.org/3/search/company?api_key=${TMDB_KEY}&query=${encodeURIComponent(e.name)}`).then(r=>r.json()).then(d => d.results?.[0]?.logo_path ? `https://image.tmdb.org/t/p/w185${d.results[0].logo_path}` : null);
+    promise.then(url => {
+      if (!url) return;
+      const img = document.getElementById(`explore-list-img-${i}`);
+      if (!img) return;
+      img.src = url;
+      img.style.display = 'block';
+    }).catch(() => {});
+  });
 }
 
 async function loadPersonImage(name) {

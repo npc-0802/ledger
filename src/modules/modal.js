@@ -1,4 +1,6 @@
 import { MOVIES, CATEGORIES, scoreClass, getLabel, calcTotal, recalcAllTotals, mergeSplitNames } from '../state.js';
+
+const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
 import { saveToStorage } from './storage.js';
 import { syncToSupabase } from './supabase.js';
 import { renderRankings } from './rankings.js';
@@ -38,8 +40,14 @@ function renderModal() {
     catRanks[cat.key] = cs.indexOf(m) + 1;
   });
 
-  const chip = (label, type, value) =>
-    `<span class="modal-meta-chip" onclick="exploreEntity('${type}','${value.replace(/'/g, String.fromCharCode(39))}')">${label}</span>`;
+  const chip = (label, type, value) => {
+    const isPersonType = ['director','writer','actor'].includes(type);
+    const imgId = isPersonType ? `chip-img-${type}-${value.replace(/[^a-z0-9]/gi,'').toLowerCase().slice(0,24)}` : '';
+    const imgHtml = isPersonType
+      ? `<img id="${imgId}" src="" alt="" style="width:20px;height:20px;border-radius:50%;object-fit:cover;flex-shrink:0;display:none">`
+      : '';
+    return `<span class="modal-meta-chip" style="${isPersonType ? 'display:inline-flex;align-items:center;gap:5px' : ''}" onclick="exploreEntity('${type}','${value.replace(/'/g, String.fromCharCode(39))}')">${imgHtml}${label}</span>`;
+  };
 
   const directorChips = mergeSplitNames((m.director||'').split(',').map(d=>d.trim()).filter(Boolean)).map(d=>chip(d,'director',d)).join('');
   const writerChips = mergeSplitNames((m.writer||'').split(',').map(w=>w.trim()).filter(Boolean)).map(w=>chip(w,'writer',w)).join('');
@@ -165,7 +173,29 @@ function renderModal() {
   document.getElementById('filmModal').classList.add('open');
   localStorage.setItem('ledger_last_modal', idx);
 
-  if (!editMode) loadModalInsight(m);
+  if (!editMode) { loadModalInsight(m); loadChipImages(m); }
+}
+
+async function loadChipImages(m) {
+  const persons = [
+    ...mergeSplitNames((m.director||'').split(',').map(d=>d.trim()).filter(Boolean)).map(n => ({ name: n, type: 'director' })),
+    ...mergeSplitNames((m.writer||'').split(',').map(w=>w.trim()).filter(Boolean)).map(n => ({ name: n, type: 'writer' })),
+    ...mergeSplitNames((m.cast||'').split(',').map(c=>c.trim()).filter(Boolean)).map(n => ({ name: n, type: 'actor' })),
+  ];
+  persons.forEach(({ name, type }) => {
+    const id = `chip-img-${type}-${name.replace(/[^a-z0-9]/gi,'').toLowerCase().slice(0,24)}`;
+    fetch(`https://api.themoviedb.org/3/search/person?api_key=${TMDB_KEY}&query=${encodeURIComponent(name)}&language=en-US`)
+      .then(r => r.json())
+      .then(data => {
+        const path = data.results?.[0]?.profile_path;
+        if (!path) return;
+        const img = document.getElementById(id);
+        if (!img) return;
+        img.src = `https://image.tmdb.org/t/p/w92${path}`;
+        img.style.display = 'block';
+      })
+      .catch(() => {});
+  });
 }
 
 window.modalEnterEdit = function() {

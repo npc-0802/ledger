@@ -48,7 +48,7 @@ function renderObStep() {
       <div id="ob-returning-error" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--red);margin-bottom:12px;display:none">Username not found. Check spelling and try again.</div>
       <button class="ob-btn" id="ob-returning-btn" onclick="obLookupUser()">Restore profile →</button>
       <div style="text-align:center;margin-top:20px">
-        <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);letter-spacing:1px;cursor:pointer;text-decoration:underline" onclick="obStep='name';renderObStep()">← New user instead</span>
+        <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);letter-spacing:1px;cursor:pointer;text-decoration:underline" onclick="obBack()">← New user instead</span>
       </div>
     `;
     setTimeout(() => document.getElementById('ob-returning-field')?.focus(), 50);
@@ -82,7 +82,7 @@ function renderObStep() {
       <div id="ob-import-status" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);margin-bottom:16px;min-height:18px"></div>
       <button class="ob-btn" id="ob-import-btn" onclick="obConfirmImport()" disabled>Continue with imported films →</button>
       <div style="text-align:center;margin-top:16px">
-        <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);letter-spacing:1px;cursor:pointer;text-decoration:underline" onclick="obStep='name';renderObStep()">← Back</span>
+        <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);letter-spacing:1px;cursor:pointer;text-decoration:underline" onclick="obBack()">← Back</span>
       </div>
     `;
 
@@ -324,7 +324,7 @@ window.obSelectAnswer = function(qIdx, key, el) {
 };
 
 window.obBack = function() {
-  if (obStep > 0) { obStep--; renderObStep(); }
+  if (typeof obStep === 'number' && obStep > 0) { obStep--; renderObStep(); }
   else { obStep = 'name'; renderObStep(); }
 };
 

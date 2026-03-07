@@ -1,5 +1,9 @@
-import { MOVIES, currentUser } from '../state.js';
+import { MOVIES, currentUser, setMovies, recalcAllTotals } from '../state.js';
 import { ARCHETYPES } from '../data/archetypes.js';
+import { saveToStorage } from './storage.js';
+import { syncToSupabase } from './supabase.js';
+
+let profileImportedMovies = null;
 
 const CATS = ['plot','execution','acting','production','enjoyability','rewatchability','ending','uniqueness'];
 const CAT_LABELS = { plot:'Plot', execution:'Execution', acting:'Acting', production:'Production', enjoyability:'Enjoyability', rewatchability:'Rewatchability', ending:'Ending', uniqueness:'Uniqueness' };
@@ -165,6 +169,85 @@ function shareCard(user, movies) {
   `;
 }
 
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim());
+  return lines.slice(1).map(line => {
+    const values = [];
+    let cur = '', inQuote = false;
+    for (const ch of line) {
+      if (ch === '"') { inQuote = !inQuote; }
+      else if (ch === ',' && !inQuote) { values.push(cur.trim()); cur = ''; }
+      else cur += ch;
+    }
+    values.push(cur.trim());
+    return Object.fromEntries(headers.map((h, i) => [h, values[i] || '']));
+  });
+}
+
+window.profileHandleLetterboxdDrop = function(e) {
+  e.preventDefault();
+  const drop = document.getElementById('profile-import-drop');
+  if (drop) drop.style.borderColor = 'var(--rule-dark)';
+  const file = e.dataTransfer.files[0];
+  if (file) profileParseLetterboxd(file);
+};
+
+window.profileHandleLetterboxdFile = function(input) {
+  const file = input.files[0];
+  if (file) profileParseLetterboxd(file);
+};
+
+function profileParseLetterboxd(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const rows = parseCSV(e.target.result);
+      const incoming = rows
+        .filter(r => r.Name && r.Rating && parseFloat(r.Rating) > 0)
+        .map(r => ({
+          title: r.Name,
+          year: parseInt(r.Year) || null,
+          total: Math.round(parseFloat(r.Rating) * 20),
+          scores: {}, director: '', writer: '', cast: '', productionCompanies: '', poster: null, overview: ''
+        }));
+      if (incoming.length === 0) throw new Error('No rated films found');
+      // Dedup: Palate Map scores take priority
+      const existing = new Set(MOVIES.map(m => `${m.title.toLowerCase().trim()}|${m.year||''}`));
+      const netNew = incoming.filter(f => !existing.has(`${f.title.toLowerCase().trim()}|${f.year||''}`));
+      const dupeCount = incoming.length - netNew.length;
+      profileImportedMovies = netNew;
+      const statusEl = document.getElementById('profile-import-status');
+      const btn = document.getElementById('profile-import-btn');
+      if (netNew.length === 0) {
+        if (statusEl) { statusEl.textContent = `All ${dupeCount} film${dupeCount!==1?'s':''} already exist — nothing to import.`; statusEl.style.color = 'var(--dim)'; }
+        if (btn) btn.disabled = true;
+      } else {
+        if (statusEl) { statusEl.textContent = `${netNew.length} new film${netNew.length!==1?'s':''} found${dupeCount ? ` · ${dupeCount} already rated (skipped)` : ''}`; statusEl.style.color = 'var(--green)'; }
+        const drop = document.getElementById('profile-import-drop');
+        if (drop) { drop.style.borderColor = 'var(--green)'; drop.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--green)">${file.name}</div><div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--green);margin-top:3px">${netNew.length} films ready</div>`; }
+        if (btn) { btn.disabled = false; btn.textContent = `Add ${netNew.length} film${netNew.length!==1?'s':''} →`; }
+      }
+    } catch(err) {
+      const statusEl = document.getElementById('profile-import-status');
+      if (statusEl) { statusEl.textContent = "Couldn't parse that file — make sure it's ratings.csv from Letterboxd."; statusEl.style.color = 'var(--red)'; }
+    }
+  };
+  reader.readAsText(file);
+}
+
+window.profileConfirmImport = async function() {
+  if (!profileImportedMovies || profileImportedMovies.length === 0) return;
+  const merged = [...MOVIES, ...profileImportedMovies];
+  setMovies(merged);
+  recalcAllTotals();
+  saveToStorage();
+  profileImportedMovies = null;
+  syncToSupabase().catch(() => {});
+  // Navigate to calibrate for new films
+  window.showScreen?.('calibrate');
+};
+
 export function renderProfile() {
   const el = document.getElementById('profileContent');
   if (!el) return;
@@ -260,6 +343,25 @@ export function renderProfile() {
           ${shareCard(user, movies)}
           ${tasteNoteCard(user, movies)}
         </div>
+      </div>
+
+      <!-- LETTERBOXD IMPORT -->
+      <div style="margin-bottom:40px;padding-bottom:32px;border-bottom:1px solid var(--rule)">
+        <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:12px">Import from Letterboxd</div>
+        <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--dim);margin-bottom:18px;line-height:1.7;max-width:480px">Merge your Letterboxd ratings into your collection. Your existing Palate Map scores always win on duplicates — only new films get added.</div>
+        <div id="profile-import-drop"
+          style="border:2px dashed var(--rule-dark);padding:28px 20px;text-align:center;cursor:pointer;transition:border-color 0.15s;margin-bottom:8px"
+          onclick="document.getElementById('profile-import-file').click()"
+          ondragover="event.preventDefault();this.style.borderColor='var(--blue)'"
+          ondragleave="this.style.borderColor='var(--rule-dark)'"
+          ondrop="profileHandleLetterboxdDrop(event)">
+          <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--dim);letter-spacing:1px;margin-bottom:5px">Drop ratings.csv here</div>
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--rule-dark)">Letterboxd → Settings → Import & Export → Export Your Data → unzip → ratings.csv</div>
+        </div>
+        <input type="file" id="profile-import-file" accept=".csv" style="display:none" onchange="profileHandleLetterboxdFile(this)">
+        <div id="profile-import-status" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);margin-bottom:12px;min-height:16px"></div>
+        <button id="profile-import-btn" onclick="profileConfirmImport()" disabled
+          style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;background:var(--ink);color:white;border:none;padding:10px 20px;cursor:pointer;transition:opacity 0.15s">Add new films →</button>
       </div>
 
       <!-- SIGN OUT -->
