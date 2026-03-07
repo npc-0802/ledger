@@ -179,8 +179,44 @@ export async function acceptFriendInvite(token) {
       addressee_id: currentUser.id,
       status: 'accepted'
     }, { onConflict: 'requester_id,addressee_id', ignoreDuplicates: true });
+    // Rotate token so link can't be reused
+    await sb.from('palatemap_users').update({ invite_token: null }).eq('id', requester.id);
     return requester;
   } catch(e) { return null; }
+}
+
+export async function unfriendUser(friendId) {
+  if (!currentUser) return;
+  try {
+    await sb.from('palatemap_friendships')
+      .delete().eq('requester_id', currentUser.id).eq('addressee_id', friendId);
+    await sb.from('palatemap_friendships')
+      .delete().eq('requester_id', friendId).eq('addressee_id', currentUser.id);
+  } catch(e) {}
+}
+
+export async function searchUsers(query) {
+  if (!currentUser || !query || query.length < 2) return [];
+  try {
+    const { data } = await sb.from('palatemap_users')
+      .select('id, display_name, username, archetype, archetype_secondary')
+      .ilike('username', `%${query}%`)
+      .neq('id', currentUser.id)
+      .limit(8);
+    return data || [];
+  } catch(e) { return []; }
+}
+
+export async function addFriendDirect(userId) {
+  if (!currentUser) return false;
+  try {
+    const { error } = await sb.from('palatemap_friendships').upsert({
+      requester_id: currentUser.id,
+      addressee_id: userId,
+      status: 'accepted'
+    }, { onConflict: 'requester_id,addressee_id', ignoreDuplicates: true });
+    return !error;
+  } catch(e) { return false; }
 }
 
 export function saveUserLocally() {

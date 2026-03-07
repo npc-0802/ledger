@@ -1,12 +1,14 @@
 import { MOVIES, currentUser } from '../state.js';
 import { ARCHETYPES } from '../data/archetypes.js';
-import { sb, loadFriends, loadFriendFull, acceptFriendInvite } from './supabase.js';
+import { sb, loadFriends, loadFriendFull, acceptFriendInvite, unfriendUser, searchUsers, addFriendDirect } from './supabase.js';
 
 const CATS = ['plot','execution','acting','production','enjoyability','rewatchability','ending','uniqueness'];
 const CAT_SHORT = { plot:'Plot', execution:'Exec', acting:'Acting', production:'Prod', enjoyability:'Enjoy', rewatchability:'Rewatch', ending:'Ending', uniqueness:'Unique' };
 const PROXY_URL = 'https://ledger-proxy.noahparikhcott.workers.dev';
 
 let friendsCache = null;
+let inviteToken = null;
+let searchDebounceTimer = null;
 
 // ── PUBLIC ──
 
@@ -50,27 +52,98 @@ window.openFriendProfile = async function(friendId) {
     </div>`;
 
   const friend = await loadFriendFull(friendId);
-  if (!friend) return;
+  if (!friend) {
+    el.innerHTML = `
+      <div style="max-width:640px;margin:0 auto">
+        <div style="padding:24px 0 16px"><span onclick="backToFriends()" style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--blue);cursor:pointer;text-decoration:underline">← Friends</span></div>
+        <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);padding:40px 0;text-align:center">Could not load profile. <span onclick="openFriendProfile('${friendId}')" style="color:var(--action);cursor:pointer;text-decoration:underline">Try again →</span></div>
+      </div>`;
+    return;
+  }
   renderFriendProfile(el, friend);
 };
 
 window.backToFriends = function() { renderFriends(); };
 
-window.friendsInvite = async function() {
+window.friendsInvite = async function(e) {
   if (!currentUser) return;
-  const btn = event?.target?.closest('button') || event?.target;
+  const btn = (e?.target || event?.target)?.closest('button') || (e?.target || event?.target);
   const origText = btn?.textContent;
   if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
   try {
     const token = crypto.randomUUID();
     await sb.from('palatemap_users').update({ invite_token: token }).eq('id', currentUser.id);
+    inviteToken = token;
     const link = `${window.location.origin}/?invite=${token}`;
     await navigator.clipboard.writeText(link);
     window.showToast?.('Invite link copied!', { type: 'success', duration: 4000 });
+    const statusEl = document.getElementById('friends-invite-status');
+    if (statusEl) statusEl.innerHTML = inviteStatusHTML();
   } catch(e) {
     window.showToast?.('Could not generate invite link.', { type: 'error' });
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = origText; }
+  }
+};
+
+window.copyInviteLink = async function() {
+  if (!inviteToken) return;
+  await navigator.clipboard.writeText(`${window.location.origin}/?invite=${inviteToken}`);
+  window.showToast?.('Invite link copied!', { type: 'success', duration: 3000 });
+};
+
+window.unfriend = async function(friendId, friendName) {
+  if (!confirm(`Remove ${friendName} from your friends?`)) return;
+  await unfriendUser(friendId);
+  friendsCache = null;
+  window.showToast?.(`${friendName} removed.`, { duration: 3000 });
+  renderFriends();
+};
+
+window.friendSearchDebounce = function() {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(window.friendSearch, 300);
+};
+
+window.friendSearch = async function() {
+  const input = document.getElementById('friends-search-input');
+  const results = document.getElementById('friends-search-results');
+  if (!input || !results) return;
+  const q = input.value.trim();
+  if (q.length < 2) { results.innerHTML = ''; return; }
+  results.innerHTML = `<div style="padding:10px 0;font-family:'DM Mono',monospace;font-size:11px;color:var(--dim)">Searching…</div>`;
+  const users = await searchUsers(q);
+  if (!users.length) {
+    results.innerHTML = `<div style="padding:10px 0;font-family:'DM Mono',monospace;font-size:11px;color:var(--dim)">No users found.</div>`;
+    return;
+  }
+  const friendIds = new Set((friendsCache || []).map(f => f.id));
+  results.innerHTML = users.map(u => {
+    const isFriend = friendIds.has(u.id);
+    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--rule)">
+      <div style="flex:1">
+        <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--ink)">${u.display_name} <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim)">@${u.username || ''}</span></div>
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-top:2px">${u.archetype || ''}</div>
+      </div>
+      ${isFriend
+        ? `<span onclick="openFriendProfile('${u.id}')" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);cursor:pointer;text-decoration:underline">View →</span>`
+        : `<button id="add-btn-${u.id}" onclick="addFriendFromSearch('${u.id}')" style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:6px 14px;cursor:pointer">Add</button>`
+      }
+    </div>`;
+  }).join('');
+};
+
+window.addFriendFromSearch = async function(userId) {
+  const btn = document.getElementById(`add-btn-${userId}`);
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  const ok = await addFriendDirect(userId);
+  if (ok) {
+    friendsCache = null;
+    window.showToast?.('Friend added!', { type: 'success' });
+    if (btn) btn.outerHTML = `<span onclick="openFriendProfile('${userId}')" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);cursor:pointer;text-decoration:underline">View →</span>`;
+  } else {
+    if (btn) { btn.disabled = false; btn.textContent = 'Add'; }
+    window.showToast?.('Could not add friend.', { type: 'error' });
   }
 };
 
@@ -85,12 +158,22 @@ export async function handleFriendInvite(token) {
 
 // ── FRIEND LIST ──
 
+function inviteStatusHTML() {
+  if (!inviteToken) return '';
+  return `<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim)">Link active · <span onclick="copyInviteLink()" style="color:var(--action);cursor:pointer;text-decoration:underline">Copy again →</span></span>`;
+}
+
 function headerHTML() {
   return `
     <div style="margin-bottom:36px;padding-bottom:28px;border-bottom:2px solid var(--ink)">
       <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:var(--dim);margin-bottom:12px">your circle</div>
       <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(36px,5vw,52px);line-height:1;color:var(--ink)">Friends.</div>
       <div style="font-family:'DM Sans',sans-serif;font-size:14px;color:var(--dim);line-height:1.7;max-width:560px;margin-top:10px">Compare archetypes, radar fingerprints, and the films you agree — and disagree — on most.</div>
+      <div style="margin-top:20px;position:relative">
+        <input id="friends-search-input" type="text" placeholder="Search by username…" oninput="friendSearchDebounce()" autocomplete="off" style="width:100%;font-family:'DM Mono',monospace;font-size:12px;background:var(--cream);border:1px solid var(--rule-dark);padding:10px 14px;color:var(--ink);outline:none;letter-spacing:0.5px" />
+        <div id="friends-search-results"></div>
+      </div>
+      <div id="friends-invite-status" style="margin-top:10px;min-height:16px">${inviteStatusHTML()}</div>
     </div>`;
 }
 
@@ -131,8 +214,9 @@ function renderFriendProfile(el, friend) {
   el.innerHTML = `
     <div style="max-width:640px;margin:0 auto">
 
-      <div style="padding:24px 0 16px">
+      <div style="padding:24px 0 16px;display:flex;align-items:center;justify-content:space-between">
         <span onclick="backToFriends()" style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--blue);cursor:pointer;text-decoration:underline">← Friends</span>
+        <button onclick="unfriend('${friend.id}', '${friend.display_name.replace(/'/g, "&#39;")}')" style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;background:none;color:var(--dim);border:1px solid var(--rule-dark);padding:6px 12px;cursor:pointer;transition:color 0.15s" onmouseover="this.style.color='var(--red)';this.style.borderColor='var(--red)'" onmouseout="this.style.color='var(--dim)';this.style.borderColor='var(--rule-dark)'">Unfriend</button>
       </div>
 
       <div class="dark-grid" style="background:var(--surface-dark);padding:28px 32px;margin-bottom:28px;border-top:3px solid ${color}">
@@ -159,7 +243,7 @@ function renderFriendProfile(el, friend) {
 
       <div style="padding-bottom:28px;margin-bottom:28px;border-bottom:1px solid var(--rule)">
         <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:20px">Taste Fingerprint Overlap</div>
-        <div style="display:flex;flex-direction:column;align-items:center">
+        <div style="display:flex;flex-direction:column;align-items:center;overflow-x:auto;width:100%">
           ${radarOverlay(currentUser.weights || {}, friend.weights || {}, 'var(--blue)', color)}
           <div style="display:flex;gap:24px;margin-top:10px;font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">
             <span style="display:flex;align-items:center;gap:6px"><svg width="12" height="12"><rect width="12" height="12" rx="2" fill="var(--blue)"/></svg>You</span>
