@@ -163,27 +163,39 @@ export function exploreEntity(type, name) {
         </div>
       </div>
 
-      ${scored.length > 0 ? `
-
-        <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--dim);margin-bottom:16px">Category averages</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 40px;margin-bottom:32px">
-          ${scored.map(c => {
-            const cr = catRanks[c.key];
-            return `<div style="border-bottom:1px solid var(--rule);padding:10px 0">
-              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
-                <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--dim)">${c.label}</div>
-                <div style="display:flex;align-items:baseline;gap:8px">
-                  ${cr ? `<div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">#${cr.rank}</div>` : ''}
-                  <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:18px;color:var(--ink)">${c.avg.toFixed(1)}</div>
-                </div>
-              </div>
-              <div style="height:2px;background:var(--rule);border-radius:1px">
-                <div style="height:2px;width:${c.avg}%;background:${badgeColor(c.avg)};border-radius:1px"></div>
-              </div>
-            </div>`;
-          }).join('')}
-        </div>
-      ` : ''}
+      ${scored.length > 0 ? (() => {
+        const craftKeys = ['plot','execution','acting','production'];
+        const expKeys   = ['enjoyability','rewatchability','ending','uniqueness'];
+        function renderCatGroup(label, keys) {
+          const items = catAvgs.filter(c => keys.includes(c.key) && c.avg != null);
+          if (!items.length) return '';
+          return `<div style="margin-bottom:28px">
+            <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--dim);opacity:0.6;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--rule)">${label}</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 40px">
+              ${items.map(c => {
+                const cr = catRanks[c.key];
+                return `<div style="border-bottom:1px solid var(--rule);padding:10px 0">
+                  <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+                    <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--dim)">${c.label}</div>
+                    <div style="display:flex;align-items:baseline;gap:8px">
+                      ${cr ? `<div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">#${cr.rank}</div>` : ''}
+                      <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:18px;color:var(--ink)">${c.avg.toFixed(1)}</div>
+                    </div>
+                  </div>
+                  <div style="height:2px;background:var(--rule);border-radius:1px">
+                    <div style="height:2px;width:${c.avg}%;background:${badgeColor(c.avg)};border-radius:1px"></div>
+                  </div>
+                </div>`;
+              }).join('')}
+            </div>
+          </div>`;
+        }
+        return `<div style="margin-bottom:32px">
+          <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--dim);margin-bottom:16px">Category averages</div>
+          ${renderCatGroup('Craft', craftKeys)}
+          ${renderCatGroup('Experience', expKeys)}
+        </div>`;
+      })() : ''}
 
       <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--dim);margin-bottom:12px">Films</div>
       ${films.map((f,i) => {
