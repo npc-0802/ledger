@@ -79,7 +79,8 @@
   padding: 10px 0;
   border-bottom: 1px solid var(--rule);
 }
-.breakdown-cat { font-family: 'DM Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); width: 116px; flex-shrink: 0; }
+.breakdown-cat { font-family: 'DM Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); width: 148px; flex-shrink: 0; }
+.breakdown-cat .breakdown-wt { text-transform: none; letter-spacing: 0; margin-left: 4px; }
 .breakdown-bar-wrap { flex: 1; height: 4px; background: var(--rule); border-radius: 2px; position: relative; }
 .breakdown-bar { height: 100%; border-radius: 2px; background: var(--blue); }
 .bar-tick { position: absolute; top: 50%; transform: translateY(-50%); width: 1px; height: 8px; background: var(--rule-dark); pointer-events: none; }

@@ -77,7 +77,7 @@ function renderModal() {
       const cr = catRanks[cat.key];
       if (editMode) {
         return `<div class="breakdown-row" style="align-items:center;gap:12px">
-          <div class="breakdown-cat">${cat.label}</div>
+          <div class="breakdown-cat">${cat.label} <span class="breakdown-wt">×${cat.weight}</span></div>
           <div class="breakdown-bar-wrap" style="flex:1">
             <input type="range" min="1" max="100" value="${v||50}"
               style="width:100%;accent-color:var(--blue);cursor:pointer"
@@ -87,14 +87,12 @@ function renderModal() {
             <div class="breakdown-val ${scoreClass(v||50)}" id="modal-edit-val-${cat.key}">${v||50}</div>
             <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);text-align:right;margin-top:2px;white-space:nowrap" id="modal-edit-lbl-${cat.key}">${getLabelSimple(v||50)}</div>
           </div>
-          <div class="breakdown-wt">×${cat.weight}</div>
         </div>`;
       }
       return `<div class="breakdown-row">
-        <div class="breakdown-cat">${cat.label}</div>
+        <div class="breakdown-cat">${cat.label} <span class="breakdown-wt">×${cat.weight}</span></div>
         <div class="breakdown-bar-wrap"><div class="breakdown-bar" style="width:${v||0}%"></div><div class="bar-tick" style="left:25%"></div><div class="bar-tick" style="left:50%"></div><div class="bar-tick" style="left:75%"></div></div>
         <div class="breakdown-val ${v ? scoreClass(v) : ''}">${v ?? '—'}</div>
-        <div class="breakdown-wt">×${cat.weight}</div>
         <div class="modal-cat-rank">#${cr}</div>
       </div>`;
     }).join('');

@@ -53,7 +53,7 @@
          <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(20px,3.5vw,30px);line-height:1.1;color:var(--on-dark);letter-spacing:-0.5px;margin-bottom:8px">${t.title}</div>
          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${t.year||""}</div>
        </div>`,p=T?R:t.scores,x=T?Q(R):t.total,h=["plot","execution","acting","production"],m=["enjoyability","rewatchability","ending","uniqueness"];function E(u,g){const v=M.filter(S=>g.includes(S.key)),b=`<div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--dim);opacity:0.6;padding:12px 0 6px;border-bottom:1px solid var(--rule)">${u}</div>`,w=v.map(S=>{const I=p[S.key],bt=s[S.key];return T?`<div class="breakdown-row" style="align-items:center;gap:12px">
-          <div class="breakdown-cat">${S.label}</div>
+          <div class="breakdown-cat">${S.label} <span class="breakdown-wt">×${S.weight}</span></div>
           <div class="breakdown-bar-wrap" style="flex:1">
             <input type="range" min="1" max="100" value="${I||50}"
               style="width:100%;accent-color:var(--blue);cursor:pointer"
@@ -63,12 +63,10 @@
             <div class="breakdown-val ${K(I||50)}" id="modal-edit-val-${S.key}">${I||50}</div>
             <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);text-align:right;margin-top:2px;white-space:nowrap" id="modal-edit-lbl-${S.key}">${we(I||50)}</div>
           </div>
-          <div class="breakdown-wt">×${S.weight}</div>
         </div>`:`<div class="breakdown-row">
-        <div class="breakdown-cat">${S.label}</div>
+        <div class="breakdown-cat">${S.label} <span class="breakdown-wt">×${S.weight}</span></div>
         <div class="breakdown-bar-wrap"><div class="breakdown-bar" style="width:${I||0}%"></div><div class="bar-tick" style="left:25%"></div><div class="bar-tick" style="left:50%"></div><div class="bar-tick" style="left:75%"></div></div>
         <div class="breakdown-val ${I?K(I):""}">${I??"—"}</div>
-        <div class="breakdown-wt">×${S.weight}</div>
         <div class="modal-cat-rank">#${bt}</div>
       </div>`}).join("");return b+w}const D=E("Craft",h)+E("Experience",m);document.getElementById("modalContent").innerHTML=`
     ${d}
@@ -109,7 +107,7 @@
             <span style="font-family:'DM Mono',monospace;font-size:10px;font-weight:600;color:${I};min-width:36px;text-align:right">${S>0?"+":""}${S}</span>
           </div>`}).join("")}
       </div>`:""})()}
-  `,document.getElementById("filmModal").classList.add("open"),localStorage.setItem("ledger_last_modal",e),T||jt(t)}window.modalEnterEdit=function(){const e=y[ve];T=!0,R={...e.scores},he()};window.modalCancelEdit=function(){T=!1,R={},he()};window.modalUpdateScore=function(e,t){R[e]=parseInt(t);const o=document.getElementById(`modal-edit-val-${e}`);o&&(o.textContent=t,o.className=`breakdown-val ${K(parseInt(t))}`);const i=document.getElementById(`modal-edit-lbl-${e}`);i&&(i.textContent=we(parseInt(t)));const s=Q(R),n=document.getElementById("modal-total-display");n&&(n.textContent=s);const a=document.getElementById("modal-total-label");a&&(a.textContent=we(s))};window.modalSaveScores=function(){const e=y[ve];e.scores={...R},e.total=Q(R),T=!1,R={},le(),Y(),N(),Ie().catch(t=>console.warn("sync failed",t)),he()};async function jt(e){const t=document.getElementById("modal-insight");if(t)try{const{getFilmInsight:o}=await B(async()=>{const{getFilmInsight:s}=await import("./insights-CMF-uHOo.js");return{getFilmInsight:s}},[]),i=await o(e);if(!document.getElementById("modal-insight"))return;t.innerHTML=`
+  `,document.getElementById("filmModal").classList.add("open"),localStorage.setItem("ledger_last_modal",e),T||jt(t)}window.modalEnterEdit=function(){const e=y[ve];T=!0,R={...e.scores},he()};window.modalCancelEdit=function(){T=!1,R={},he()};window.modalUpdateScore=function(e,t){R[e]=parseInt(t);const o=document.getElementById(`modal-edit-val-${e}`);o&&(o.textContent=t,o.className=`breakdown-val ${K(parseInt(t))}`);const i=document.getElementById(`modal-edit-lbl-${e}`);i&&(i.textContent=we(parseInt(t)));const s=Q(R),n=document.getElementById("modal-total-display");n&&(n.textContent=s);const a=document.getElementById("modal-total-label");a&&(a.textContent=we(s))};window.modalSaveScores=function(){const e=y[ve];e.scores={...R},e.total=Q(R),T=!1,R={},le(),Y(),N(),Ie().catch(t=>console.warn("sync failed",t)),he()};async function jt(e){const t=document.getElementById("modal-insight");if(t)try{const{getFilmInsight:o}=await B(async()=>{const{getFilmInsight:s}=await import("./insights-efV7Eps-.js");return{getFilmInsight:s}},[]),i=await o(e);if(!document.getElementById("modal-insight"))return;t.innerHTML=`
       <div style="padding:14px 18px;background:var(--surface-dark);border-radius:6px">
         <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-dark-dim);margin-bottom:8px">Why this score</div>
         <div style="font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.7;color:var(--on-dark)">${i}</div>
@@ -191,7 +189,7 @@
           <div class="film-total">${u}</div>
         </div>`}).join("")}
     </div>
-  `,Rt(e,t,n)}async function Rt(e,t,o){const i=document.getElementById("explore-insight");if(i)try{const{getEntityInsight:s}=await B(async()=>{const{getEntityInsight:a}=await import("./insights-CMF-uHOo.js");return{getEntityInsight:a}},[]),n=await s(e,t,o);if(!document.getElementById("explore-insight"))return;i.innerHTML=`
+  `,Rt(e,t,n)}async function Rt(e,t,o){const i=document.getElementById("explore-insight");if(i)try{const{getEntityInsight:s}=await B(async()=>{const{getEntityInsight:a}=await import("./insights-efV7Eps-.js");return{getEntityInsight:a}},[]),n=await s(e,t,o);if(!document.getElementById("explore-insight"))return;i.innerHTML=`
       <div style="padding:18px 20px;background:var(--surface-dark);border-radius:8px">
         <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-dark-dim);margin-bottom:10px">Your taste in ${t}</div>
         <div style="font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.7;color:var(--on-dark)">${n}</div>
