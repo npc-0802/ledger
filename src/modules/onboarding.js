@@ -118,7 +118,16 @@ function renderObStep() {
   } else if (typeof obStep === 'number') {
     const q = OB_QUESTIONS[obStep];
     const pct = Math.round((obStep / 6) * 100);
-    const intro = obStep === 0 ? `<div style="font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.8;color:var(--dim);margin-bottom:28px;font-style:italic">The films you're drawn to reveal something consistent about you — a set of values, sensitivities, and hungers that show up again and again. A few questions to surface them.</div>` : '';
+    const intro = obStep === 0 ? `
+      <div style="background:var(--surface-dark);padding:24px 28px;margin:0 -4px 28px;position:relative;overflow:hidden">
+        <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--on-dark-dim);margin-bottom:14px">palate map · taste quiz</div>
+        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(26px,6vw,36px);line-height:1.1;color:var(--on-dark);letter-spacing:-0.5px;margin-bottom:14px">Six questions.<br>Your taste, revealed.</div>
+        <div style="font-family:'DM Sans',sans-serif;font-size:13px;line-height:1.75;color:var(--on-dark-dim)">The films you love follow a pattern — a consistent set of values, instincts, and hungers that show up again and again. These questions find it.</div>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid rgba(244,239,230,0.1);display:flex;align-items:center;gap:20px">
+          <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);letter-spacing:0.5px">6 questions &nbsp;·&nbsp; ~2 min</div>
+          <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);letter-spacing:0.5px">Result: your palate type</div>
+        </div>
+      </div>` : '';
     card.innerHTML = `
       ${intro}
       <div class="ob-progress">Question ${obStep + 1} of 6</div>
