@@ -225,9 +225,8 @@
       <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1.5px">powered by Claude</span>
     </div>
     <p style="color:var(--dim);font-size:13px;margin-bottom:32px;line-height:1.7;max-width:560px">Search for a film you haven't rated yet. Based on your taste profile and rating history, Palate Map will predict how you'd score it — category by category.</p>
-    <div style="display:flex;gap:10px;margin-bottom:8px">
-      <input class="field-input" id="predict-search" type="text" placeholder="Search for a film…" style="flex:1" oninput="predictSearchDebounce()" onkeydown="if(event.key==='Enter') predictSearch()">
-      <button class="btn btn-primary" onclick="predictSearch()" id="predict-search-btn">Search</button>
+    <div style="margin-bottom:8px">
+      <input class="field-input" id="predict-search" type="text" placeholder="Search for a film…" style="width:100%;box-sizing:border-box" oninput="predictSearchDebounce()">
     </div>
     <div id="predict-search-results" style="margin-bottom:24px"></div>
     <div id="predict-result"></div>
