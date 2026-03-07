@@ -251,15 +251,9 @@ function renderCalibration() {
             <span class="slider-desc" id="sliderDesc_${cat.key}" style="margin-left:8px">${getLabel(initVal)}</span>
           </div>
         </div>
-        <div style="position:relative">
-          <input type="range" min="1" max="100" value="${initVal}" id="slider_${cat.key}"
-            oninput="updateSlider('${cat.key}', this.value)">
-          <div style="display:flex;height:3px;border-radius:2px;overflow:hidden;margin-top:3px">
-            <div style="width:15%;background:rgba(180,50,40,0.45);border-radius:2px 0 0 2px"></div>
-            <div style="flex:1"></div>
-            <div style="width:15%;background:rgba(40,130,60,0.45);border-radius:0 2px 2px 0"></div>
-          </div>
-        </div>
+        <input type="range" min="1" max="100" value="${initVal}" id="slider_${cat.key}"
+          style="background:linear-gradient(to right,rgba(180,50,40,0.45) 0%,rgba(180,50,40,0.45) 15%,var(--rule) 15%,var(--rule) 85%,rgba(40,130,60,0.45) 85%,rgba(40,130,60,0.45) 100%)"
+          oninput="updateSlider('${cat.key}', this.value)">
         <div style="display:flex;justify-content:space-between;font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);margin-top:2px">
           <span>1 — Insulting</span><span>50 — Solid</span><span>100 — Perfect</span>
         </div>
