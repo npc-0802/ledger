@@ -335,26 +335,26 @@ export function renderProfile() {
       </div>
 
       <!-- CALIBRATE -->
-      <div style="margin-bottom:40px;padding-bottom:32px;border-bottom:1px solid var(--rule)">
+      <div style="margin-bottom:40px;padding-bottom:32px;border-bottom:1px solid var(--rule);text-align:center">
         <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:12px">Calibrate</div>
-        <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--dim);margin-bottom:18px;line-height:1.7;max-width:480px">Run Elo head-to-head matchups to sharpen your scores. Two films, one question — your instincts do the work.</div>
+        <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--dim);margin-bottom:18px;line-height:1.7">Run Elo head-to-head matchups to sharpen your scores. Two films, one question — your instincts do the work.</div>
         <button onclick="showScreen('calibration')" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;background:transparent;color:var(--ink);border:1.5px solid var(--ink);padding:12px 24px;cursor:pointer;transition:opacity 0.15s" onmouseover="this.style.opacity='0.6'" onmouseout="this.style.opacity='1'">Calibrate your scores →</button>
       </div>
 
       <!-- CANON CARD -->
-      <div style="margin-bottom:40px">
+      <div style="margin-bottom:40px;text-align:center">
         <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:6px">Your Palate Map Card</div>
         <div style="font-family:'DM Sans',sans-serif;font-size:12px;color:var(--dim);margin-bottom:20px">Screenshot to share.</div>
-        <div style="display:flex;gap:20px;align-items:flex-start">
+        <div style="display:inline-flex;gap:20px;align-items:flex-start;flex-wrap:wrap;justify-content:center">
           ${shareCard(user, movies)}
           ${tasteNoteCard(user, movies)}
         </div>
       </div>
 
       <!-- LETTERBOXD IMPORT -->
-      <div style="margin-bottom:40px;padding-bottom:32px;border-bottom:1px solid var(--rule)">
+      <div style="margin-bottom:40px;padding-bottom:32px;border-bottom:1px solid var(--rule);text-align:center">
         <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:12px">Import from Letterboxd</div>
-        <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--dim);margin-bottom:18px;line-height:1.7;max-width:480px">Merge your Letterboxd ratings into your collection. Your existing Palate Map scores always win on duplicates — only new films get added.</div>
+        <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--dim);margin-bottom:18px;line-height:1.7">Merge your Letterboxd ratings into your collection. Your existing Palate Map scores always win on duplicates — only new films get added.</div>
         <div id="profile-import-drop"
           style="border:2px dashed var(--rule-dark);padding:28px 20px;text-align:center;cursor:pointer;transition:border-color 0.15s;margin-bottom:8px"
           onclick="document.getElementById('profile-import-file').click()"
