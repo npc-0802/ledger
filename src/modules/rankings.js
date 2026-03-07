@@ -87,17 +87,15 @@ export function renderRankings() {
       const remaining = MIN - MOVIES.length;
       const pct = Math.round((MOVIES.length / MIN) * 100);
       banner.innerHTML = `
-        <div style="border-bottom:1px solid var(--rule);padding:12px 0 0;margin-bottom:16px">
-          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px">
-            <div>
-              <span style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--dim)">Your palate is forming &nbsp;·&nbsp; ${MOVIES.length} of ${MIN}</span>
-              <span style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--dim);margin-left:14px">Rate ${remaining} more film${remaining !== 1 ? 's' : ''} to unlock Predict and deeper insights.</span>
+        <div style="background:#FDF1EC;border-left:3px solid var(--action);padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:20px">
+          <div style="flex:1;min-width:0">
+            <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--action);margin-bottom:5px">Your palate is forming &nbsp;·&nbsp; ${MOVIES.length} of ${MIN}</div>
+            <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--ink);line-height:1.5">Rate <strong>${remaining} more film${remaining !== 1 ? 's' : ''}</strong> to unlock Predict and deeper taste insights.</div>
+            <div style="height:2px;background:rgba(232,98,58,0.2);border-radius:1px;margin-top:10px">
+              <div style="height:2px;width:${pct}%;background:var(--action);border-radius:1px;transition:width 0.4s ease"></div>
             </div>
-            <span onclick="document.querySelector('.nav-btn.action-tab').click()" style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--action);cursor:pointer;white-space:nowrap;flex-shrink:0;margin-left:20px">Add a film →</span>
           </div>
-          <div style="height:2px;background:var(--rule);border-radius:1px">
-            <div style="height:2px;width:${pct}%;background:var(--blue);border-radius:1px;transition:width 0.4s ease"></div>
-          </div>
+          <button onclick="document.querySelector('.nav-btn.action-tab').click()" style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:9px 16px;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:opacity 0.15s" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Add a film →</button>
         </div>`;
     } else {
       banner.innerHTML = '';
