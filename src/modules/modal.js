@@ -122,18 +122,34 @@ function renderModal() {
       }
     </div>
     <div>${breakdownRows}</div>
-    ${!editMode && nearby.length > 0 ? `<div class="compare-section">
-      <div class="compare-title">Nearby in the rankings</div>
-      ${nearby.map(x => {
-        const diff = (x.total - m.total).toFixed(2);
-        const sign = diff > 0 ? '+' : '';
-        return `<div class="compare-film" style="cursor:pointer" onclick="closeModal();openModal(${MOVIES.indexOf(x)})">
-          <div class="compare-film-title">${x.title} <span style="font-family:'DM Mono';font-size:10px;color:var(--dim);font-weight:400">${x.year||''}</span></div>
-          <div class="compare-film-score">${x.total}</div>
-          <div class="compare-diff ${diff > 0 ? 'diff-pos' : 'diff-neg'}">${sign}${diff}</div>
-        </div>`;
-      }).join('')}
-    </div>` : ''}
+    ${!editMode ? (() => {
+      const rows = [];
+      for (let o = -2; o <= 2; o++) {
+        const slotRank = rank + o;
+        if (slotRank < 1 || slotRank > sorted.length) continue;
+        rows.push({ film: sorted[slotRank - 1], slotRank });
+      }
+      if (!rows.length) return '';
+      return `<div class="compare-section">
+        <div class="compare-title">Nearby in the rankings</div>
+        ${rows.map(({ film: x, slotRank }) => {
+          const isCurrent = x === m;
+          const displayTotal = (Math.round(x.total * 10) / 10).toFixed(1);
+          if (isCurrent) {
+            return `<div style="display:flex;align-items:center;gap:12px;padding:9px 12px;background:var(--ink);margin:2px 0">
+              <span style="font-family:'DM Mono',monospace;font-size:10px;color:rgba(255,255,255,0.45);min-width:20px;text-align:right">${slotRank}</span>
+              <span style="font-family:'Playfair Display',serif;font-weight:700;font-style:italic;flex:1;color:white;font-size:14px">${x.title} <span style="font-size:11px;font-weight:400;color:rgba(255,255,255,0.5)">${x.year||''}</span></span>
+              <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600;color:white">${displayTotal}</span>
+            </div>`;
+          }
+          return `<div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid var(--rule);cursor:pointer" onclick="closeModal();openModal(${MOVIES.indexOf(x)})">
+            <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);min-width:20px;text-align:right">${slotRank}</span>
+            <span style="font-family:'Playfair Display',serif;font-weight:700;flex:1;color:var(--ink);font-size:14px">${x.title} <span style="font-size:11px;font-weight:400;color:var(--dim)">${x.year||''}</span></span>
+            <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--dim)">${displayTotal}</span>
+          </div>`;
+        }).join('')}
+      </div>`;
+    })() : ''}
   `;
   document.getElementById('filmModal').classList.add('open');
   localStorage.setItem('ledger_last_modal', idx);

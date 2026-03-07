@@ -393,15 +393,26 @@ function renderResult() {
           <div class="result-cat-val ${scoreClass(newFilm.scores[cat.key] || 0)}">${newFilm.scores[cat.key] || '—'}</div>
         </div>`).join('')}
     </div>
-    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--rule)">
+    <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--rule)">
+      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--dim);margin-bottom:10px">Where it lands</div>
       ${[-2,-1,0,1,2].map(offset => {
-        const neighbor = sorted[rank - 1 + offset];
-        if (!neighbor || neighbor === newFilm) return '';
-        const diff = (neighbor.total - total).toFixed(2);
-        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--rule);font-size:13px">
-          <span style="font-family:'Playfair Display',serif;font-weight:700;flex:1">${neighbor.title}</span>
-          <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim)">${neighbor.total}</span>
-          <span style="font-family:'DM Mono',monospace;font-size:10px;font-weight:600;color:${diff > 0 ? 'var(--green)' : 'var(--red)'}">${diff > 0 ? '+':''}${diff}</span>
+        const slotRank = rank + offset;
+        if (slotRank < 1 || slotRank > sorted.length) return '';
+        const film = sorted[slotRank - 1];
+        const isCurrent = film === newFilm;
+        const filmTotal = isCurrent ? total : film.total;
+        const displayTotal = (Math.round(filmTotal * 10) / 10).toFixed(1);
+        if (isCurrent) {
+          return `<div style="display:flex;align-items:center;gap:12px;padding:9px 12px;background:var(--ink);margin:2px 0">
+            <span style="font-family:'DM Mono',monospace;font-size:10px;color:rgba(255,255,255,0.45);min-width:20px;text-align:right">${slotRank}</span>
+            <span style="font-family:'Playfair Display',serif;font-weight:700;font-style:italic;flex:1;color:white;font-size:14px">${film.title}</span>
+            <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600;color:white">${displayTotal}</span>
+          </div>`;
+        }
+        return `<div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid var(--rule);margin:0">
+          <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);min-width:20px;text-align:right">${slotRank}</span>
+          <span style="font-family:'Playfair Display',serif;font-weight:700;flex:1;color:var(--ink);font-size:14px">${film.title}</span>
+          <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--dim)">${displayTotal}</span>
         </div>`;
       }).join('')}
     </div>
