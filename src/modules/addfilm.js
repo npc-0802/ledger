@@ -409,10 +409,13 @@ function renderResult() {
             <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600;color:white">${displayTotal}</span>
           </div>`;
         }
+        const diff = (film.total - total).toFixed(1);
+        const diffColor = diff > 0 ? 'var(--green)' : 'var(--red)';
         return `<div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid var(--rule);margin:0">
           <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);min-width:20px;text-align:right">${slotRank}</span>
           <span style="font-family:'Playfair Display',serif;font-weight:700;flex:1;color:var(--ink);font-size:14px">${film.title}</span>
           <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--dim)">${displayTotal}</span>
+          <span style="font-family:'DM Mono',monospace;font-size:10px;font-weight:600;color:${diffColor};min-width:36px;text-align:right">${diff > 0 ? '+' : ''}${diff}</span>
         </div>`;
       }).join('')}
     </div>

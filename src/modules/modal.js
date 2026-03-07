@@ -152,10 +152,13 @@ function renderModal() {
               <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600;color:white">${displayTotal}</span>
             </div>`;
           }
+          const diff = (x.total - m.total).toFixed(1);
+          const diffColor = diff > 0 ? 'var(--green)' : 'var(--red)';
           return `<div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid var(--rule);cursor:pointer" onclick="closeModal();openModal(${MOVIES.indexOf(x)})">
             <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);min-width:20px;text-align:right">${slotRank}</span>
             <span style="font-family:'Playfair Display',serif;font-weight:700;flex:1;color:var(--ink);font-size:14px">${x.title} <span style="font-size:11px;font-weight:400;color:var(--dim)">${x.year||''}</span></span>
             <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--dim)">${displayTotal}</span>
+            <span style="font-family:'DM Mono',monospace;font-size:10px;font-weight:600;color:${diffColor};min-width:36px;text-align:right">${diff > 0 ? '+' : ''}${diff}</span>
           </div>`;
         }).join('')}
       </div>`;
