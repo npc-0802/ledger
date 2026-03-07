@@ -94,10 +94,9 @@ async function init() {
     setCloudStatus('syncing');
     const loaded = await loadFromSupabaseByAuth(session.user.id, session.user.email);
     if (!loaded) {
-      // Check for a locally-stored legacy profile to link to this auth session
       loadUserLocally();
-      if (currentUser && !currentUser.auth_id) {
-        // User authenticated — link their auth session to their existing profile
+      if (currentUser) {
+        // Existing local profile — link this auth session to it and load by UUID
         const { sb: supabase } = await import('./modules/supabase.js');
         await supabase.from('palatemap_users').update({
           auth_id: session.user.id,
@@ -105,15 +104,10 @@ async function init() {
         }).eq('id', currentUser.id);
         setCurrentUser({ ...currentUser, auth_id: session.user.id, email: session.user.email || null });
         saveUserLocally();
-        // Now load properly from Supabase
-        const linked = await loadFromSupabaseByAuth(session.user.id, session.user.email);
-        if (!linked) {
-          // Profile exists locally but not yet in Supabase — sync it up
-          const { syncToSupabase } = await import('./modules/supabase.js');
-          await syncToSupabase();
-        }
-      } else if (!currentUser) {
-        // Genuinely new user — send them through onboarding quiz
+        // Load by profile UUID — always reliable, doesn't need auth_id/email to match
+        await loadFromSupabase(currentUser.id);
+      } else {
+        // No local profile — genuinely new user after Google/magic link sign-up
         const pendingName = localStorage.getItem('palatemap_pending_name')
           || session.user.user_metadata?.full_name
           || session.user.user_metadata?.name
