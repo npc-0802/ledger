@@ -34,7 +34,7 @@ export function openArchetypeModal() {
         return `<div class="archetype-weight-row">
           <div class="archetype-weight-label">${cat.label}</div>
           <div class="archetype-weight-bar-wrap"><div class="archetype-weight-bar" id="awbar_${cat.key}" style="width:${pct}%"></div></div>
-          <input class="archetype-weight-input" type="number" min="1" max="10" value="${w}"
+          <input class="archetype-weight-input" type="number" min="1" max="5" value="${w}"
             id="awval_${cat.key}" oninput="previewWeight('${cat.key}', this.value)">
         </div>`;
       }).join('')}
@@ -74,18 +74,67 @@ export function resetArchetypeWeights() {
   previewWeight();
 }
 
+function detectArchetype(weights) {
+  // Returns { primary, secondary } based on cosine similarity to archetype weight vectors
+  const keys = CATEGORIES.map(c => c.key);
+  const norm = v => { const mag = Math.sqrt(keys.reduce((s,k) => s + (v[k]||1)**2, 0)); return keys.map(k => (v[k]||1)/mag); };
+  const userVec = norm(weights);
+  const scores = Object.entries(ARCHETYPES).map(([name, arch]) => {
+    const archVec = norm(arch.weights);
+    const sim = userVec.reduce((s, u, i) => s + u * archVec[i], 0);
+    return { name, sim };
+  }).sort((a, b) => b.sim - a.sim);
+  return { primary: scores[0].name, secondary: scores[1].name };
+}
+
 export function saveArchetypeWeights() {
   const newWeights = {};
   CATEGORIES.forEach(cat => {
     const v = parseFloat(document.getElementById('awval_' + cat.key)?.value);
-    newWeights[cat.key] = isNaN(v) || v < 1 ? 1 : Math.min(10, v);
+    newWeights[cat.key] = isNaN(v) || v < 1 ? 1 : Math.min(5, v);
   });
+
+  const prevArchetype = currentUser.archetype;
+  const detected = detectArchetype(newWeights);
+
   currentUser.weights = newWeights;
-  import('../modules/supabase.js').then(m => m.saveUserLocally());
+  currentUser.archetype = detected.primary;
+  currentUser.archetype_secondary = detected.secondary;
+
+  import('../modules/supabase.js').then(m => {
+    m.saveUserLocally();
+    m.syncToSupabase().catch(() => {});
+  });
   applyUserWeights();
   renderRankings();
   saveToStorage();
   closeArchetypeModal();
+
+  // Show archetype shift notification if it changed
+  if (detected.primary !== prevArchetype) {
+    showArchetypeShiftToast(prevArchetype, detected.primary);
+  }
+}
+
+function showArchetypeShiftToast(from, to) {
+  const existing = document.getElementById('archetype-shift-toast');
+  if (existing) existing.remove();
+
+  const toast = document.createElement('div');
+  toast.id = 'archetype-shift-toast';
+  toast.innerHTML = `
+    <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--on-dark-dim);margin-bottom:6px">Palate shift detected</div>
+    <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:18px;color:white;line-height:1.2">${from} <span style="color:var(--on-dark-dim);font-size:14px">→</span> ${to}</div>
+    <div style="font-family:'DM Sans',sans-serif;font-size:12px;color:var(--on-dark-dim);margin-top:4px">Your archetype has updated.</div>
+  `;
+  toast.style.cssText = `
+    position:fixed;bottom:24px;right:24px;z-index:9999;
+    background:var(--surface-dark);border:1px solid rgba(255,255,255,0.12);
+    padding:16px 20px;max-width:260px;
+    animation:fadeIn 0.25s ease;
+  `;
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.style.transition = 'opacity 0.4s'; toast.style.opacity = '0'; setTimeout(() => toast.remove(), 400); }, 4000);
 }
 
 window.logOutUser = function() {

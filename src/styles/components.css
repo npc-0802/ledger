@@ -84,6 +84,7 @@
 .breakdown-bar-wrap { flex: 1; height: 4px; background: var(--rule); border-radius: 2px; position: relative; }
 .breakdown-bar { height: 100%; border-radius: 2px; background: var(--blue); }
 .bar-tick { position: absolute; top: 50%; transform: translateY(-50%); width: 1px; height: 8px; background: var(--rule-dark); pointer-events: none; }
+.bar-tick-mid { height: 13px; }
 .breakdown-val { font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 500; width: 30px; text-align: right; }
 .breakdown-wt { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--dim); width: 20px; }
 

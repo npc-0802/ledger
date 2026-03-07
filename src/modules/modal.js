@@ -91,7 +91,7 @@ function renderModal() {
       }
       return `<div class="breakdown-row">
         <div class="breakdown-cat">${cat.label} <span class="breakdown-wt">×${cat.weight}</span></div>
-        <div class="breakdown-bar-wrap"><div class="breakdown-bar" style="width:${v||0}%"></div><div class="bar-tick" style="left:25%"></div><div class="bar-tick" style="left:50%"></div><div class="bar-tick" style="left:75%"></div></div>
+        <div class="breakdown-bar-wrap"><div class="breakdown-bar" style="width:${v||0}%"></div><div class="bar-tick" style="left:25%"></div><div class="bar-tick bar-tick-mid" style="left:50%"></div><div class="bar-tick" style="left:75%"></div></div>
         <div class="breakdown-val ${v ? scoreClass(v) : ''}">${v ?? '—'}</div>
         <div class="modal-cat-rank">#${cr}</div>
       </div>`;

@@ -1,5 +1,8 @@
 import { MOVIES, CATEGORIES, scoreClass, mergeSplitNames } from '../state.js';
 
+const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
+const PERSON_TYPES = ['director', 'writer', 'actor'];
+
 let exploreActiveTab = 'directors';
 
 function splitNames(str) {
@@ -143,14 +146,19 @@ export function exploreEntity(type, name) {
         <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--on-dark-dim);margin-bottom:14px">
           ${typeLabel} &nbsp;·&nbsp; <span onclick="renderAnalysis()" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px">← all ${pluralType}</span>
         </div>
-        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(26px,4vw,44px);color:var(--on-dark);letter-spacing:-1.5px;line-height:1.1;margin-bottom:20px">${name}</div>
-        <div style="display:flex;align-items:baseline;gap:20px;flex-wrap:wrap">
-          <div style="display:flex;align-items:baseline;gap:10px">
-            <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(36px,5vw,52px);color:var(--on-dark);letter-spacing:-2px;line-height:1">${avg}</div>
-            <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);text-transform:uppercase;letter-spacing:1px">avg score</div>
+        <div style="display:flex;align-items:flex-end;gap:20px">
+          ${(PERSON_TYPES.includes(type) || type === 'company') ? `<img id="explore-person-img" src="" alt="" style="width:72px;height:72px;object-fit:cover;border-radius:50%;display:none;flex-shrink:0;border:2px solid rgba(255,255,255,0.12)">` : ''}
+          <div>
+            <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(26px,4vw,44px);color:var(--on-dark);letter-spacing:-1.5px;line-height:1.1;margin-bottom:20px">${name}</div>
+            <div style="display:flex;align-items:baseline;gap:20px;flex-wrap:wrap">
+              <div style="display:flex;align-items:baseline;gap:10px">
+                <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(36px,5vw,52px);color:var(--on-dark);letter-spacing:-2px;line-height:1">${avg}</div>
+                <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);text-transform:uppercase;letter-spacing:1px">avg score</div>
+              </div>
+              <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--on-dark-dim)">#${entityRank} of ${totalEntities} ${pluralType}</div>
+              <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--on-dark-dim)">${films.length} film${films.length!==1?'s':''} rated</div>
+            </div>
           </div>
-          <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--on-dark-dim)">#${entityRank} of ${totalEntities} ${pluralType}</div>
-          <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--on-dark-dim)">${films.length} film${films.length!==1?'s':''} rated</div>
         </div>
       </div>
 
@@ -220,8 +228,40 @@ export function exploreEntity(type, name) {
     </div>
   `;
 
-  // Load insight async after render
+  // Load insight + person image async after render
   loadExploreInsight(type, name, films);
+  if (PERSON_TYPES.includes(type)) loadPersonImage(name);
+  else if (type === 'company') loadCompanyLogo(name);
+}
+
+async function loadPersonImage(name) {
+  try {
+    const res = await fetch(`https://api.themoviedb.org/3/search/person?api_key=${TMDB_KEY}&query=${encodeURIComponent(name)}&language=en-US`);
+    const data = await res.json();
+    const person = data.results?.[0];
+    if (!person?.profile_path) return;
+    const img = document.getElementById('explore-person-img');
+    if (!img) return;
+    img.src = `https://image.tmdb.org/t/p/w185${person.profile_path}`;
+    img.style.display = 'block';
+  } catch(e) {}
+}
+
+async function loadCompanyLogo(name) {
+  try {
+    const res = await fetch(`https://api.themoviedb.org/3/search/company?api_key=${TMDB_KEY}&query=${encodeURIComponent(name)}`);
+    const data = await res.json();
+    const company = data.results?.[0];
+    if (!company?.logo_path) return;
+    const img = document.getElementById('explore-person-img');
+    if (!img) return;
+    img.src = `https://image.tmdb.org/t/p/w185${company.logo_path}`;
+    img.style.display = 'block';
+    img.style.borderRadius = '4px';
+    img.style.background = 'white';
+    img.style.padding = '6px';
+    img.style.objectFit = 'contain';
+  } catch(e) {}
 }
 
 async function loadExploreInsight(type, name, films) {

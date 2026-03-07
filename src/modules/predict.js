@@ -9,6 +9,42 @@ let predictSelectedFilm = null;
 let lastPrediction = null;
 
 export function initPredict() {
+  const MIN_FILMS = 10;
+  if (MOVIES.length < MIN_FILMS) {
+    const needed = MIN_FILMS - MOVIES.length;
+    document.getElementById('predict-result').innerHTML = '';
+    document.getElementById('predict-search-results').innerHTML = '';
+    document.getElementById('predict-search').value = '';
+    const container = document.getElementById('predict-search')?.closest('.screen') || document.getElementById('predict');
+    const lockEl = document.getElementById('predict-lock-state');
+    if (!lockEl) {
+      const wrap = document.getElementById('predict-search')?.parentElement;
+      if (wrap) {
+        wrap.style.display = 'none';
+      }
+      const lock = document.createElement('div');
+      lock.id = 'predict-lock-state';
+      lock.style.cssText = 'padding:48px 0;text-align:center;max-width:440px;margin:0 auto';
+      lock.innerHTML = `
+        <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--dim);margin-bottom:16px">— uncharted —</div>
+        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:32px;color:var(--ink);letter-spacing:-1px;margin-bottom:12px">Not enough data yet.</div>
+        <div style="font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.7;color:var(--dim);font-weight:300">Add <strong style="color:var(--ink)">${needed} more film${needed !== 1 ? 's' : ''}</strong> to your rankings before Palate Map can predict your taste. The more you've rated, the more accurate the prediction.</div>
+        <div style="margin-top:28px">
+          <button onclick="document.querySelector('.nav-btn.action-tab').click()" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:14px 32px;cursor:pointer">Rate films →</button>
+        </div>
+      `;
+      const screen = document.getElementById('predict');
+      if (screen) screen.insertBefore(lock, screen.firstChild);
+    }
+    return;
+  }
+
+  // Remove lock state if enough films now
+  const lockEl = document.getElementById('predict-lock-state');
+  if (lockEl) lockEl.remove();
+  const wrap = document.getElementById('predict-search')?.parentElement;
+  if (wrap) wrap.style.display = '';
+
   document.getElementById('predict-search').value = '';
   document.getElementById('predict-search-results').innerHTML = '';
   document.getElementById('predict-result').innerHTML = '';

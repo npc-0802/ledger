@@ -33,8 +33,8 @@ function renderObStep() {
         <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);letter-spacing:1px;cursor:pointer;text-decoration:underline" onclick="obShowReturning()">Restore your profile →</span>
       </div>
       <div style="text-align:center;margin-top:10px">
-        <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);letter-spacing:1px">Have a film_rankings.json? &nbsp;</span>
-        <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);letter-spacing:1px;cursor:pointer;text-decoration:underline" onclick="obShowImport()">Import existing list →</span>
+        <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);letter-spacing:1px">On Letterboxd? &nbsp;</span>
+        <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);letter-spacing:1px;cursor:pointer;text-decoration:underline" onclick="obShowImport()">Import your ratings →</span>
       </div>
     `;
     setTimeout(() => document.getElementById('ob-name-field')?.focus(), 50);
@@ -55,21 +55,33 @@ function renderObStep() {
 
   } else if (obStep === 'import') {
     card.innerHTML = `
-      <div class="ob-eyebrow">palate map · import</div>
-      <div class="ob-title">Import your films.</div>
-      <div class="ob-sub">Select your <em>film_rankings.json</em> exported from a previous version of Palate Map.</div>
-      <div id="ob-import-drop" style="border:2px dashed var(--rule-dark);padding:40px 24px;text-align:center;cursor:pointer;margin-bottom:16px;transition:border-color 0.15s"
-        onclick="document.getElementById('ob-import-file').click()"
+      <div class="ob-eyebrow">palate map · letterboxd import</div>
+      <div class="ob-title">Bring your watchlist.</div>
+      <div class="ob-sub">Your Letterboxd ratings become your starting point. We'll map your star ratings to scores and let you go deeper from there.</div>
+
+      <div style="background:var(--cream);border:1px solid var(--rule);padding:14px 16px;margin-bottom:20px;font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);line-height:1.9">
+        <strong style="color:var(--ink)">How to export from Letterboxd:</strong><br>
+        1. letterboxd.com → Settings → <strong>Import & Export</strong><br>
+        2. Click <strong>Export Your Data</strong> → download the .zip<br>
+        3. Unzip → upload <strong>ratings.csv</strong> below
+      </div>
+
+      <div id="ob-import-drop-lb" style="border:2px dashed var(--rule-dark);padding:40px 24px;text-align:center;cursor:pointer;margin-bottom:8px;transition:border-color 0.15s"
+        onclick="document.getElementById('ob-import-file-lb').click()"
         ondragover="event.preventDefault();this.style.borderColor='var(--blue)'"
         ondragleave="this.style.borderColor='var(--rule-dark)'"
-        ondrop="obHandleImportDrop(event)">
-        <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);letter-spacing:1px">Click to select or drag file here</div>
-        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--rule-dark);margin-top:6px">film_rankings.json</div>
+        ondrop="obHandleLetterboxdDrop(event)">
+        <div style="font-family:'DM Mono',monospace;font-size:13px;color:var(--dim);letter-spacing:1px;margin-bottom:6px">Drop ratings.csv here</div>
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--rule-dark)">or click to browse</div>
       </div>
-      <input type="file" id="ob-import-file" accept=".json" style="display:none" onchange="obHandleImportFile(this)">
+      <input type="file" id="ob-import-file-lb" accept=".csv,.json" style="display:none" onchange="obHandleLetterboxdFile(this)">
+      <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);margin-bottom:20px;line-height:1.6;text-align:center">
+        5★ = 100 · 4★ = 80 · 3★ = 60 · 2★ = 40 · 1★ = 20 &nbsp;·&nbsp; Category scores added via Calibrate
+      </div>
+
       <div id="ob-import-status" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);margin-bottom:16px;min-height:18px"></div>
       <button class="ob-btn" id="ob-import-btn" onclick="obConfirmImport()" disabled>Continue with imported films →</button>
-      <div style="text-align:center;margin-top:20px">
+      <div style="text-align:center;margin-top:16px">
         <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);letter-spacing:1px;cursor:pointer;text-decoration:underline" onclick="obStep='name';renderObStep()">← Back</span>
       </div>
     `;
@@ -148,6 +160,86 @@ window.obSubmitName = function() {
 
 window.obShowReturning = function() { obStep = 'returning'; renderObStep(); };
 window.obShowImport = function() { obStep = 'import'; obImportedMovies = null; renderObStep(); };
+
+window.obSwitchImportTab = function(tab) {
+  document.getElementById('ob-import-panel-pm').style.display = tab === 'pm' ? '' : 'none';
+  document.getElementById('ob-import-panel-lb').style.display = tab === 'lb' ? '' : 'none';
+  document.getElementById('ob-import-tab-pm').style.borderBottomColor = tab === 'pm' ? 'var(--ink)' : 'transparent';
+  document.getElementById('ob-import-tab-pm').style.color = tab === 'pm' ? 'var(--ink)' : 'var(--dim)';
+  document.getElementById('ob-import-tab-lb').style.borderBottomColor = tab === 'lb' ? 'var(--ink)' : 'transparent';
+  document.getElementById('ob-import-tab-lb').style.color = tab === 'lb' ? 'var(--ink)' : 'var(--dim)';
+  obImportedMovies = null;
+  document.getElementById('ob-import-status').textContent = '';
+  document.getElementById('ob-import-btn').disabled = true;
+};
+
+window.obHandleLetterboxdDrop = function(e) {
+  e.preventDefault();
+  const drop = document.getElementById('ob-import-drop-lb');
+  if (drop) drop.style.borderColor = 'var(--rule-dark)';
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+  if (file.name.endsWith('.json')) obReadImportFile(file);
+  else obReadLetterboxdFile(file);
+};
+
+window.obHandleLetterboxdFile = function(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.name.endsWith('.json')) obReadImportFile(file);
+  else obReadLetterboxdFile(file);
+};
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim());
+  return lines.slice(1).map(line => {
+    const values = [];
+    let cur = '', inQuote = false;
+    for (const ch of line) {
+      if (ch === '"') { inQuote = !inQuote; }
+      else if (ch === ',' && !inQuote) { values.push(cur.trim()); cur = ''; }
+      else cur += ch;
+    }
+    values.push(cur.trim());
+    return Object.fromEntries(headers.map((h, i) => [h, values[i] || '']));
+  });
+}
+
+function obReadLetterboxdFile(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const rows = parseCSV(e.target.result);
+      // Letterboxd ratings.csv columns: Date, Name, Year, Letterboxd URI, Rating
+      const films = rows
+        .filter(r => r.Name && r.Rating && parseFloat(r.Rating) > 0)
+        .map(r => {
+          const stars = parseFloat(r.Rating);
+          const total = Math.round(stars * 20);
+          return {
+            title: r.Name,
+            year: parseInt(r.Year) || null,
+            total,
+            scores: {},
+            director: '', writer: '', cast: '', productionCompanies: '',
+            poster: null, overview: ''
+          };
+        });
+      if (films.length === 0) throw new Error('No rated films found');
+      obImportedMovies = films;
+      document.getElementById('ob-import-status').textContent = `✓ ${films.length} films ready to import`;
+      document.getElementById('ob-import-status').style.color = 'var(--green)';
+      const dropLb = document.getElementById('ob-import-drop-lb');
+      if (dropLb) { dropLb.style.borderColor = 'var(--green)'; dropLb.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:13px;color:var(--green)">${file.name}</div><div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--green);margin-top:4px">${films.length} films ready to import</div>`; }
+      document.getElementById('ob-import-btn').disabled = false;
+    } catch(err) {
+      document.getElementById('ob-import-status').textContent = "Couldn't parse that file — make sure it's ratings.csv from Letterboxd.";
+      document.getElementById('ob-import-status').style.color = 'var(--red)';
+    }
+  };
+  reader.readAsText(file);
+}
 
 window.obHandleImportDrop = function(e) {
   e.preventDefault();
