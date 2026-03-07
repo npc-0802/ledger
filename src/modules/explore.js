@@ -74,8 +74,11 @@ export function renderExploreIndex(tab) {
           const safeName = e.name.replace(/'/g, "\\'");
           const singularType = exploreActiveTab === 'companies' ? 'company' : exploreActiveTab === 'years' ? 'year' : exploreActiveTab.slice(0, -1);
           const showPortrait = exploreActiveTab !== 'years';
+          const isCompanyTab = exploreActiveTab === 'companies';
           const portraitHtml = showPortrait
-            ? `<div style="position:relative;width:40px;height:40px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--rule)"><img id="explore-list-img-${i}" src="" alt="" style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;display:none"></div>`
+            ? isCompanyTab
+              ? `<div style="position:relative;width:40px;height:40px;border-radius:6px;flex-shrink:0;background:white;border:1px solid var(--rule);display:flex;align-items:center;justify-content:center;overflow:hidden"><img id="explore-list-img-${i}" src="" alt="" style="width:32px;height:32px;object-fit:contain;display:none"></div>`
+              : `<div style="position:relative;width:40px;height:40px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--rule)"><img id="explore-list-img-${i}" src="" alt="" style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;display:none"></div>`
             : '';
           return `<div style="display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--rule);cursor:pointer" onclick="exploreEntity('${singularType}','${safeName}')" onmouseover="this.style.background='var(--cream)'" onmouseout="this.style.background=''">
             <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);min-width:24px;text-align:right;flex-shrink:0">${i+1}</div>

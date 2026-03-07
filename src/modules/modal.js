@@ -42,11 +42,15 @@ function renderModal() {
 
   const chip = (label, type, value) => {
     const isPersonType = ['director','writer','actor'].includes(type);
-    const imgId = isPersonType ? `chip-img-${type}-${value.replace(/[^a-z0-9]/gi,'').toLowerCase().slice(0,24)}` : '';
+    const isCompany = type === 'company';
+    const hasImg = isPersonType || isCompany;
+    const imgId = hasImg ? `chip-img-${type}-${value.replace(/[^a-z0-9]/gi,'').toLowerCase().slice(0,24)}` : '';
     const imgHtml = isPersonType
       ? `<img id="${imgId}" src="" alt="" style="width:20px;height:20px;border-radius:50%;object-fit:cover;flex-shrink:0;display:none">`
-      : '';
-    return `<span class="modal-meta-chip" style="${isPersonType ? 'display:inline-flex;align-items:center;gap:5px' : ''}" onclick="exploreEntity('${type}','${value.replace(/'/g, String.fromCharCode(39))}')">${imgHtml}${label}</span>`;
+      : isCompany
+        ? `<span id="${imgId}-wrap" style="display:none;width:18px;height:18px;background:white;border-radius:3px;flex-shrink:0;align-items:center;justify-content:center;overflow:hidden"><img id="${imgId}" src="" alt="" style="width:14px;height:14px;object-fit:contain;display:block"></span>`
+        : '';
+    return `<span class="modal-meta-chip" style="${hasImg ? 'display:inline-flex;align-items:center;gap:5px' : ''}" onclick="exploreEntity('${type}','${value.replace(/'/g, String.fromCharCode(39))}')">${imgHtml}${label}</span>`;
   };
 
   const directorChips = mergeSplitNames((m.director||'').split(',').map(d=>d.trim()).filter(Boolean)).map(d=>chip(d,'director',d)).join('');
@@ -193,6 +197,23 @@ async function loadChipImages(m) {
         if (!img) return;
         img.src = `https://image.tmdb.org/t/p/w92${path}`;
         img.style.display = 'block';
+      })
+      .catch(() => {});
+  });
+
+  // Company logos
+  mergeSplitNames((m.productionCompanies||'').split(',').map(c=>c.trim()).filter(Boolean)).forEach(name => {
+    const id = `chip-img-company-${name.replace(/[^a-z0-9]/gi,'').toLowerCase().slice(0,24)}`;
+    fetch(`https://api.themoviedb.org/3/search/company?api_key=${TMDB_KEY}&query=${encodeURIComponent(name)}`)
+      .then(r => r.json())
+      .then(data => {
+        const path = data.results?.[0]?.logo_path;
+        if (!path) return;
+        const img = document.getElementById(id);
+        const wrap = document.getElementById(`${id}-wrap`);
+        if (!img || !wrap) return;
+        img.src = `https://image.tmdb.org/t/p/w92${path}`;
+        wrap.style.display = 'inline-flex';
       })
       .catch(() => {});
   });
