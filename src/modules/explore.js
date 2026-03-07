@@ -69,7 +69,7 @@ export function renderExploreIndex(tab) {
         ? `<div style="font-family:'DM Sans',sans-serif;font-size:14px;color:var(--dim);font-style:italic;padding:48px 0">Not enough data yet — add more films to see patterns.</div>`
         : entities.map((e, i) => {
             const safeName = e.name.replace(/'/g, "\\'");
-            const singularType = exploreActiveTab.slice(0, -1);
+            const singularType = exploreActiveTab === 'companies' ? 'company' : exploreActiveTab.slice(0, -1);
             return `<div style="display:flex;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid var(--rule);cursor:pointer" onclick="exploreEntity('${singularType}','${safeName}')" onmouseover="this.style.background='var(--cream)'" onmouseout="this.style.background=''">
               <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);min-width:28px;text-align:right">${i+1}</div>
               <div style="flex:1;min-width:0">
