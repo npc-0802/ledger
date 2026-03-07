@@ -43,8 +43,8 @@ function renderObStep() {
     card.innerHTML = `
       <div class="ob-eyebrow">palate map · welcome back</div>
       <div class="ob-title">Welcome back.</div>
-      <div class="ob-sub">Enter your username to restore your profile and film list from the cloud. It looks like <em>alex-7742</em>.</div>
-      <input class="ob-name-input" id="ob-returning-field" type="text" placeholder="e.g. alex-7742" maxlength="64" onkeydown="if(event.key==='Enter') obLookupUser()">
+      <div class="ob-sub">Enter your username to restore your profile and film list from the cloud.</div>
+      <input class="ob-name-input" id="ob-returning-field" type="text" placeholder="e.g. alexsmith" maxlength="64" onkeydown="if(event.key==='Enter') obLookupUser()">
       <div id="ob-returning-error" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--red);margin-bottom:12px;display:none">Username not found. Check spelling and try again.</div>
       <button class="ob-btn" id="ob-returning-btn" onclick="obLookupUser()">Restore profile →</button>
       <div style="text-align:center;margin-top:20px">
@@ -100,7 +100,7 @@ function renderObStep() {
     const result = deriveArchetype(obAnswers);
     obRevealResult = result;
     if (!obRevealResult._slug) {
-      obRevealResult._slug = obDisplayName.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Math.floor(Math.random()*9000+1000);
+      obRevealResult._slug = obDisplayName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'user';
     }
     const arch = ARCHETYPES[result.primary];
     const palColor = arch.palette || '#3d5a80';
@@ -294,7 +294,7 @@ function deriveArchetype(answers) {
 
 async function obFinish(primary, secondary, weights, harmonySensitivity) {
   const id = crypto.randomUUID();
-  const slug = obRevealResult._slug || (obDisplayName.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Math.floor(Math.random()*9000+1000));
+  const slug = obRevealResult._slug || (obDisplayName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'user');
 
   setCurrentUser({
     id, username: slug, display_name: obDisplayName,

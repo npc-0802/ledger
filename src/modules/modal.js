@@ -106,6 +106,9 @@ function renderModal() {
       <span style="font-family:'Playfair Display',serif;font-size:52px;font-weight:900;color:var(--blue);letter-spacing:-2px" id="modal-total-display">${previewTotal}</span>
       <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--dim)" id="modal-total-label">${getLabel(previewTotal)}</span>
     </div>
+    ${!editMode ? `<div id="modal-insight" style="margin-bottom:20px">
+      <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);font-style:italic">analysing your score…</div>
+    </div>` : ''}
     <div style="margin-bottom:20px">
       ${editMode
         ? `<button onclick="modalSaveScores()" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;background:var(--blue);color:white;border:none;padding:8px 18px;cursor:pointer;margin-right:8px">Save scores</button>
@@ -129,6 +132,8 @@ function renderModal() {
   `;
   document.getElementById('filmModal').classList.add('open');
   localStorage.setItem('ledger_last_modal', idx);
+
+  if (!editMode) loadModalInsight(m);
 }
 
 window.modalEnterEdit = function() {
@@ -172,6 +177,24 @@ window.modalSaveScores = function() {
   syncToSupabase().catch(e => console.warn('sync failed', e));
   renderModal();
 };
+
+async function loadModalInsight(film) {
+  const el = document.getElementById('modal-insight');
+  if (!el) return;
+  try {
+    const { getFilmInsight } = await import('./insights.js');
+    const text = await getFilmInsight(film);
+    if (!document.getElementById('modal-insight')) return;
+    el.innerHTML = `
+      <div style="padding:14px 18px;background:var(--surface-dark);border-radius:6px">
+        <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-dark-dim);margin-bottom:8px">Why this score</div>
+        <div style="font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.7;color:var(--on-dark)">${text}</div>
+      </div>`;
+  } catch(e) {
+    const el2 = document.getElementById('modal-insight');
+    if (el2) el2.style.display = 'none';
+  }
+}
 
 export function closeModal(e) {
   if (!e || e.target === document.getElementById('filmModal')) {

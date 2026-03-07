@@ -14,6 +14,7 @@ function buildEntityMap(type) {
     else if (type === 'writers') names = splitNames(m.writer);
     else if (type === 'actors') names = splitNames(m.cast);
     else if (type === 'companies') names = splitNames(m.productionCompanies);
+    else if (type === 'years') names = m.year ? [String(m.year)] : [];
     names.forEach(name => {
       if (!map[name]) map[name] = [];
       map[name].push(m);
@@ -48,8 +49,8 @@ function badgeColor(score) {
 
 export function renderExploreIndex(tab) {
   if (tab) exploreActiveTab = tab;
-  const tabs = ['directors','writers','actors','companies'];
-  const tabLabels = { directors: 'Directors', writers: 'Writers', actors: 'Actors', companies: 'Production Co.' };
+  const tabs = ['directors','writers','actors','companies','years'];
+  const tabLabels = { directors: 'Directors', writers: 'Writers', actors: 'Actors', companies: 'Production Co.', years: 'Years' };
 
   const entities = getEntities(exploreActiveTab);
 
@@ -69,7 +70,7 @@ export function renderExploreIndex(tab) {
         ? `<div style="font-family:'DM Sans',sans-serif;font-size:14px;color:var(--dim);font-style:italic;padding:48px 0">Not enough data yet — add more films to see patterns.</div>`
         : entities.map((e, i) => {
             const safeName = e.name.replace(/'/g, "\\'");
-            const singularType = exploreActiveTab === 'companies' ? 'company' : exploreActiveTab.slice(0, -1);
+            const singularType = exploreActiveTab === 'companies' ? 'company' : exploreActiveTab === 'years' ? 'year' : exploreActiveTab.slice(0, -1);
             return `<div style="display:flex;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid var(--rule);cursor:pointer" onclick="exploreEntity('${singularType}','${safeName}')" onmouseover="this.style.background='var(--cream)'" onmouseout="this.style.background=''">
               <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);min-width:28px;text-align:right">${i+1}</div>
               <div style="flex:1;min-width:0">
@@ -95,14 +96,15 @@ export function exploreEntity(type, name) {
   window.scrollTo(0, 0);
   document.getElementById('exploreContent').scrollTop = 0;
 
-  const pluralType = type === 'director' ? 'directors' : type === 'writer' ? 'writers' : type === 'actor' ? 'actors' : 'companies';
-  const typeLabel = type === 'director' ? 'Director' : type === 'writer' ? 'Writer' : type === 'actor' ? 'Actor' : 'Company';
+  const pluralType = type === 'director' ? 'directors' : type === 'writer' ? 'writers' : type === 'actor' ? 'actors' : type === 'year' ? 'years' : 'companies';
+  const typeLabel = type === 'director' ? 'Director' : type === 'writer' ? 'Writer' : type === 'actor' ? 'Actor' : type === 'year' ? 'Year' : 'Production Co.';
 
   const films = MOVIES.filter(m => {
     if (type === 'director') return splitNames(m.director).includes(name);
     if (type === 'writer') return splitNames(m.writer).includes(name);
     if (type === 'actor') return splitNames(m.cast).includes(name);
     if (type === 'company') return splitNames(m.productionCompanies).includes(name);
+    if (type === 'year') return String(m.year) === name;
     return false;
   }).sort((a,b) => b.total - a.total);
 
@@ -154,11 +156,11 @@ export function exploreEntity(type, name) {
         </div>
       </div>
 
+      <div id="explore-insight" style="margin-bottom:28px">
+        <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);font-style:italic;padding:4px 0">analysing your taste patterns…</div>
+      </div>
+
       ${scored.length > 0 ? `
-        ${strength && weakness && strength.key !== weakness.key ? `
-          <div style="font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.7;color:var(--ink);margin-bottom:28px;padding-bottom:24px;border-bottom:1px solid var(--rule)">
-            You rate ${name}'s <strong>${strength.label.toLowerCase()}</strong> highest (avg ${strength.avg.toFixed(1)})${weakness.avg < 70 ? `, but find their <strong>${weakness.label.toLowerCase()}</strong> less compelling (avg ${weakness.avg.toFixed(1)})` : ''}.${entityRank <= 3 ? ` Ranks <strong>#${entityRank}</strong> among all ${pluralType} in your list.` : ''}
-          </div>` : ''}
 
         <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--dim);margin-bottom:16px">Category averages</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 40px;margin-bottom:32px">
@@ -202,4 +204,25 @@ export function exploreEntity(type, name) {
       }).join('')}
     </div>
   `;
+
+  // Load insight async after render
+  loadExploreInsight(type, name, films);
+}
+
+async function loadExploreInsight(type, name, films) {
+  const el = document.getElementById('explore-insight');
+  if (!el) return;
+  try {
+    const { getEntityInsight } = await import('./insights.js');
+    const text = await getEntityInsight(type, name, films);
+    if (!document.getElementById('explore-insight')) return; // user navigated away
+    el.innerHTML = `
+      <div style="padding:18px 20px;background:var(--surface-dark);border-radius:8px">
+        <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-dark-dim);margin-bottom:10px">Your taste in ${name}</div>
+        <div style="font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.7;color:var(--on-dark)">${text}</div>
+      </div>`;
+  } catch(e) {
+    const el2 = document.getElementById('explore-insight');
+    if (el2) el2.style.display = 'none';
+  }
 }
