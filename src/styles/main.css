@@ -294,14 +294,15 @@ body {
 /* ── ONBOARDING OVERLAY ── */
 #onboarding-overlay {
   position: fixed; inset: 0; background: var(--paper);
-  z-index: 9999; display: flex; align-items: center; justify-content: center;
-  padding: 24px;
+  z-index: 9999; display: flex; justify-content: center;
+  overflow-y: auto; padding: 24px;
 }
 .ob-card {
   max-width: 600px; width: 100%;
   background: var(--card-bg);
   border: 1px solid var(--rule);
   padding: 48px 52px;
+  margin: auto;
 }
 
 @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.3 } }
@@ -365,6 +366,9 @@ body {
 
 /* ── RESPONSIVE ── */
 @media (max-width: 768px) {
+  #onboarding-overlay { padding: 16px; align-items: flex-start; }
+  .ob-card { padding: 32px 24px; margin: 0 auto; }
+
   .nav-strip { display: none; }
   #global-taste-banner > div { padding-left: 20px; padding-right: 20px; }
   .nav-mobile { display: flex; }
