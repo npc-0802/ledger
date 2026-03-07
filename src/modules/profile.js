@@ -105,6 +105,36 @@ function signatureFilms(movies) {
   }).join('');
 }
 
+function tasteNoteCard(user, movies) {
+  const arch = ARCHETYPES[user.archetype] || {};
+  const avgTotal = movies.length ? (movies.reduce((s, m) => s + m.total, 0) / movies.length).toFixed(1) : '—';
+  const catAvgs = CATS.map(c => {
+    const vals = movies.filter(m => m.scores?.[c] != null);
+    return { c, avg: vals.length ? vals.reduce((s, m) => s + m.scores[c], 0) / vals.length : 0 };
+  });
+  const topCat = movies.length ? [...catAvgs].sort((a,b) => b.avg - a.avg)[0] : null;
+  const quote = arch.quote || '';
+  const palette = arch.palette || '#3d5a80';
+  return `
+    <div style="width:320px;border:1px solid var(--ink);background:var(--paper);overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;min-height:400px">
+      <div style="padding:28px 28px 0">
+        <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:3px;text-transform:uppercase;color:var(--dim);margin-bottom:40px">palate map · taste note</div>
+        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(22px,4vw,28px);line-height:1.25;color:var(--ink);letter-spacing:-0.5px;margin-bottom:24px">${quote}</div>
+        <div style="width:32px;height:2px;background:${palette};margin-bottom:20px"></div>
+        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:18px;color:var(--ink);margin-bottom:4px">${user.display_name}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);letter-spacing:1px">${user.archetype}${user.archetype_secondary ? ' · ' + user.archetype_secondary : ''}</div>
+      </div>
+      <div style="padding:0 28px 24px;margin-top:40px">
+        <div style="border-top:1px solid var(--rule);padding-top:14px;display:flex;justify-content:space-between;font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">
+          <span>${movies.length} films</span>
+          ${topCat ? `<span>best: ${CAT_LABELS[topCat.c]}</span>` : `<span>avg ${avgTotal}</span>`}
+          <span>palatemap.com</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function shareCard(user, movies) {
   const top3 = [...movies].sort((a, b) => b.total - a.total).slice(0, 3);
   const avgTotal = movies.length ? (movies.reduce((s, m) => s + m.total, 0) / movies.length).toFixed(1) : '—';
@@ -224,7 +254,10 @@ export function renderProfile() {
       <div style="margin-bottom:40px">
         <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:6px">Your Palate Map Card</div>
         <div style="font-family:'DM Sans',sans-serif;font-size:12px;color:var(--dim);margin-bottom:20px">Screenshot to share.</div>
-        ${shareCard(user, movies)}
+        <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start">
+          ${shareCard(user, movies)}
+          ${tasteNoteCard(user, movies)}
+        </div>
       </div>
 
       <!-- SIGN OUT -->
