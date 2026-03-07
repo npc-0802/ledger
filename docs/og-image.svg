@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#f4efe6"/>
+
+  <!-- Bottom accent bar -->
+  <rect x="0" y="598" width="1200" height="32" fill="#e8623a"/>
+
+  <!-- Wordmark -->
+  <text x="80" y="290" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-weight="900" font-size="112" fill="#0c0b09" letter-spacing="-3">palate map</text>
+
+  <!-- Rule thick -->
+  <rect x="80" y="316" width="1040" height="4" fill="#0c0b09"/>
+  <!-- Rule thin -->
+  <rect x="80" y="326" width="1040" height="1.5" fill="#0c0b09"/>
+
+  <!-- Tagline -->
+  <text x="80" y="388" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="36" fill="#837a6a" letter-spacing="0">Taste is everything.</text>
+
+  <!-- Sub label -->
+  <text x="82" y="438" font-family="'Courier New', Courier, monospace" font-size="16" fill="#b0a898" letter-spacing="4">FILM · TASTE · ARCHETYPE</text>
+</svg>
