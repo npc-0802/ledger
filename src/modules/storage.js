@@ -1,4 +1,29 @@
-import { MOVIES, setMovies, currentUser } from '../state.js';
+import { MOVIES, setMovies, currentUser, mergeSplitNames } from '../state.js';
+
+const MIGRATIONS_KEY = 'palate_migrations_v1';
+
+// One-time data migrations — run after movies are loaded into memory.
+// Each migration is idempotent: guarded by a flag in localStorage.
+export function runMigrations() {
+  let flags;
+  try { flags = JSON.parse(localStorage.getItem(MIGRATIONS_KEY) || '{}'); } catch { flags = {}; }
+
+  if (!flags.fix_split_names) {
+    let changed = 0;
+    MOVIES.forEach(m => {
+      const castFixed = mergeSplitNames((m.cast||'').split(',').map(s=>s.trim()).filter(Boolean)).join(', ');
+      if (castFixed !== (m.cast||'')) { m.cast = castFixed; changed++; }
+      const compFixed = mergeSplitNames((m.productionCompanies||'').split(',').map(s=>s.trim()).filter(Boolean)).join(', ');
+      if (compFixed !== (m.productionCompanies||'')) { m.productionCompanies = compFixed; changed++; }
+    });
+    if (changed > 0) {
+      saveToStorage();
+      console.log(`Migration fix_split_names: repaired ${changed} fields.`);
+    }
+    flags.fix_split_names = true;
+    try { localStorage.setItem(MIGRATIONS_KEY, JSON.stringify(flags)); } catch {}
+  }
+}
 
 export const STORAGE_KEY = 'filmRankings_v1';
 

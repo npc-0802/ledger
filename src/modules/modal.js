@@ -41,8 +41,8 @@ function renderModal() {
   const chip = (label, type, value) =>
     `<span class="modal-meta-chip" onclick="exploreEntity('${type}','${value.replace(/'/g, String.fromCharCode(39))}')">${label}</span>`;
 
-  const directorChips = (m.director||'').split(',').map(d=>d.trim()).filter(Boolean).map(d=>chip(d,'director',d)).join('');
-  const writerChips = (m.writer||'').split(',').map(w=>w.trim()).filter(Boolean).map(w=>chip(w,'writer',w)).join('');
+  const directorChips = mergeSplitNames((m.director||'').split(',').map(d=>d.trim()).filter(Boolean)).map(d=>chip(d,'director',d)).join('');
+  const writerChips = mergeSplitNames((m.writer||'').split(',').map(w=>w.trim()).filter(Boolean)).map(w=>chip(w,'writer',w)).join('');
   const castChips = mergeSplitNames((m.cast||'').split(',').map(c=>c.trim()).filter(Boolean)).map(c=>chip(c,'actor',c)).join('');
   const companyChips = mergeSplitNames((m.productionCompanies||'').split(',').map(c=>c.trim()).filter(Boolean)).map(c=>chip(c,'company',c)).join('');
 

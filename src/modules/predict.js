@@ -1,4 +1,4 @@
-import { MOVIES, CATEGORIES, currentUser, scoreClass, getLabel, calcTotal } from '../state.js';
+import { MOVIES, CATEGORIES, currentUser, scoreClass, getLabel, calcTotal, mergeSplitNames } from '../state.js';
 
 const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
 const TMDB = 'https://api.themoviedb.org/3';
@@ -104,11 +104,11 @@ function buildTasteProfile() {
 }
 
 function findComparableFilms(film) {
-  const directorNames = (film.director||'').split(',').map(s=>s.trim()).filter(Boolean);
-  const castNames = (film.cast||'').split(',').map(s=>s.trim()).filter(Boolean);
+  const directorNames = mergeSplitNames((film.director||'').split(',').map(s=>s.trim()).filter(Boolean));
+  const castNames = mergeSplitNames((film.cast||'').split(',').map(s=>s.trim()).filter(Boolean));
   return MOVIES.filter(m => {
-    const mDirectors = (m.director||'').split(',').map(s=>s.trim());
-    const mCast = (m.cast||'').split(',').map(s=>s.trim());
+    const mDirectors = mergeSplitNames((m.director||'').split(',').map(s=>s.trim()).filter(Boolean));
+    const mCast = mergeSplitNames((m.cast||'').split(',').map(s=>s.trim()).filter(Boolean));
     return directorNames.some(d => mDirectors.includes(d)) || castNames.some(c => mCast.includes(c));
   }).sort((a,b) => b.total - a.total).slice(0,8);
 }

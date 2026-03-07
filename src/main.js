@@ -7,7 +7,7 @@ import { initPredict, predictSearch, predictSearchDebounce, predictSelectFilm, p
 import { startCalibration, selectCalCat, selectCalInt, applyCalibration, resetCalibration } from './modules/calibrate.js';
 import { launchOnboarding } from './modules/onboarding.js';
 import { syncToSupabase, loadFromSupabase, saveUserLocally, loadUserLocally } from './modules/supabase.js';
-import { saveToStorage, loadFromStorage } from './modules/storage.js';
+import { saveToStorage, loadFromStorage, runMigrations } from './modules/storage.js';
 import {
   liveSearch, tmdbSelect, toggleCast, showMoreCast, toggleCompany,
   resetToSearch, confirmTmdbData, goToStep3, goToStep4, saveFilm, goToStep
@@ -83,6 +83,7 @@ window.startFromLanding = function() {
 
 async function init() {
   loadFromStorage();
+  runMigrations();
   loadUserLocally();
 
   if (currentUser) {

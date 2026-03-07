@@ -1,14 +1,16 @@
-import { MOVIES, CATEGORIES } from '../state.js';
+import { MOVIES, CATEGORIES, mergeSplitNames } from '../state.js';
+
+function splitNames(str) {
+  return mergeSplitNames((str||'').split(',').map(s => s.trim()).filter(Boolean));
+}
 
 export function renderAnalysis() {
   const directors = {}, actors = {}, years = {};
   MOVIES.forEach(m => {
-    m.director.split(',').forEach(d => {
-      d = d.trim();
+    splitNames(m.director).forEach(d => {
       if (d) { if (!directors[d]) directors[d] = []; directors[d].push(m.total); }
     });
-    m.cast.split(',').forEach(a => {
-      a = a.trim();
+    splitNames(m.cast).forEach(a => {
       if (a) { if (!actors[a]) actors[a] = []; actors[a].push(m.total); }
     });
     if (m.year) { if (!years[m.year]) years[m.year] = []; years[m.year].push(m.total); }
