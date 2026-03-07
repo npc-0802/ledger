@@ -108,9 +108,11 @@ function renderGrid(sorted, list, controls, rankingsEl) {
   if (controls) controls.innerHTML = toolbar('grid');
 
   const scoreKey = ['total','rank','title'].includes(currentSort.key) ? 'total' : currentSort.key;
+  const baseSort = [...MOVIES].sort((a, b) => b.total - a.total);
+  const rankMap  = new Map(baseSort.map((m, i) => [m.title, i + 1]));
 
   list.innerHTML = `<div class="film-grid">
-    ${sorted.map((m, i) => {
+    ${sorted.map((m) => {
       const raw   = scoreKey === 'total' ? m.total : (m.scores?.[scoreKey] ?? null);
       const label = raw != null ? (scoreKey === 'total' ? (Math.round(raw * 10) / 10).toFixed(1) : raw) : '—';
       const bClass = badgeClass(raw);
@@ -120,7 +122,7 @@ function renderGrid(sorted, list, controls, rankingsEl) {
       return `<div class="film-card" onclick="openModal(${MOVIES.indexOf(m)})">
         <div class="film-card-poster-wrap">
           ${img}
-          <div class="film-card-rank">${i + 1}</div>
+          <div class="film-card-rank">${rankMap.get(m.title)}</div>
           <div class="film-card-score ${bClass}">${label}</div>
         </div>
         <div class="film-card-meta">
