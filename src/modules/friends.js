@@ -308,7 +308,7 @@ window.openFriendFilmDetail = function(index) {
           <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:20px;color:var(--ink);line-height:1.2;margin-bottom:6px">${m.title}</div>
           <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-bottom:16px">${m.year || ''}${m.director ? ' · ' + m.director.split(',')[0] : ''}</div>
           <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:44px;color:${color};letter-spacing:-1px;line-height:1">${total}</div>
-          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">/100</div>
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);margin-top:5px">/100</div>
         </div>
       </div>
       <div>${scoreRows}</div>
@@ -786,7 +786,8 @@ function friendTasteHTML(friend, color) {
 
   return `
     <div style="margin-bottom:32px;padding-bottom:28px;border-bottom:1px solid var(--rule)">
-      <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:20px">Taste fingerprint · category weights</div>
+      <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:4px">Taste fingerprint · category weights</div>
+      <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-bottom:20px">Numbers below are avg score /100 across all rated films.</div>
       <div style="display:flex;gap:32px;align-items:flex-start;flex-wrap:wrap">
         <div style="flex-shrink:0">${soloRadar(friend.weights || {}, color)}</div>
         <div style="flex:1;min-width:220px">
