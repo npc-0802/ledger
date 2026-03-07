@@ -1,26 +1,37 @@
 import { currentUser, setCurrentUser } from '../state.js';
 import { syncToSupabase, saveUserLocally } from './supabase.js';
 
+const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
+let wlSearchDebounce = null;
+
 export function renderWatchlist() {
   const content = document.getElementById('watchlistContent');
   if (!content) return;
   const list = currentUser?.watchlist || [];
 
-  if (list.length === 0) {
-    content.innerHTML = `
-      <div style="padding:80px 24px;text-align:center;max-width:440px;margin:0 auto">
-        <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--dim);margin-bottom:16px">— nothing queued —</div>
-        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:32px;color:var(--ink);letter-spacing:-1px;margin-bottom:12px">Your queue is empty.</div>
-        <div style="font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.7;color:var(--dim);font-weight:300">Tap <strong style="color:var(--ink)">＋ Watchlist</strong> on any film — in predictions, entity stubs, and friend overlaps — to save it for later.</div>
-      </div>`;
-    return;
-  }
-
   content.innerHTML = `
     <div style="padding:28px 0 48px">
-      <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:24px">${list.length} film${list.length !== 1 ? 's' : ''} queued</div>
-      ${list.map((item, i) => watchlistRow(item, i)).join('')}
+      <div style="margin-bottom:24px">
+        <input id="wl-search" type="text" placeholder="Search a film to add…" oninput="wlSearchDebounce()" style="width:100%;box-sizing:border-box;padding:13px 16px;border:1px solid var(--rule-dark);background:white;font-family:'DM Sans',sans-serif;font-size:15px;outline:none;color:var(--ink)" onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--rule-dark)'">
+        <div id="wl-search-results"></div>
+      </div>
+      ${list.length === 0 ? emptyState() : listHTML(list)}
     </div>`;
+}
+
+function emptyState() {
+  return `
+    <div style="padding:48px 0;text-align:center;max-width:400px;margin:0 auto">
+      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--dim);margin-bottom:12px">— nothing queued —</div>
+      <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:28px;color:var(--ink);letter-spacing:-0.5px;margin-bottom:10px">Your queue is empty.</div>
+      <div style="font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.7;color:var(--dim)">Search above, or tap <strong style="color:var(--ink)">＋ Watchlist</strong> on any film across the app.</div>
+    </div>`;
+}
+
+function listHTML(list) {
+  return `
+    <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:16px">${list.length} film${list.length !== 1 ? 's' : ''} queued</div>
+    <div id="wl-list">${list.map((item, i) => watchlistRow(item, i)).join('')}</div>`;
 }
 
 function watchlistRow(item, i) {
@@ -54,6 +65,56 @@ export function addToWatchlist(item) {
   syncToSupabase();
   import('../main.js').then(({ showToast }) => showToast(`${item.title} added to watch list.`));
 }
+
+window.wlSearchDebounce = function() {
+  clearTimeout(wlSearchDebounce);
+  wlSearchDebounce = setTimeout(wlSearch, 400);
+};
+
+async function wlSearch() {
+  const q = document.getElementById('wl-search')?.value.trim();
+  const resultsEl = document.getElementById('wl-search-results');
+  if (!resultsEl) return;
+  if (!q || q.length < 2) { resultsEl.innerHTML = ''; return; }
+
+  try {
+    const res = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${TMDB_KEY}&query=${encodeURIComponent(q)}&language=en-US&page=1`);
+    const data = await res.json();
+    const results = (data.results || []).slice(0, 6);
+    if (!results.length) { resultsEl.innerHTML = ''; return; }
+
+    const myTitles = new Set((currentUser?.watchlist || []).map(w => w.title.toLowerCase()));
+    resultsEl.innerHTML = `<div style="border:1px solid var(--rule-dark);border-top:none;background:white">` +
+      results.map(m => {
+        const title = m.title || '';
+        const year = m.release_date?.slice(0,4) || '';
+        const poster = m.poster_path
+          ? `<img src="https://image.tmdb.org/t/p/w92${m.poster_path}" style="width:24px;height:36px;object-fit:cover;flex-shrink:0">`
+          : `<div style="width:24px;height:36px;background:var(--rule);flex-shrink:0"></div>`;
+        const alreadyAdded = myTitles.has(title.toLowerCase());
+        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--rule);cursor:${alreadyAdded ? 'default' : 'pointer'};opacity:${alreadyAdded ? 0.5 : 1}" ${alreadyAdded ? '' : `onclick="wlAddFromSearch(${m.id},'${title.replace(/'/g,"\\'")}','${year}','${(m.poster_path||'').replace(/'/g,"\\'")}','${(m.overview||'').slice(0,200).replace(/'/g,"\\'").replace(/\n/g,' ')}')" onmouseover="if(this.style.opacity!=='0.5')this.style.background='var(--cream)'" onmouseout="this.style.background='white'"`}>
+          ${poster}
+          <div style="flex:1;min-width:0">
+            <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${title}</div>
+            <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">${year}${alreadyAdded ? ' · on watch list' : ''}</div>
+          </div>
+          ${alreadyAdded ? '' : `<span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--blue);flex-shrink:0">＋ Add</span>`}
+        </div>`;
+      }).join('') + `</div>`;
+  } catch(e) { /* silent */ }
+}
+
+window.wlAddFromSearch = function(tmdbId, title, year, poster, overview) {
+  addToWatchlist({ tmdbId, title, year, poster: poster || null, overview: overview || '', director: '' });
+  document.getElementById('wl-search').value = '';
+  document.getElementById('wl-search-results').innerHTML = '';
+  // Re-render the list section only
+  const listEl = document.getElementById('wl-list');
+  const countEl = listEl?.previousElementSibling;
+  const list = currentUser?.watchlist || [];
+  if (listEl) listEl.innerHTML = list.map((item, i) => watchlistRow(item, i)).join('');
+  if (countEl) countEl.textContent = `${list.length} film${list.length !== 1 ? 's' : ''} queued`;
+};
 
 window.watchlistRemove = function(index) {
   if (!currentUser) return;

@@ -142,7 +142,11 @@ body {
   cursor: pointer;
   color: var(--dim);
   transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
+.nav-btn svg { flex-shrink: 0; }
 .nav-btn:hover { color: var(--ink); }
 .nav-btn.active { color: var(--ink); border-bottom-color: var(--ink); }
 .nav-btn.action-tab {
