@@ -21,11 +21,13 @@ export const LABELS = [
   [90, 'An all-time favorite'], [85, 'Really quite exceptional'], [80, 'Excellent'],
   [75, 'Well above average'], [70, 'Great'], [65, 'Very good'], [60, 'A cut above'],
   [55, 'Good'], [50, 'Solid'], [45, 'Not bad'], [40, 'Sub-par'], [35, 'Multiple flaws'],
-  [30, 'Poor'], [25, 'Bad'], [20, "Wouldn't watch by choice"], [0, 'Unwatchable']
+  [30, 'Poor'], [25, 'Bad'], [20, "Wouldn't watch by choice"],
+  [15, 'So bad I stopped watching'], [10, 'Disgusting'], [2, 'Insulting'], [0, 'Unwatchable']
 ];
 
 export function getLabel(score) {
-  if (score >= 90 && score === Math.max(...MOVIES.map(m => m.total))) return 'No better exists';
+  if (score === 100) return 'No better exists';
+  if (score === 1) return 'No worse exists';
   for (const [threshold, label] of LABELS) if (score >= threshold) return label;
   return 'Unwatchable';
 }

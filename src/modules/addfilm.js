@@ -255,7 +255,7 @@ function renderCalibration() {
           style="background:linear-gradient(to right,rgba(180,50,40,0.45) 0%,rgba(180,50,40,0.45) 15%,var(--rule) 15%,var(--rule) 85%,rgba(40,130,60,0.45) 85%,rgba(40,130,60,0.45) 100%)"
           oninput="updateSlider('${cat.key}', this.value)">
         <div style="display:flex;justify-content:space-between;font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);margin-top:2px">
-          <span>1 — Insulting</span><span>50 — Solid</span><span>100 — Perfect</span>
+          <span>1 — No worse exists</span><span>50 — Solid</span><span>100 — No better exists</span>
         </div>
       </div>
     </div>`;
