@@ -83,7 +83,7 @@
 
 <div id="sticky-header">
   <div class="nav-strip">
-    <button class="nav-btn active" onclick="showScreen('rankings')"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="0" y="0" width="13" height="2" fill="currentColor"/><rect x="0" y="5" width="13" height="2" fill="currentColor"/><rect x="0" y="10" width="13" height="2" fill="currentColor"/></svg>Rankings</button>
+    <button class="nav-btn active" onclick="showScreen('rankings')"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M4.5 1L3 5M8.5 1L10 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="6.5" cy="9" r="4" fill="currentColor"/></svg>Rankings</button>
     <button class="nav-btn" onclick="showScreen('predict')"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v1.5M6.5 10.5V12M1 6.5h1.5M10.5 6.5H12M2.9 2.9l1.1 1.1M9 9l1.1 1.1M9.1 2.9L8 4M4 9l-1.1 1.1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="6.5" cy="6.5" r="2.2" fill="currentColor"/></svg>Predict</button>
     <button class="nav-btn" onclick="showScreen('analysis')"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="0" y="6" width="3" height="7" fill="currentColor"/><rect x="5" y="3" width="3" height="10" fill="currentColor"/><rect x="10" y="0" width="3" height="13" fill="currentColor"/></svg>Analysis</button>
     <button class="nav-btn" id="nav-friends" onclick="showScreen('friends')" style="position:relative"><svg width="14" height="13" viewBox="0 0 14 13" fill="none"><circle cx="4.5" cy="3.5" r="2.5" fill="currentColor"/><path d="M0 12c0-2.5 2-4.5 4.5-4.5S9 9.5 9 12" stroke="currentColor" stroke-width="1.4" fill="none"/><circle cx="11" cy="3.5" r="2" fill="currentColor" opacity="0.45"/><path d="M9.5 12c0-2 1-3.5 2.5-4.2" stroke="currentColor" stroke-width="1.2" fill="none" opacity="0.45" stroke-linecap="round"/></svg>Friends</button>
@@ -98,7 +98,7 @@
 <div class="mobile-bottom">
   <nav class="nav-mobile">
     <button class="nav-mobile-btn active" onclick="showScreen('rankings')">
-      <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="0" y="4" width="18" height="2" fill="currentColor"/><rect x="0" y="9" width="18" height="2" fill="currentColor"/><rect x="0" y="14" width="18" height="2" fill="currentColor"/></svg>
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M6 1L4 7M12 1L14 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="9" cy="13" r="5" fill="currentColor"/></svg>
       <span>Rankings</span>
     </button>
     <button class="nav-mobile-btn" onclick="showScreen('analysis')">
@@ -118,9 +118,9 @@
       <span>Profile</span>
     </button>
   </nav>
-  <button class="nav-add-bar" onclick="showScreen('add')">
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><line x1="7" y1="1" x2="7" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="1" y1="7" x2="13" y2="7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-    Add Film
+  <button class="nav-add-bar" onclick="openGlobalSearch()">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="5.5" cy="5.5" r="4" stroke="currentColor" stroke-width="1.8"/><line x1="8.7" y1="8.7" x2="13" y2="13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    Search
   </button>
 </div>
 

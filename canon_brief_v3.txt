@@ -1,5 +1,5 @@
 Palate Map
-Product Brief · Living Document · v3.8
+Product Brief · Living Document · v3.9
 Last updated: March 2026
 Confidential — do not distribute
 
@@ -55,7 +55,7 @@ Design Principles
 • Dark surfaces for identity moments (archetype reveal in onboarding, palate block in profile).
 • No dark mode yet. Clean paper aesthetic is intentional and differentiating.
 • Animations: subtle fadeIn only. No bounces, no flashy transitions.
-• Mobile: responsive bottom tab bar + layout pass complete (Phase 2). Fixed bottom nav with 5 tabs; modal slides up as sheet; rankings collapse gracefully.
+• Mobile: responsive bottom bar redesigned. Tab strip (5 items: Rankings, Analysis, Friends, Watch, Profile) sits above a full-width persimmon "Add Film" CTA bar. The .mobile-bottom wrapper handles fixed positioning; ::after pseudo-element matches the action color to cover browser chrome gap transitions. Screen padding accounts for both rows.
 
 03  Current Architecture
 Status: Phase 1 complete, Phase 2 complete, Phase 3.1–3.4 complete. Vite multi-file vanilla JS.
@@ -122,6 +122,7 @@ weights             jsonb  { plot, execution, acting, production,
 harmony_sensitivity numeric 0.0–1.0
 movies              jsonb  [ array of film objects ]
 watchlist           jsonb  [ array of watchlist objects ]
+predictions         jsonb  { [tmdbId]: { film, prediction, predictedAt } }  (cached predict results)
 email               text   (populated on first auth; used for account linking)
 auth_id             text   (Supabase auth user id; populated on first Google/magic link sign-in)
 invite_token        text   (single-use UUID for friend invite links; cleared after use)
@@ -184,6 +185,7 @@ Empty state: 60vh centered CTA — "Start with one you love." + persimmon "Rate 
 Film Modal
 TMDB poster · synopsis · rank #X of N · clickable director/writer/cast/company chips (→ Explore) · per-category scores + rank + weight bars · inline score editing (Edit scores → sliders → Save) · nearby films in rankings (leaderboard style with rank, diff indicator, current film highlighted in ink).
 Chip portraits: director/writer/cast chips show 20px TMDB circle portraits; company chips show 18px rounded-square logo — both load async after modal opens.
+Friends context: after the breakdown, a "Friends" section shows any friends who have rated the film (their score + rank in their list) or have it on their watch list. Loaded from window._friendsDataCache — background-populated on app init via a single Supabase query for all friends' movies + watchlists.
 
 Explore
 Index tabs: Directors / Writers / Actors / Companies / Years. Entities with 2+ films, sorted by avg. Each row shows rank + TMDB portrait (40px circle for persons, 40px rounded-square contained logo for companies) + name + film count + score badge. Images load async.
@@ -191,7 +193,7 @@ Entity page: avg score, rank among peers, film count, TMDB portrait in dark head
 Empty state: "Terra incognita." dashed-border uncharted treatment.
 
 Predict
-Search unrated films. Builds taste fingerprint. Finds comparables by shared director/cast. Calls Claude via Cloudflare proxy. Returns predicted score per category, confidence, 2nd-person reasoning anchored to user's specific films. "Add to list" pre-fills Add Film search.
+Search unrated films. Builds taste fingerprint. Finds comparables by shared director/cast. Calls Claude via Cloudflare proxy. Returns predicted score per category, confidence, 2nd-person reasoning anchored to user's specific films. Results cached in currentUser.predictions (keyed by tmdbId) and synced to Supabase — subsequent opens show cached result instantly with "Re-predict →" available. ＋ Watchlist and Rate now → actions on result.
 
 Analysis
 Editorial header. Category averages split into Craft (Plot/Execution/Acting/Production) and Experience (Enjoyability/Rewatchability/Ending/Uniqueness) axis groups, shown as horizontal score bars. Below: Explore tabs — Directors / Writers / Actors / Production Co. / Years — ranked entity lists with click-through to entity detail pages.
@@ -207,10 +209,14 @@ Nav Strip
 Top bar above nav tabs. Contains: "Add a film" (primary) + "Invite a friend →" (secondary). "Invite a friend →" opens invite modal (not nav to Friends screen).
 
 Watch List (Phase 3.4 — Complete)
-Own nav tab in both desktop strip and mobile bottom nav (bookmark icon).
-Films saved from anywhere in the app: entity stub modal (＋ Watchlist button), Predict result, Overlap Predict result.
-Watch list screen: poster + title + year, Rank it → (navigates to Add Film pre-filled), ✕ remove. Empty state. Count header.
-Syncs to Supabase in user payload (watchlist field).
+Own nav tab in both desktop strip and mobile bottom bar (bookmark icon).
+Films saved from anywhere in the app: entity stub modal (＋ Watchlist button), Predict result, friend film modal, Overlap Predict result.
+Watch list screen: TMDB search bar at top (debounced, shows "on watch list" for already-added films); poster + title + year list below; Rank it → (navigates to Add Film pre-filled), ✕ remove. Empty state. Count header.
+Syncs to Supabase in user payload (watchlist jsonb field).
+
+Global Search (Phase 3.8 — Complete)
+"Search" button in masthead (visible on all screens, desktop + mobile).
+Full-screen dark overlay with autofocused input. Two result sections: "Your rankings" (own films matching query — click to open film modal) and "Add or rate" (TMDB results — ＋ List / Rate → actions). Searches both simultaneously. Dismiss by clicking outside or ×.
 
 Friends (Phase 3.2 — Complete)
 Own nav tab in both desktop strip and mobile bottom nav.
@@ -233,7 +239,7 @@ Friend profile page
 Dark header: friend's archetype in their palette color, display name, username.
 Three tabs: Rankings | Taste | Overlap.
 
-Rankings tab (default): paginated list of friend's films sorted by score (10 at a time, Load more). Each row: poster thumbnail, rank, title, year/director, score in friend's color. Click any row → read-only score modal with color bars per category.
+Rankings tab (default): paginated list of friend's films sorted by score (10 at a time, Load more). Each row: poster thumbnail, rank, title, year/director, score in friend's color. Click any row → rich film modal with dark header (poster, friend's rank/score in their palette color), then: if user has rated it shows their own score + "View →" to their modal; if unrated shows ＋ Watchlist + Rate now → CTAs; always shows friend's per-category breakdown bars below.
 
 Taste tab: solo radar (friend's archetype weights normalized by their max weight — same shape as their polygon in the overlap view) + category averages bar chart (Craft / Experience groups) + top-5 entities per type (directors/actors/writers/companies, min 2 films, sorted by avg score). Entities show TMDB portraits/logos loaded async. Each entity is expandable (▾/▴) to show inline film list. Film rows are clickable → score modal.
 
@@ -273,6 +279,8 @@ Clicking display name navigates to Profile screen.
 • Entity stub "Rate →" button navigates to Add Film screen and pre-fills search — relies on DOM timing (setTimeout 100ms) which is fragile. Revisit if unreliable.
 • Watch list director field is empty for items added from entity stubs (TMDB discovery results don't include director). Acceptable for now — the title pre-fill covers the core use case.
 • Auth quiz loop: mitigated with auto auth_id linking (legacy profiles now link on first sign-in) and "← Wrong account? Sign out" escape hatch on quiz intro when a pending auth session is detected. Root cause (no localStorage on first device) is expected — escape hatch is the UX solution.
+• Friends data cache (window._friendsDataCache) is loaded on init and when Friends screen is visited. If a friend adds a new film between sessions, the modal context will be stale until next app load. Acceptable for now.
+• Prediction cache (currentUser.predictions) is per-user, client-side. No server-side invalidation. Re-predict available manually.
 
 08  Full Product Roadmap
 Phase 0 — Foundation [COMPLETE]
@@ -315,11 +323,16 @@ Phase 3 — Growth Features [IN PROGRESS]
 
 • 3.5 Overlap Predict ✓ — search bar on friend Overlap tab; combined Claude prediction using both taste profiles; reasoning distinguishes each user by name with film-specific anchors; shared watchlist surfaces films both users have saved.
 
-• 3.6 Prediction engine polish — discovery mode, prediction history, confidence calibration.
-• 3.7 Tagging system — context tags (alone / with someone / rewatch / bad week).
+• 3.6 Prediction engine polish — prediction caching ✓ (results stored on currentUser.predictions, synced to Supabase; Re-predict available); prediction history browser [not started]; confidence calibration [not started].
+
+• 3.7 Social film modal ✓ — friend film clicks open rich listing modal (dark header, friend rank/score, own rate/watchlist actions, friend's breakdown). Film modals show Friends context section (friend scores + watchlist status) loaded from background cache.
+
+• 3.8 Global Search ✓ — masthead search button; searches own rankings + TMDB simultaneously; own films link to modal, TMDB results get ＋ List / Rate actions.
+
+• 3.9 Tagging system — context tags (alone / with someone / rewatch / bad week). [not started]
 
 Phase 4 — Platform
-• 4.1 Universal entity search — global search bar surfacing any director/actor/writer/company regardless of whether the user has rated their films. Entity page shows: TMDB data, user's own rankings (if any), community avg score (requires 4.2). Requires schema change: separate palatemap_ratings table (see below).
+• 4.1 Universal entity search — global search surfacing any director/actor/writer/company (entity-level, not film-level — film search is covered by 3.8 Global Search). Entity page shows: TMDB data, user's own rankings (if any), community avg score (requires 4.2). Requires schema change: separate palatemap_ratings table (see below).
 • 4.2 Community ratings layer — requires migrating films from per-user JSON blob to a normalized palatemap_ratings table (user_id, film_tmdb_id, scores jsonb, total). Enables: community avg score on any film or entity, "popular with users like you" discovery. Major schema change — plan carefully.
 • 4.3 Cross-genre v1: Restaurants — same framework, new categories.
 • 4.4 Public launch prep — landing page, pricing.
@@ -352,4 +365,4 @@ Resend key:            stored in Cloudflare env var RESEND_API_KEY only
 GitHub repo:           github.com/npc-0802/palatemap (private)
 GitHub Pages:          palatemap.com (custom domain)
 
-Palate Map · private product brief · v3.8 · do not distribute
+Palate Map · private product brief · v3.9 · do not distribute
