@@ -60,19 +60,25 @@ function radarChart(weights, archWeights, size = 220) {
 
 function scoreBars(movies) {
   if (!movies.length) return '<p style="font-family:\'DM Mono\',monospace;font-size:11px;color:var(--dim)">No films rated yet.</p>';
-  return CATS.map(c => {
-    const scored = movies.filter(m => m.scores?.[c] != null);
-    const avg = scored.length ? scored.reduce((s, m) => s + m.scores[c], 0) / scored.length : null;
-    const display = avg != null ? avg.toFixed(1) : '—';
-    const pct = avg != null ? avg : 0;
-    return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
-      <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);width:88px;flex-shrink:0">${CAT_LABELS[c]}</div>
-      <div style="flex:1;height:2px;background:var(--rule);position:relative;overflow:hidden">
-        <div style="position:absolute;top:0;left:0;height:100%;background:var(--blue);width:${pct}%"></div>
-      </div>
-      <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--ink);width:28px;text-align:right">${display}</div>
-    </div>`;
-  }).join('');
+  const craftKeys = ['plot','execution','acting','production'];
+  const expKeys   = ['enjoyability','rewatchability','ending','uniqueness'];
+  function barGroup(keys) {
+    return keys.map(c => {
+      const scored = movies.filter(m => m.scores?.[c] != null);
+      const avg = scored.length ? scored.reduce((s, m) => s + m.scores[c], 0) / scored.length : null;
+      const display = avg != null ? avg.toFixed(1) : '—';
+      const pct = avg != null ? avg : 0;
+      return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);width:88px;flex-shrink:0">${CAT_LABELS[c]}</div>
+        <div style="flex:1;height:2px;background:var(--rule);position:relative;overflow:hidden">
+          <div style="position:absolute;top:0;left:0;height:100%;background:var(--blue);width:${pct}%"></div>
+        </div>
+        <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--ink);width:28px;text-align:right">${display}</div>
+      </div>`;
+    }).join('');
+  }
+  const groupHead = label => `<div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--rule)">${label}</div>`;
+  return groupHead('Craft') + barGroup(craftKeys) + `<div style="margin-top:16px">` + groupHead('Experience') + barGroup(expKeys) + `</div>`;
 }
 
 function badgeColor(score) {

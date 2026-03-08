@@ -316,11 +316,8 @@ window.openFriendFilmDetail = function(index) {
         <button onclick="document.getElementById('friend-film-modal').remove();openModal(${myIdx})" style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;background:none;color:var(--blue);border:1px solid var(--blue);padding:6px 12px;cursor:pointer">View →</button>
       </div>`
     : `<div style="display:flex;gap:8px;padding:16px 0;border-bottom:1px solid var(--rule)">
-        ${onWatchlist
-          ? `<span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);padding:8px 0;align-self:center">On watch list ✓</span>`
-          : `<button onclick="friendFilmWatchlist(${index})" style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:0.5px;background:none;color:var(--dim);border:1px solid var(--rule-dark);padding:8px 14px;cursor:pointer;white-space:nowrap">＋ Watchlist</button>`
-        }
-        <button onclick="document.getElementById('friend-film-modal').remove();window.showScreen('add');setTimeout(()=>{const inp=document.getElementById('f-search');if(inp){inp.value='${safeTitle}';window.liveSearch&&window.liveSearch('${safeTitle}');}},100)" style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:8px 14px;cursor:pointer;white-space:nowrap">Rate now →</button>
+        <button id="friend-wl-btn" onclick="friendFilmWatchlist(${index})" style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:0.5px;background:${onWatchlist ? 'var(--green)' : 'none'};color:${onWatchlist ? 'white' : 'var(--dim)'};border:1px solid ${onWatchlist ? 'var(--green)' : 'var(--rule-dark)'};padding:8px 14px;cursor:pointer;white-space:nowrap">${onWatchlist ? '✓ On Watch List' : '＋ Watchlist'}</button>
+        <button onclick="friendFilmRate(${index})" style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:8px 14px;cursor:pointer;white-space:nowrap">Rate now →</button>
       </div>`;
 
   const scoreRows = CATS.map(c => {
@@ -364,9 +361,42 @@ window.openFriendFilmDetail = function(index) {
 window.friendFilmWatchlist = function(index) {
   const m = friendMoviesCache?.[index];
   if (!m) return;
-  import('./watchlist.js').then(({ addToWatchlist }) => {
-    addToWatchlist({ tmdbId: m.tmdbId, title: m.title, year: m.year, poster: m.poster, director: m.director });
-  });
+  const onWl = (currentUser?.watchlist || []).some(w =>
+    m.tmdbId ? String(w.tmdbId) === String(m.tmdbId) : w.title === m.title
+  );
+  if (onWl) {
+    import('./watchlist.js').then(({ removeFromWatchlist }) => {
+      const tmdbId = m.tmdbId || (currentUser?.watchlist||[]).find(w => w.title === m.title)?.tmdbId;
+      if (tmdbId) removeFromWatchlist(tmdbId);
+    });
+  } else {
+    import('./watchlist.js').then(({ addToWatchlist }) => {
+      addToWatchlist({ tmdbId: m.tmdbId, title: m.title, year: m.year, poster: m.poster, director: m.director });
+    });
+  }
+  const btn = document.getElementById('friend-wl-btn');
+  if (btn) {
+    const nowOnWl = !onWl;
+    btn.textContent = nowOnWl ? '✓ On Watch List' : '＋ Watchlist';
+    btn.style.background = nowOnWl ? 'var(--green)' : 'none';
+    btn.style.color = nowOnWl ? 'white' : 'var(--dim)';
+    btn.style.borderColor = nowOnWl ? 'var(--green)' : 'var(--rule-dark)';
+  }
+};
+
+window.friendFilmRate = function(index) {
+  const m = friendMoviesCache?.[index];
+  if (!m) return;
+  document.getElementById('friend-film-modal')?.remove();
+  window.showScreen('add');
+  setTimeout(() => {
+    if (m.tmdbId) {
+      window.tmdbSelect?.(m.tmdbId, m.title);
+    } else {
+      const inp = document.getElementById('f-search');
+      if (inp) { inp.value = m.title; window.liveSearch?.(m.title); }
+    }
+  }, 100);
 };
 
 window.openEntityStub = async function(name, isPerson) {

@@ -49,9 +49,39 @@ export function initPredict() {
 
   document.getElementById('predict-search').value = '';
   document.getElementById('predict-search-results').innerHTML = '';
-  document.getElementById('predict-result').innerHTML = '';
   predictSelectedFilm = null;
   setTimeout(() => document.getElementById('predict-search')?.focus(), 50);
+
+  // Render prediction history
+  const predictions = currentUser?.predictions || {};
+  const historyEntries = Object.values(predictions)
+    .filter(e => e?.film && e?.prediction && e?.predictedAt)
+    .sort((a, b) => new Date(b.predictedAt) - new Date(a.predictedAt));
+
+  if (historyEntries.length) {
+    document.getElementById('predict-result').innerHTML = `
+      <div style="margin-top:32px">
+        <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--rule)">Prediction history · ${historyEntries.length}</div>
+        ${historyEntries.map(({ film, prediction, predictedAt }) => {
+          const total = calcPredictedTotal(prediction);
+          const poster = film.poster
+            ? `<img src="https://image.tmdb.org/t/p/w92${film.poster}" style="width:28px;height:42px;object-fit:cover;flex-shrink:0">`
+            : `<div style="width:28px;height:42px;background:var(--rule);flex-shrink:0"></div>`;
+          const date = new Date(predictedAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+          const safeTitle = (film.title||'').replace(/'/g,"\\'");
+          return `<div onclick="predictSelectFilm(${film.tmdbId},'${safeTitle}','${film.year||''}')" style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--rule);cursor:pointer" onmouseover="this.style.background='var(--cream)'" onmouseout="this.style.background=''">
+            ${poster}
+            <div style="flex:1;min-width:0">
+              <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:15px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${film.title}</div>
+              <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);margin-top:2px">${film.year || ''}${film.director ? ' · ' + film.director.split(',')[0] : ''} · ${date}</div>
+            </div>
+            <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:20px;color:var(--blue);letter-spacing:-0.5px;flex-shrink:0">${(Math.round(total*10)/10).toFixed(1)}</div>
+          </div>`;
+        }).join('')}
+      </div>`;
+  } else {
+    document.getElementById('predict-result').innerHTML = '';
+  }
 }
 
 export function predictSearchDebounce() {
@@ -253,13 +283,42 @@ Respond with this exact JSON structure:
   }
 }
 
-function renderPrediction(film, prediction, comps, predictedAt = null) {
+function calcPredictedTotal(prediction) {
   let sum = 0, wsum = 0;
   CATEGORIES.forEach(cat => {
-    const v = prediction.predicted_scores[cat.key];
+    const v = prediction.predicted_scores?.[cat.key];
     if (v != null) { sum += v * cat.weight; wsum += cat.weight; }
   });
-  const predictedTotal = wsum > 0 ? Math.round((sum / wsum) * 100) / 100 : 0;
+  return wsum > 0 ? Math.round((sum / wsum) * 100) / 100 : 0;
+}
+
+export async function runAutoPredict(item) {
+  if (!currentUser || MOVIES.length < 10) return;
+  if (currentUser.predictions?.[String(item.tmdbId)]) return; // already predicted
+  let detail = {}, credits = {};
+  try {
+    const [dRes, cRes] = await Promise.all([
+      fetch(`${TMDB}/movie/${item.tmdbId}?api_key=${TMDB_KEY}`),
+      fetch(`${TMDB}/movie/${item.tmdbId}/credits?api_key=${TMDB_KEY}`)
+    ]);
+    detail = await dRes.json();
+    credits = await cRes.json();
+  } catch(e) { return; }
+  const director = (credits.crew||[]).filter(c=>c.job==='Director').map(c=>c.name).join(', ');
+  const writer = (credits.crew||[]).filter(c=>['Screenplay','Writer','Story'].includes(c.job)).map(c=>c.name).slice(0,2).join(', ');
+  const cast = (credits.cast||[]).slice(0,8).map(c=>c.name).join(', ');
+  const genres = (detail.genres||[]).map(g=>g.name).join(', ');
+  const film = {
+    tmdbId: item.tmdbId, title: item.title, year: item.year,
+    director: director || item.director || '', writer, cast, genres,
+    overview: item.overview || detail.overview || '',
+    poster: item.poster || detail.poster_path || null
+  };
+  await runPrediction(film);
+}
+
+function renderPrediction(film, prediction, comps, predictedAt = null) {
+  const predictedTotal = calcPredictedTotal(prediction);
 
   const posterHtml = film.poster
     ? `<img class="predict-poster" src="https://image.tmdb.org/t/p/w185${film.poster}" alt="${film.title}">`
@@ -324,11 +383,32 @@ function renderPrediction(film, prediction, comps, predictedAt = null) {
 
     <div class="btn-row" style="margin-top:32px">
       <button class="btn btn-outline" onclick="initPredict()">← New prediction</button>
-      <button class="btn btn-outline" onclick="predictAddToWatchlist()">＋ Watchlist</button>
+      <button id="predict-wl-btn" class="btn btn-outline" onclick="predictToggleWatchlist()" ${(currentUser?.watchlist||[]).some(w=>String(w.tmdbId)===String(film.tmdbId)) ? 'style="background:var(--green);color:white;border-color:var(--green)"' : ''}>${(currentUser?.watchlist||[]).some(w=>String(w.tmdbId)===String(film.tmdbId)) ? '✓ On Watch List' : '＋ Watchlist'}</button>
       <button class="btn btn-action" onclick="predictAddToList()">Rate now →</button>
     </div>
   `;
 }
+
+window.predictToggleWatchlist = async function() {
+  if (!predictSelectedFilm) return;
+  const onWl = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(predictSelectedFilm.tmdbId));
+  const { addToWatchlist, removeFromWatchlist } = await import('./watchlist.js');
+  if (onWl) {
+    removeFromWatchlist(predictSelectedFilm.tmdbId);
+  } else {
+    addToWatchlist({
+      tmdbId: predictSelectedFilm.tmdbId, title: predictSelectedFilm.title,
+      year: predictSelectedFilm.year, poster: predictSelectedFilm.poster,
+      director: predictSelectedFilm.director, overview: predictSelectedFilm.overview
+    });
+  }
+  const btn = document.getElementById('predict-wl-btn');
+  if (btn) {
+    const nowOnWl = !onWl;
+    btn.textContent = nowOnWl ? '✓ On Watch List' : '＋ Watchlist';
+    btn.style.cssText = nowOnWl ? 'background:var(--green);color:white;border-color:var(--green)' : '';
+  }
+};
 
 export function predictFresh() {
   if (!predictSelectedFilm) return;
@@ -364,16 +444,16 @@ export function predictAddToList() {
   document.getElementById('add').classList.add('active');
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.querySelector('.nav-btn[onclick*="add"]').classList.add('active');
-  setTimeout(() => {
-    const searchInput = document.getElementById('f-search');
-    if (searchInput) {
-      searchInput.value = predictSelectedFilm.title;
-      import('./addfilm.js').then(m => {
-        if (lastPrediction?.predicted_scores) {
-          m.prefillWithPrediction(lastPrediction.predicted_scores);
-        }
-        m.liveSearch(predictSelectedFilm.title);
-      });
+  setTimeout(async () => {
+    if (lastPrediction?.predicted_scores) {
+      const addfilm = await import('./addfilm.js');
+      addfilm.prefillWithPrediction(lastPrediction.predicted_scores);
+    }
+    if (predictSelectedFilm.tmdbId) {
+      window.tmdbSelect?.(predictSelectedFilm.tmdbId, predictSelectedFilm.title);
+    } else {
+      const inp = document.getElementById('f-search');
+      if (inp) { inp.value = predictSelectedFilm.title; window.liveSearch?.(predictSelectedFilm.title); }
     }
   }, 100);
 }

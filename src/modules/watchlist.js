@@ -1,9 +1,20 @@
-import { currentUser, setCurrentUser, MOVIES } from '../state.js';
+import { currentUser, setCurrentUser, MOVIES, CATEGORIES } from '../state.js';
 import { syncToSupabase, saveUserLocally } from './supabase.js';
 
 const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
 let wlSearchDebounce = null;
 let gsDebounceTimer = null;
+const autoPredictTimers = {};
+let wlSortMode = 'date';
+
+function calcWlPredictedTotal(prediction) {
+  let sum = 0, wsum = 0;
+  CATEGORIES.forEach(cat => {
+    const v = prediction.predicted_scores?.[cat.key];
+    if (v != null) { sum += v * cat.weight; wsum += cat.weight; }
+  });
+  return wsum > 0 ? Math.round((sum / wsum) * 100) / 100 : 0;
+}
 
 export function renderWatchlist() {
   const content = document.getElementById('watchlistContent');
@@ -20,6 +31,11 @@ export function renderWatchlist() {
     </div>`;
 }
 
+window.wlSetSort = function(mode) {
+  wlSortMode = mode;
+  renderWatchlist();
+};
+
 function emptyState() {
   return `
     <div style="padding:48px 0;text-align:center;max-width:400px;margin:0 auto">
@@ -30,23 +46,45 @@ function emptyState() {
 }
 
 function listHTML(list) {
+  let sorted = [...list];
+  if (wlSortMode === 'score') {
+    sorted.sort((a, b) => {
+      const pa = a.tmdbId ? currentUser?.predictions?.[String(a.tmdbId)] : null;
+      const pb = b.tmdbId ? currentUser?.predictions?.[String(b.tmdbId)] : null;
+      const ta = pa ? calcWlPredictedTotal(pa.prediction) : -1;
+      const tb = pb ? calcWlPredictedTotal(pb.prediction) : -1;
+      return tb - ta;
+    });
+  }
   return `
-    <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:16px">${list.length} film${list.length !== 1 ? 's' : ''} queued</div>
-    <div id="wl-list">${list.map((item, i) => watchlistRow(item, i)).join('')}</div>`;
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim)">${list.length} film${list.length !== 1 ? 's' : ''} queued</div>
+      <div style="display:flex;gap:4px">
+        <button onclick="wlSetSort('date')" style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:4px 10px;background:${wlSortMode==='date'?'var(--ink)':'none'};color:${wlSortMode==='date'?'white':'var(--dim)'};border:1px solid ${wlSortMode==='date'?'var(--ink)':'var(--rule-dark)'};cursor:pointer">Date</button>
+        <button onclick="wlSetSort('score')" style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:4px 10px;background:${wlSortMode==='score'?'var(--ink)':'none'};color:${wlSortMode==='score'?'white':'var(--dim)'};border:1px solid ${wlSortMode==='score'?'var(--ink)':'var(--rule-dark)'};cursor:pointer">Predicted</button>
+      </div>
+    </div>
+    <div id="wl-list">${sorted.map(item => watchlistRow(item, list.indexOf(item))).join('')}</div>`;
 }
 
 function watchlistRow(item, i) {
   const poster = item.poster
     ? `<img src="https://image.tmdb.org/t/p/w92${item.poster}" style="width:40px;height:60px;object-fit:cover;flex-shrink:0" loading="lazy">`
     : `<div style="width:40px;height:60px;background:var(--rule);flex-shrink:0"></div>`;
+  const prediction = item.tmdbId ? currentUser?.predictions?.[String(item.tmdbId)] : null;
+  const predTotal = prediction ? calcWlPredictedTotal(prediction.prediction) : null;
+  const predBadge = predTotal != null
+    ? `<div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:18px;color:var(--blue);letter-spacing:-0.5px;flex-shrink:0">${(Math.round(predTotal*10)/10).toFixed(1)}</div>`
+    : `<div style="width:36px;flex-shrink:0"></div>`;
   return `
-    <div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--rule)">
+    <div onclick="openWatchlistDetail(${i})" style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--rule);cursor:pointer" onmouseover="this.style.background='var(--cream)'" onmouseout="this.style.background=''">
       ${poster}
       <div style="flex:1;min-width:0">
         <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:16px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.title}</div>
         <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-top:3px">${item.year || ''}${item.director ? ' · ' + item.director.split(',')[0] : ''}</div>
       </div>
-      <div style="display:flex;gap:8px;flex-shrink:0;align-items:center">
+      ${predBadge}
+      <div style="display:flex;gap:8px;flex-shrink:0;align-items:center" onclick="event.stopPropagation()">
         <button onclick="watchlistRemove(${i})" style="font-family:'DM Mono',monospace;font-size:10px;padding:8px 10px;background:none;border:1px solid var(--rule-dark);color:var(--dim);cursor:pointer">✕</button>
         <button onclick="watchlistRate(${i})" style="font-family:'DM Mono',monospace;font-size:10px;padding:8px 14px;background:var(--action);color:white;border:none;cursor:pointer;letter-spacing:1px;text-transform:uppercase;white-space:nowrap">Rank it →</button>
       </div>
@@ -65,7 +103,31 @@ export function addToWatchlist(item) {
   saveUserLocally();
   syncToSupabase();
   import('../main.js').then(({ showToast }) => showToast(`${item.title} added to watch list.`));
+
+  // Auto-predict after 30s if still on list
+  if (item.tmdbId && MOVIES.length >= 10) {
+    clearTimeout(autoPredictTimers[item.tmdbId]);
+    autoPredictTimers[item.tmdbId] = setTimeout(async () => {
+      const stillOn = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(item.tmdbId));
+      if (!stillOn) return;
+      const { runAutoPredict } = await import('./predict.js');
+      await runAutoPredict(item);
+      const screen = document.getElementById('watchlist');
+      if (screen?.classList.contains('active')) renderWatchlist();
+    }, 30000);
+  }
 }
+
+export function removeFromWatchlist(tmdbId) {
+  if (!currentUser) return;
+  clearTimeout(autoPredictTimers[tmdbId]);
+  const updated = (currentUser.watchlist || []).filter(w => String(w.tmdbId) !== String(tmdbId));
+  setCurrentUser({ ...currentUser, watchlist: updated });
+  saveUserLocally();
+  syncToSupabase();
+  import('../main.js').then(({ showToast }) => showToast('Removed from watch list.'));
+}
+window.removeFromWatchlist = removeFromWatchlist;
 
 window.wlSearchDebounce = function() {
   clearTimeout(wlSearchDebounce);
@@ -119,6 +181,8 @@ window.wlAddFromSearch = function(tmdbId, title, year, poster, overview) {
 
 window.watchlistRemove = function(index) {
   if (!currentUser) return;
+  const item = currentUser.watchlist?.[index];
+  if (item?.tmdbId) clearTimeout(autoPredictTimers[item.tmdbId]);
   const updated = (currentUser.watchlist || []).filter((_, i) => i !== index);
   setCurrentUser({ ...currentUser, watchlist: updated });
   saveUserLocally();
@@ -129,16 +193,59 @@ window.watchlistRemove = function(index) {
 window.watchlistRate = function(index) {
   const item = currentUser?.watchlist?.[index];
   if (!item) return;
+  document.getElementById('wl-detail-modal')?.remove();
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('add').classList.add('active');
   document.querySelectorAll('.nav-btn, .nav-mobile-btn').forEach(b => b.classList.remove('active'));
-  setTimeout(() => {
-    const inp = document.getElementById('f-search');
-    if (inp) {
-      inp.value = item.title;
-      import('./addfilm.js').then(m => m.liveSearch(item.title));
-    }
-  }, 100);
+  if (item.tmdbId) {
+    setTimeout(() => window.tmdbSelect?.(item.tmdbId, item.title), 100);
+  } else {
+    setTimeout(() => {
+      const inp = document.getElementById('f-search');
+      if (inp) { inp.value = item.title; import('./addfilm.js').then(m => m.liveSearch(item.title)); }
+    }, 100);
+  }
+};
+
+window.openWatchlistDetail = function(index) {
+  const item = currentUser?.watchlist?.[index];
+  if (!item) return;
+  const prediction = item.tmdbId ? currentUser?.predictions?.[String(item.tmdbId)] : null;
+  const predTotal = prediction ? calcWlPredictedTotal(prediction.prediction) : null;
+  const poster = item.poster
+    ? `<img src="https://image.tmdb.org/t/p/w342${item.poster}" style="width:90px;height:135px;object-fit:cover;flex-shrink:0">`
+    : '';
+  const predSection = predTotal != null ? `
+    <div style="display:flex;align-items:baseline;gap:8px;margin-top:12px">
+      <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:38px;color:var(--blue);letter-spacing:-1px;line-height:1">${(Math.round(predTotal*10)/10).toFixed(1)}</div>
+      <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim)">/100 predicted</div>
+    </div>` : '';
+  document.getElementById('wl-detail-modal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'wl-detail-modal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(12,11,9,0.7);z-index:9998;display:flex;align-items:center;justify-content:center;padding:24px';
+  overlay.innerHTML = `
+    <div style="background:var(--paper);max-width:460px;width:100%;border-top:3px solid var(--blue);max-height:85vh;overflow-y:auto">
+      <div style="background:var(--surface-dark);padding:24px 28px;display:flex;gap:18px;align-items:flex-start;position:relative">
+        <button onclick="document.getElementById('wl-detail-modal').remove()" style="position:absolute;top:10px;right:12px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--on-dark-dim);line-height:1;padding:4px 8px">×</button>
+        ${poster}
+        <div style="flex:1;padding-top:4px;padding-right:28px">
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px">Watch List</div>
+          <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(16px,3vw,22px);line-height:1.2;color:var(--on-dark);margin-bottom:6px">${item.title}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim)">${item.year || ''}${item.director ? ' · ' + item.director.split(',')[0] : ''}</div>
+          ${predSection}
+        </div>
+      </div>
+      <div style="padding:20px 28px 28px;display:flex;flex-direction:column;gap:10px">
+        ${prediction?.prediction?.reasoning ? `<div style="padding:14px 16px;background:var(--cream);font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.6;color:var(--ink)">${prediction.prediction.reasoning}</div>` : ''}
+        <div style="display:flex;gap:8px">
+          <button onclick="document.getElementById('wl-detail-modal').remove();watchlistRemove(${index})" style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;background:none;border:1px solid var(--rule-dark);color:var(--dim);padding:10px 16px;cursor:pointer;flex:1">Remove</button>
+          <button onclick="watchlistRate(${index})" style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:10px 16px;cursor:pointer;flex:2">Rank it →</button>
+        </div>
+      </div>
+    </div>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
 };
 
 // ── GLOBAL SEARCH ──
@@ -314,10 +421,10 @@ async function gsSearch() {
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
           ${onList
-            ? `<span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">On list ✓</span>`
-            : `<button onclick="gsAddWatchlist(${m.id},'${safeTitle}','${year}','${safePoster}')" style="font-family:'DM Mono',monospace;font-size:9px;background:none;border:1px solid var(--rule-dark);color:var(--dim);padding:6px 10px;cursor:pointer;white-space:nowrap">＋ List</button>`
+            ? `<button onclick="event.stopPropagation();gsRemoveWatchlist('${safeTitle}')" style="font-family:'DM Mono',monospace;font-size:9px;background:var(--green);color:white;border:none;padding:6px 10px;cursor:pointer;white-space:nowrap">✓ On List</button>`
+            : `<button onclick="event.stopPropagation();gsAddWatchlist(${m.id},'${safeTitle}','${year}','${safePoster}')" style="font-family:'DM Mono',monospace;font-size:9px;background:none;border:1px solid var(--rule-dark);color:var(--dim);padding:6px 10px;cursor:pointer;white-space:nowrap">＋ List</button>`
           }
-          <button onclick="gsRate('${safeTitle}')" style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:6px 10px;cursor:pointer;white-space:nowrap">Rate →</button>
+          <button onclick="event.stopPropagation();gsRate('${safeTitle}')" style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:6px 10px;cursor:pointer;white-space:nowrap">Rate →</button>
         </div>
       </div>`;
     }).join('');
@@ -332,6 +439,12 @@ async function gsSearch() {
 
 window.gsAddWatchlist = function(tmdbId, title, year, poster) {
   addToWatchlist({ tmdbId, title, year, poster: poster || null, director: '' });
+  gsSearch();
+};
+
+window.gsRemoveWatchlist = function(title) {
+  const item = (currentUser?.watchlist || []).find(w => w.title.toLowerCase() === title.toLowerCase());
+  if (item) removeFromWatchlist(item.tmdbId);
   gsSearch();
 };
 

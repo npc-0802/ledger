@@ -223,34 +223,44 @@ function showCalReview() {
   CATEGORIES.forEach(cat => { catGroups[cat.key] = []; });
   entries.forEach((e, i) => { if (catGroups[e.catKey]) catGroups[e.catKey].push({ ...e, idx: i }); });
 
-  document.getElementById('cal-diff-list').innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      ${CATEGORIES.map(cat => {
-        const catEntries = catGroups[cat.key];
-        const shown = catEntries.slice(0, 3);
-        const more = catEntries.length - 3;
-        const hasChanges = catEntries.length > 0;
-        return `<div style="padding:14px;background:var(--cream);border-radius:6px;${hasChanges ? '' : 'opacity:0.45'}">
-          <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);margin-bottom:${hasChanges ? '10px' : '0'}">${cat.label}</div>
-          ${!hasChanges ? `<div style="font-family:'DM Sans',sans-serif;font-size:12px;color:var(--dim)">No changes</div>` : ''}
-          ${shown.map((e, i) => {
-            const col = e.new > e.old ? 'var(--green)' : 'var(--red)';
-            return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;${i < shown.length - 1 ? 'border-bottom:1px solid var(--rule)' : ''}">
-              <input type="checkbox" id="caldiff_${e.idx}" checked style="flex-shrink:0;accent-color:var(--blue);width:14px;height:14px"
-                data-movie-idx="${MOVIES.findIndex(m => m.title === e.title)}" data-cat="${e.catKey}" data-old="${e.old}" data-new="${e.new}">
-              <div style="flex:1;overflow:hidden">
-                <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:13px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.title}</div>
-              </div>
-              <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
-                <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);text-decoration:line-through">${e.old}</span>
-                <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:${col}">${e.new}</span>
-              </div>
-            </div>`;
-          }).join('')}
-          ${more > 0 ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-top:8px">+${more} more</div>` : ''}
-        </div>`;
-      }).join('')}
-    </div>`;
+  const craftKeys = ['plot','execution','acting','production'];
+  const expKeys   = ['enjoyability','rewatchability','ending','uniqueness'];
+
+  function renderCatGroup(groupLabel, keys) {
+    const cats = CATEGORIES.filter(c => keys.includes(c.key));
+    return `
+      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin:24px 0 10px;border-top:1px solid var(--rule);padding-top:16px">${groupLabel}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        ${cats.map(cat => {
+          const catEntries = catGroups[cat.key];
+          const shown = catEntries.slice(0, 3);
+          const more = catEntries.length - 3;
+          const hasChanges = catEntries.length > 0;
+          return `<div style="padding:14px;background:var(--cream);border-radius:6px;${hasChanges ? '' : 'opacity:0.45'}">
+            <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);margin-bottom:${hasChanges ? '10px' : '0'}">${cat.label}</div>
+            ${!hasChanges ? `<div style="font-family:'DM Sans',sans-serif;font-size:12px;color:var(--dim)">No changes</div>` : ''}
+            ${shown.map((e, i) => {
+              const col = e.new > e.old ? 'var(--green)' : 'var(--red)';
+              return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;${i < shown.length - 1 ? 'border-bottom:1px solid var(--rule)' : ''}">
+                <input type="checkbox" id="caldiff_${e.idx}" checked style="flex-shrink:0;accent-color:var(--blue);width:14px;height:14px"
+                  data-movie-idx="${MOVIES.findIndex(m => m.title === e.title)}" data-cat="${e.catKey}" data-old="${e.old}" data-new="${e.new}">
+                <div style="flex:1;overflow:hidden">
+                  <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:13px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.title}</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
+                  <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);text-decoration:line-through">${e.old}</span>
+                  <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:${col}">${e.new}</span>
+                </div>
+              </div>`;
+            }).join('')}
+            ${more > 0 ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-top:8px">+${more} more</div>` : ''}
+          </div>`;
+        }).join('')}
+      </div>`;
+  }
+
+  document.getElementById('cal-diff-list').innerHTML =
+    renderCatGroup('Craft', craftKeys) + renderCatGroup('Experience', expKeys);
 }
 
 export function applyCalibration() {

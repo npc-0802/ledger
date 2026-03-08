@@ -1,5 +1,5 @@
 Palate Map
-Product Brief · Living Document · v3.10
+Product Brief · Living Document · v3.11
 Last updated: March 2026
 Confidential — do not distribute
 
@@ -275,7 +275,7 @@ Archetype / Weight Editor Modal
 "Edit weights →" in Profile. Weight inputs capped at 5 (max). Save recalcs all totals, detects archetype shift via cosine similarity, shows toast if primary archetype changes ("OldArchetype → NewArchetype"), syncs to Supabase.
 
 Masthead
-Clicking display name navigates to Profile screen.
+Wordmark ("palate map") is clickable — navigates to Rankings (home). Search bar spans the full eyebrow area below the wordmark: white background, full border, 11px DM Mono, opens global search overlay on click. All other meta items (cloud status, storage status, export, film count, display name) removed from visible UI; ghost elements remain in DOM for JS compatibility.
 
 07  Known Issues & Tech Debt
 • Cloud sync failures are silent — console.warn only. No user-facing error state. (Phase 2.3 partial)
@@ -371,4 +371,4 @@ Resend key:            stored in Cloudflare env var RESEND_API_KEY only
 GitHub repo:           github.com/npc-0802/palatemap (private)
 GitHub Pages:          palatemap.com (custom domain)
 
-Palate Map · private product brief · v3.10 · do not distribute
+Palate Map · private product brief · v3.11 · do not distribute
