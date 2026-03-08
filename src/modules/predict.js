@@ -69,13 +69,16 @@ export function initPredict() {
             : `<div style="width:28px;height:42px;background:var(--rule);flex-shrink:0"></div>`;
           const date = new Date(predictedAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
           const safeTitle = (film.title||'').replace(/'/g,"\\'");
-          return `<div onclick="predictSelectFilm(${film.tmdbId},'${safeTitle}','${film.year||''}')" style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--rule);cursor:pointer" onmouseover="this.style.background='var(--cream)'" onmouseout="this.style.background=''">
+          return `<div onclick="predictSelectFilm(${film.tmdbId},'${safeTitle}','${film.year||''}')" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid var(--rule);cursor:pointer" onmouseover="this.style.background='var(--cream)'" onmouseout="this.style.background=''">
             ${poster}
             <div style="flex:1;min-width:0">
               <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:15px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${film.title}</div>
               <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);margin-top:2px">${film.year || ''}${film.director ? ' · ' + film.director.split(',')[0] : ''} · ${date}</div>
             </div>
-            <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:20px;color:var(--blue);letter-spacing:-0.5px;flex-shrink:0">${(Math.round(total*10)/10).toFixed(1)}</div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:20px;color:var(--blue);letter-spacing:-0.5px">${(Math.round(total*10)/10).toFixed(1)}</div>
+              <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--dim);margin-top:2px">${getLabel(Math.round(total))}</div>
+            </div>
           </div>`;
         }).join('')}
       </div>`;
