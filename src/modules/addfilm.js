@@ -3,6 +3,8 @@ import { saveToStorage } from './storage.js';
 import { renderRankings } from './rankings.js';
 import { saveUserLocally } from './supabase.js';
 import { removeFromWatchlist } from './watchlist.js';
+import { openPosterPicker } from './posterpicker.js';
+import { fetchTmdbMovieBundle } from './tmdb-movie.js';
 
 const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
 const TMDB = 'https://api.themoviedb.org/3';
@@ -72,23 +74,10 @@ export function liveSearch(val) {
 export async function tmdbSelect(tmdbId, title) {
   document.getElementById('tmdb-results').innerHTML = '<div class="tmdb-loading">Loading film details…</div>';
   try {
-    const [detailRes, creditsRes] = await Promise.all([
-      fetch(`${TMDB}/movie/${tmdbId}?api_key=${TMDB_KEY}`),
-      fetch(`${TMDB}/movie/${tmdbId}/credits?api_key=${TMDB_KEY}`)
-    ]);
-    const detail = await detailRes.json();
-    const credits = await creditsRes.json();
+    const bundle = await fetchTmdbMovieBundle(tmdbId);
+    const { detail, year, posterUrl, directors, writers, allCast, top8Cast, companies } = bundle;
 
-    const year = detail.release_date ? parseInt(detail.release_date.slice(0,4)) : null;
-    const posterUrl = detail.poster_path ? `https://image.tmdb.org/t/p/w185${detail.poster_path}` : null;
-    const directors = credits.crew.filter(c => c.job === 'Director').map(c => c.name);
-    const writers = credits.crew
-      .filter(c => ['Screenplay','Writer','Story','Original Story','Novel'].includes(c.job))
-      .map(c => c.name).filter((v,i,a) => a.indexOf(v) === i);
-    const allCast = credits.cast || [];
-    const top8Cast = allCast.slice(0, 8);
     tmdbFullCast = allCast;
-    const companies = detail.production_companies || [];
 
     newFilm._tmdbId = tmdbId;
     newFilm._tmdbDetail = detail;
@@ -102,13 +91,7 @@ export async function tmdbSelect(tmdbId, title) {
     companyChecked = {};
     companies.forEach(c => { companyChecked[c.id] = { company: c, checked: true }; });
 
-    document.getElementById('tmdb-film-header').innerHTML = `
-      ${posterUrl ? `<img src="${posterUrl}" style="width:80px;border-radius:4px;flex-shrink:0" alt="">` : ''}
-      <div>
-        <div style="font-family:'Playfair Display',serif;font-size:28px;font-weight:900;line-height:1.1">${detail.title}</div>
-        <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--dim);margin-top:4px">${year || ''} · ${detail.runtime ? detail.runtime + ' min' : ''}</div>
-        <div style="font-size:13px;color:var(--dim);margin-top:8px;max-width:480px;line-height:1.5">${(detail.overview||'').slice(0,200)}${detail.overview && detail.overview.length > 200 ? '…':''}</div>
-      </div>`;
+    renderTmdbHeader();
 
     document.getElementById('curate-directors').textContent = directors.join(', ') || 'Unknown';
     document.getElementById('curate-writers').textContent = writers.join(', ') || 'Unknown';
@@ -122,6 +105,19 @@ export async function tmdbSelect(tmdbId, title) {
   } catch(e) {
     document.getElementById('tmdb-results').innerHTML = '<div class="tmdb-error">Failed to load film details. Try again.</div>';
   }
+}
+
+function renderTmdbHeader() {
+  const detail = newFilm._tmdbDetail;
+  if (!detail) return;
+  document.getElementById('tmdb-film-header').innerHTML = `
+    ${newFilm._posterUrl ? `<img src="${newFilm._posterUrl}" style="width:80px;border-radius:4px;flex-shrink:0" alt="">` : ''}
+    <div>
+      <div style="font-family:'Playfair Display',serif;font-size:28px;font-weight:900;line-height:1.1">${detail.title}</div>
+      <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--dim);margin-top:4px">${newFilm.year || ''} · ${detail.runtime ? detail.runtime + ' min' : ''}</div>
+      <div style="font-size:13px;color:var(--dim);margin-top:8px;max-width:480px;line-height:1.5">${(detail.overview||'').slice(0,200)}${detail.overview && detail.overview.length > 200 ? '…':''}</div>
+      <button onclick="openAddFilmPosterPicker()" style="margin-top:12px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;background:none;border:none;color:var(--blue);padding:0;cursor:pointer;text-decoration:underline">Wrong poster? Choose another match →</button>
+    </div>`;
 }
 
 function renderCastCuration(castList) {
@@ -208,6 +204,27 @@ let prefillScores = null;
 
 export function prefillWithPrediction(scores) {
   prefillScores = scores;
+}
+
+function getPredictionComparison(tmdbId, actualTotal) {
+  if (!tmdbId) return null;
+  const entry = currentUser?.predictions?.[String(tmdbId)];
+  if (!entry?.prediction?.predicted_scores) return null;
+  let sum = 0, wsum = 0;
+  CATEGORIES.forEach(cat => {
+    const v = entry.prediction.predicted_scores?.[cat.key];
+    const w = currentUser?.weights?.[cat.key] ?? cat.weight;
+    if (v != null) { sum += v * w; wsum += w; }
+  });
+  const predictedTotal = wsum > 0 ? Math.round((sum / wsum) * 100) / 100 : 0;
+  const delta = Math.round((actualTotal - predictedTotal) * 10) / 10;
+  const absDelta = Math.abs(delta);
+  return {
+    predictedTotal,
+    delta,
+    color: absDelta <= 3 ? 'var(--green)' : absDelta <= 8 ? 'var(--blue)' : 'var(--dim)',
+    label: absDelta <= 3 ? 'Nailed it.' : absDelta <= 8 ? 'Close.' : 'Off the mark.'
+  };
 }
 
 function getAnchors(catKey) {
@@ -379,6 +396,7 @@ function renderResult() {
   newFilm.total = total;
   const sorted = [...MOVIES, newFilm].sort((a,b) => b.total - a.total);
   const rank = sorted.indexOf(newFilm) + 1;
+  const predictionComparison = getPredictionComparison(newFilm._tmdbId, total);
 
   document.getElementById('resultCard').innerHTML = `
     <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px">
@@ -388,6 +406,10 @@ function renderResult() {
     <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--dim);margin-bottom:12px">${newFilm.year || ''} ${newFilm.director ? '· ' + newFilm.director : ''}</div>
     <div class="result-total">${total}</div>
     <div class="result-label">${getLabel(total)}</div>
+    ${predictionComparison ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin:12px 0 20px;display:flex;align-items:center;gap:8px">
+      <span>Predicted ${predictionComparison.predictedTotal}</span>
+      <span style="color:${predictionComparison.color};font-weight:600">${predictionComparison.delta > 0 ? '+' : ''}${predictionComparison.delta} · ${predictionComparison.label}</span>
+    </div>` : ''}
     <div class="result-grid">
       ${CATEGORIES.map(cat => `
         <div class="result-cat">
@@ -487,3 +509,15 @@ export function saveFilm() {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.nav-btn')[0].classList.add('active');
 }
+
+window.openAddFilmPosterPicker = async function() {
+  if (!newFilm._tmdbDetail?.title) return;
+  await openPosterPicker({
+    title: newFilm._tmdbDetail.title,
+    year: newFilm.year,
+    selectedTmdbId: newFilm._tmdbId,
+    onSelect: async (movie) => {
+      await tmdbSelect(movie.id, movie.title);
+    }
+  });
+};

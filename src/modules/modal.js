@@ -4,6 +4,8 @@ const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
 import { saveToStorage } from './storage.js';
 import { syncToSupabase } from './supabase.js';
 import { renderRankings } from './rankings.js';
+import { openPosterPicker } from './posterpicker.js';
+import { fetchTmdbMovieBundle } from './tmdb-movie.js';
 
 const SCORE_LABELS = [
   [90, 'All-time favorite'], [85, 'Really exceptional'], [80, 'Excellent'],
@@ -155,6 +157,7 @@ function renderModal() {
         ? `<button onclick="modalSaveScores()" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;background:var(--blue);color:white;border:none;padding:8px 18px;cursor:pointer;margin-right:8px">Save scores</button>
            <button onclick="modalCancelEdit()" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;background:none;color:var(--dim);border:1px solid var(--rule);padding:8px 18px;cursor:pointer">Cancel</button>`
         : `<button onclick="modalEnterEdit()" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;background:none;color:var(--dim);border:1px solid var(--rule);padding:6px 14px;cursor:pointer">Edit scores</button>
+   <button onclick="modalChoosePoster()" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;background:none;color:var(--dim);border:none;padding:6px 14px;cursor:pointer;opacity:0.5" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.5'">Fix poster</button>
    <button onclick="modalRemoveFilm()" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;background:none;color:var(--dim);border:none;padding:6px 14px;cursor:pointer;opacity:0.5" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.5'">Remove from list</button>`
       }
     </div>
@@ -288,6 +291,33 @@ window.modalRemoveFilm = function() {
   saveToStorage();
   renderRankings();
   syncToSupabase().catch(e => console.warn('sync failed', e));
+};
+
+window.modalChoosePoster = async function() {
+  const m = MOVIES[currentModalIdx];
+  if (!m) return;
+  await openPosterPicker({
+    title: m.title,
+    year: m.year,
+    selectedTmdbId: m.tmdbId || null,
+    onSelect: async (movie) => {
+      const bundle = await fetchTmdbMovieBundle(movie.id);
+      const { detail, year, directors, writers, top8Cast, companies } = bundle;
+      m.tmdbId = movie.id;
+      m.title = detail.title || m.title;
+      m.year = year || m.year;
+      m.poster = detail.poster_path || null;
+      m.overview = detail.overview || '';
+      m.director = directors.join(', ');
+      m.writer = writers.join(', ');
+      m.cast = top8Cast.map(c => c.name).join(', ');
+      m.productionCompanies = companies.map(c => c.name).join(', ');
+      saveToStorage();
+      renderRankings();
+      syncToSupabase().catch(e => console.warn('sync failed', e));
+      renderModal();
+    }
+  });
 };
 
 async function loadModalInsight(film) {
