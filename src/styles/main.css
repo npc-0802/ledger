@@ -83,21 +83,21 @@ body {
 .masthead-search-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   width: 100%;
-  padding: 5px 0;
-  background: none;
-  border: none;
-  border-bottom: 1px solid var(--rule-dark);
+  padding: 9px 14px;
+  background: white;
+  border: 1px solid var(--rule-dark);
   cursor: pointer;
   font-family: 'DM Mono', monospace;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--dim);
   text-align: left;
+  box-sizing: border-box;
   transition: border-color 0.15s, color 0.15s;
 }
 .masthead-search-bar:hover {
-  border-bottom-color: var(--ink);
+  border-color: var(--ink);
   color: var(--ink);
 }
 
