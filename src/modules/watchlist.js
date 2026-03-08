@@ -70,8 +70,11 @@ function watchlistRow(item, i) {
   const prediction = item.tmdbId ? currentUser?.predictions?.[String(item.tmdbId)] : null;
   const predTotal = prediction ? calcWlPredictedTotal(prediction.prediction) : null;
   const predBadge = predTotal != null
-    ? `<div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:18px;color:var(--blue);letter-spacing:-0.5px;flex-shrink:0">${(Math.round(predTotal*10)/10).toFixed(1)}</div>`
-    : `<div style="width:36px;flex-shrink:0"></div>`;
+    ? `<div style="text-align:right;flex-shrink:0;min-width:48px">
+        <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);margin-bottom:2px">you'd give</div>
+        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:20px;color:var(--blue);letter-spacing:-0.5px">~${(Math.round(predTotal*10)/10).toFixed(1)}</div>
+      </div>`
+    : `<div style="width:48px;flex-shrink:0"></div>`;
   return `
     <div onclick="openWatchlistDetail(${i})" style="display:flex;align-items:center;gap:14px;padding:12px;border-bottom:1px solid var(--rule);cursor:pointer" onmouseover="this.style.background='var(--cream)'" onmouseout="this.style.background=''">
       ${poster}
@@ -227,17 +230,18 @@ window.openWatchlistDetail = function(index) {
        </div>`;
 
   const predHtml = predTotal != null ? `
-    <div style="margin-bottom:20px">
-      <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:8px">
-        <span style="font-family:'Playfair Display',serif;font-size:52px;font-weight:900;color:var(--blue);letter-spacing:-2px">${(Math.round(predTotal*10)/10).toFixed(1)}</span>
-        <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--dim)">predicted</span>
+    <div style="border-top:1px solid var(--rule);padding-top:20px;margin-top:4px;margin-bottom:20px">
+      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:14px">— we think you'd give this —</div>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:16px">
+        <span style="font-family:'Playfair Display',serif;font-size:60px;font-weight:900;font-style:italic;color:var(--blue);letter-spacing:-3px;line-height:1">~${(Math.round(predTotal*10)/10).toFixed(1)}</span>
+        <span style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--dim);line-height:1.4">based on<br>your palate</span>
       </div>
       ${prediction.prediction.reasoning ? `
         <div style="padding:16px 20px;background:var(--surface-dark);border-radius:6px;margin-bottom:16px">
-          <div style="font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-dark-dim);margin-bottom:8px">Why this score</div>
+          <div style="font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-dark-dim);margin-bottom:8px">Here's our thinking</div>
           <div style="font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.7;color:var(--on-dark)">${prediction.prediction.reasoning}</div>
         </div>` : ''}
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:20px">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:4px">
         ${CATEGORIES.map(cat => {
           const v = prediction.prediction.predicted_scores?.[cat.key];
           return v != null ? `<div style="text-align:center;padding:10px 6px;background:var(--cream)">
