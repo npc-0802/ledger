@@ -26,6 +26,8 @@ export function launchOnboarding(opts = {}) {
 
 function renderObStep() {
   const card = document.getElementById('ob-card-content');
+  const signoutWrap = document.getElementById('ob-signout-wrap');
+  if (signoutWrap) signoutWrap.style.display = 'none';
 
   if (obStep === 'name') {
     card.innerHTML = `
@@ -156,11 +158,8 @@ function renderObStep() {
           ${obStep === 5 ? 'See my archetype →' : 'Next →'}
         </button>
       </div>
-      ${window._pendingAuthSession ? `
-        <button onclick="obSignOut()" style="width:100%;margin-top:16px;padding:14px;background:var(--action);color:white;border:none;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer">
-          ← Wrong account? Sign out
-        </button>` : ''}
     `;
+    document.getElementById('ob-signout-wrap').style.display = window._pendingAuthSession ? 'block' : 'none';
 
   } else if (obStep === 'reveal') {
     const result = deriveArchetype(obAnswers);
