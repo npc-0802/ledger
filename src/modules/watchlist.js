@@ -174,14 +174,7 @@ async function wlSearch() {
 
 window.wlAddFromSearch = function(tmdbId, title, year, poster, overview) {
   addToWatchlist({ tmdbId, title, year, poster: poster || null, overview: overview || '', director: '' });
-  document.getElementById('wl-search').value = '';
-  document.getElementById('wl-search-results').innerHTML = '';
-  // Re-render the list section only
-  const listEl = document.getElementById('wl-list');
-  const countEl = listEl?.previousElementSibling;
-  const list = currentUser?.watchlist || [];
-  if (listEl) listEl.innerHTML = list.map((item, i) => watchlistRow(item, i)).join('');
-  if (countEl) countEl.textContent = `${list.length} film${list.length !== 1 ? 's' : ''} queued`;
+  renderWatchlist();
 };
 
 window.watchlistRemove = function(index) {
