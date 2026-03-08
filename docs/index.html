@@ -25,14 +25,14 @@
 <meta name="description" content="Everyone has a palate. Rate the films you love, discover your taste archetype, and compare with friends.">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230c0b09'/%3E%3Crect x='0' y='28' width='32' height='4' fill='%23D4A84B'/%3E%3Ctext x='16' y='21' text-anchor='middle' font-family='Georgia,serif' font-style='italic' font-weight='900' font-size='14' fill='white'%3EPM%3C/text%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/index-ai6X4htc.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-D_kx_Efr.css">
+  <script type="module" crossorigin src="/assets/index-DrpN-aK-.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-DFEL1LbM.css">
 </head>
 <body>
 
 <!-- ══════════════ COLD LANDING ══════════════ -->
 <div id="cold-landing" style="display:none;position:fixed;inset:0;background:var(--paper);z-index:200;overflow-y:auto">
-  <div style="min-height:100%;display:flex;flex-direction:column;justify-content:center;padding:60px 56px;max-width:1040px;margin:0 auto;box-sizing:border-box">
+  <div style="min-height:100%;display:flex;flex-direction:column;justify-content:center;padding:60px 40px 80px;max-width:1280px;margin:0 auto;box-sizing:border-box">
 
     <!-- Wordmark -->
     <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--dim);margin-bottom:40px;text-align:center">palate map</div>
@@ -82,11 +82,14 @@
       </div>
 
       <!-- Auth card -->
-      <div class="cold-landing-sticky" style="position:sticky;top:60px">
-        <div style="background:var(--surface-dark);padding:36px 32px">
+      <div class="cold-landing-sticky" style="display:flex;flex-direction:column">
+        <div style="background:var(--surface-dark);padding:36px 32px;flex:1;display:flex;flex-direction:column">
           <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--on-dark-dim);margin-bottom:16px">— start here —</div>
           <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(22px,2.5vw,28px);color:var(--on-dark);line-height:1.15;letter-spacing:-0.5px;margin-bottom:12px">Your taste has a shape.<br>Let's find it.</div>
           <div style="font-family:'DM Sans',sans-serif;font-size:13px;line-height:1.65;color:var(--on-dark-dim);margin-bottom:28px">Six questions map how you think about film. Your palate type, your formula, your predictions — everything follows from there.</div>
+
+          <!-- Spacer pushes buttons to bottom -->
+          <div style="flex:1"></div>
 
           <!-- Google -->
           <button onclick="landingGoogle()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:10px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:1px;background:white;color:var(--ink);border:none;padding:13px 20px;cursor:pointer;margin-bottom:12px;transition:opacity 0.2s" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
@@ -102,7 +105,7 @@
           <!-- Divider -->
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
             <div style="flex:1;height:1px;background:rgba(255,255,255,0.1)"></div>
-            <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim);letter-spacing:1px">or</div>
+            <div style="font-family:'DM Mono',monospace;font-size:9px;color:rgba(244,239,230,0.4);letter-spacing:1px">or</div>
             <div style="flex:1;height:1px;background:rgba(255,255,255,0.1)"></div>
           </div>
 
@@ -111,8 +114,8 @@
 
           <!-- Footer links -->
           <div style="margin-top:20px;display:flex;flex-direction:column;gap:9px;text-align:center">
-            <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);letter-spacing:0.5px">Been here before? <span style="color:var(--blue);cursor:pointer;text-decoration:underline" onclick="startFromLandingReturning()">Log in →</span></span>
-            <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);letter-spacing:0.5px">On Letterboxd? <span style="color:var(--blue);cursor:pointer;text-decoration:underline" onclick="startFromLanding()">Import your ratings →</span></span>
+            <span style="font-family:'DM Mono',monospace;font-size:10px;color:rgba(244,239,230,0.45);letter-spacing:0.5px">Been here before? <span style="color:rgba(244,239,230,0.85);cursor:pointer;text-decoration:underline" onclick="startFromLandingReturning()">Log in →</span></span>
+            <span style="font-family:'DM Mono',monospace;font-size:10px;color:rgba(244,239,230,0.45);letter-spacing:0.5px">On Letterboxd? <span style="color:rgba(244,239,230,0.85);cursor:pointer;text-decoration:underline" onclick="startFromLanding()">Import your ratings →</span></span>
           </div>
         </div>
 
