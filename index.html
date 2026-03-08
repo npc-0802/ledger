@@ -64,20 +64,15 @@
     <div class="masthead-rule-thin"></div>
   </div>
   <div class="masthead-meta">
-    <div class="masthead-meta-left" id="mastheadLeft">taste is everything &nbsp;·&nbsp; film</div>
-    <div class="masthead-meta-right">
-      <button onclick="openGlobalSearch()" class="masthead-search-btn" title="Search films">
-        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="5" cy="5" r="3.5" stroke="currentColor" stroke-width="1.4"/><line x1="7.8" y1="7.8" x2="12" y2="12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-        Search
-      </button>
-      <span class="cloud-status" id="cloudStatus" onclick="showSyncPanel()" title="Cloud sync">
-        <span class="cloud-dot" id="cloudDot"></span>
-        <span id="cloudLabel">local</span>
-      </span>
-      <span id="storageStatus" class="masthead-util"></span>
-      <span class="masthead-util" onclick="exportData()">Export</span>
-      <span class="masthead-count" id="mastheadCount">94 films ranked</span>
-    </div>
+    <button class="masthead-search-bar" onclick="openGlobalSearch()">
+      <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="5" cy="5" r="3.5" stroke="currentColor" stroke-width="1.4"/><line x1="7.8" y1="7.8" x2="12" y2="12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      <span>Search films, directors, actors…</span>
+    </button>
+    <span style="display:none" id="mastheadLeft"></span>
+    <span style="display:none" id="cloudDot"></span>
+    <span style="display:none" id="cloudLabel"></span>
+    <span style="display:none" id="storageStatus"></span>
+    <span style="display:none" id="mastheadCount"></span>
   </div>
 </div>
 

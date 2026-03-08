@@ -77,57 +77,29 @@ body {
   margin-top: 3px;
 }
 .masthead-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   padding: 7px 0 0;
   margin-bottom: 8px;
 }
-.masthead-meta-left {
-  font-family: 'DM Mono', monospace;
-  font-size: 10px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--dim);
-}
-.masthead-meta-right {
+.masthead-search-bar {
   display: flex;
   align-items: center;
-  gap: 20px;
-}
-.masthead-count {
-  font-family: 'DM Mono', monospace;
-  font-size: 10px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--dim);
-}
-.masthead-util {
-  font-family: 'DM Mono', monospace;
-  font-size: 10px;
-  color: var(--dim);
-  cursor: pointer;
-  letter-spacing: 1px;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  transition: color 0.15s;
-}
-.masthead-util:hover { color: var(--ink); }
-.masthead-util.highlight { color: var(--blue); }
-.masthead-search-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-family: 'DM Mono', monospace;
-  font-size: 10px;
-  color: var(--dim);
+  gap: 8px;
+  width: 100%;
+  padding: 5px 0;
   background: none;
   border: none;
+  border-bottom: 1px solid var(--rule-dark);
   cursor: pointer;
-  padding: 0;
-  transition: color 0.15s;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--dim);
+  text-align: left;
+  transition: border-color 0.15s, color 0.15s;
 }
-.masthead-search-btn:hover { color: var(--ink); }
+.masthead-search-bar:hover {
+  border-bottom-color: var(--ink);
+  color: var(--ink);
+}
 
 /* ── NAV ── */
 #sticky-header {

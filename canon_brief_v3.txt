@@ -1,5 +1,5 @@
 Palate Map
-Product Brief · Living Document · v3.9
+Product Brief · Living Document · v3.10
 Last updated: March 2026
 Confidential — do not distribute
 
@@ -55,7 +55,8 @@ Design Principles
 • Dark surfaces for identity moments (archetype reveal in onboarding, palate block in profile).
 • No dark mode yet. Clean paper aesthetic is intentional and differentiating.
 • Animations: subtle fadeIn only. No bounces, no flashy transitions.
-• Mobile: responsive bottom bar redesigned. Tab strip (5 items: Rankings, Analysis, Friends, Watch, Profile) sits above a full-width persimmon "Add Film" CTA bar. The .mobile-bottom wrapper handles fixed positioning; ::after pseudo-element matches the action color to cover browser chrome gap transitions. Screen padding accounts for both rows.
+• Mobile: responsive bottom bar redesigned. Tab strip (5 items: Rankings, Analysis, Friends, Watch, Profile) sits above a full-width persimmon "Search" CTA bar (opens global search overlay). The .mobile-bottom wrapper handles fixed positioning; ::after pseudo-element matches action color to cover browser chrome gap transitions. Screen padding accounts for both rows.
+• Rankings nav icon is a medal (ribbon + circle), not a hamburger. Analysis uses bar chart. Icons are distinct across all 5 tabs.
 
 03  Current Architecture
 Status: Phase 1 complete, Phase 2 complete, Phase 3.1–3.4 complete. Vite multi-file vanilla JS.
@@ -215,8 +216,13 @@ Watch list screen: TMDB search bar at top (debounced, shows "on watch list" for 
 Syncs to Supabase in user payload (watchlist jsonb field).
 
 Global Search (Phase 3.8 — Complete)
-"Search" button in masthead (visible on all screens, desktop + mobile).
-Full-screen dark overlay with autofocused input. Two result sections: "Your rankings" (own films matching query — click to open film modal) and "Add or rate" (TMDB results — ＋ List / Rate → actions). Searches both simultaneously. Dismiss by clicking outside or ×.
+"Search" button in masthead (desktop) + full-width persimmon bar at bottom of mobile nav.
+Full-screen dark overlay, autofocused input, placeholder "Search films, directors, actors…". Four result sections:
+1. Your rankings — own films matching query → opens film modal.
+2. In your rankings — directors/writers/actors/companies extracted from MOVIES matching query; shows type label, film count, avg score → exploreEntity (navigates to Analysis entity page).
+3. People & companies — TMDB persons (with profile photo) + companies not yet in user's data → openEntityStub modal.
+4. Films — unrated TMDB film results → ＋ List / Rate → actions.
+All TMDB queries run in parallel (movie + person + company). Own entity deduplication prevents showing the same name in both sections. Dismiss by clicking outside or ×.
 
 Friends (Phase 3.2 — Complete)
 Own nav tab in both desktop strip and mobile bottom nav.
@@ -327,7 +333,7 @@ Phase 3 — Growth Features [IN PROGRESS]
 
 • 3.7 Social film modal ✓ — friend film clicks open rich listing modal (dark header, friend rank/score, own rate/watchlist actions, friend's breakdown). Film modals show Friends context section (friend scores + watchlist status) loaded from background cache.
 
-• 3.8 Global Search ✓ — masthead search button; searches own rankings + TMDB simultaneously; own films link to modal, TMDB results get ＋ List / Rate actions.
+• 3.8 Global Search ✓ — masthead search button + full-width mobile bottom bar. Four result sections: "Your rankings" (own films → modal), "In your rankings" (own directors/writers/actors/companies with avg score → exploreEntity), "People & companies" (TMDB persons with profile photo + companies not in user's data → openEntityStub), "Films" (unrated TMDB films → ＋ List / Rate). Placeholder: "Search films, directors, actors…"
 
 • 3.9 Tagging system — context tags (alone / with someone / rewatch / bad week). [not started]
 
@@ -365,4 +371,4 @@ Resend key:            stored in Cloudflare env var RESEND_API_KEY only
 GitHub repo:           github.com/npc-0802/palatemap (private)
 GitHub Pages:          palatemap.com (custom domain)
 
-Palate Map · private product brief · v3.9 · do not distribute
+Palate Map · private product brief · v3.10 · do not distribute
