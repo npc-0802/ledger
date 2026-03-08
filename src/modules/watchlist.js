@@ -69,20 +69,20 @@ function watchlistRow(item, i) {
     : `<div style="width:40px;height:60px;background:var(--rule);flex-shrink:0"></div>`;
   const prediction = item.tmdbId ? currentUser?.predictions?.[String(item.tmdbId)] : null;
   const predTotal = prediction ? calcWlPredictedTotal(prediction.prediction) : null;
-  const predBadge = predTotal != null
-    ? `<div style="text-align:right;flex-shrink:0;min-width:48px">
-        <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);margin-bottom:2px">you'd give</div>
-        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:20px;color:var(--blue);letter-spacing:-0.5px">~${(Math.round(predTotal*10)/10).toFixed(1)}</div>
+  const predLine = predTotal != null
+    ? `<div style="display:flex;align-items:baseline;gap:5px;margin-top:6px">
+        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);letter-spacing:0.5px">you'd give</span>
+        <span style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:16px;color:var(--blue);letter-spacing:-0.5px">~${(Math.round(predTotal*10)/10).toFixed(1)}</span>
       </div>`
-    : `<div style="width:48px;flex-shrink:0"></div>`;
+    : '';
   return `
     <div onclick="openWatchlistDetail(${i})" style="display:flex;align-items:center;gap:14px;padding:12px;border-bottom:1px solid var(--rule);cursor:pointer" onmouseover="this.style.background='var(--cream)'" onmouseout="this.style.background=''">
       ${poster}
       <div style="flex:1;min-width:0">
         <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:16px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.title}</div>
         <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-top:3px">${item.year || ''}${item.director ? ' · ' + item.director.split(',')[0] : ''}</div>
+        ${predLine}
       </div>
-      ${predBadge}
       <div style="display:flex;gap:8px;flex-shrink:0;align-items:center" onclick="event.stopPropagation()">
         <button onclick="watchlistRemove(${i})" style="font-family:'DM Mono',monospace;font-size:10px;padding:8px 10px;background:none;border:1px solid var(--rule-dark);color:var(--dim);cursor:pointer">✕</button>
         <button onclick="watchlistRate(${i})" style="font-family:'DM Mono',monospace;font-size:10px;padding:8px 14px;background:var(--action);color:white;border:none;cursor:pointer;letter-spacing:1px;text-transform:uppercase;white-space:nowrap">Rank it →</button>
