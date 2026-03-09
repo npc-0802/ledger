@@ -318,18 +318,27 @@ function scoreCandidate(film) {
   return Math.min(score, 100);
 }
 
+// Strip leading articles for fuzzy title matching (handles "Lord of the Rings" vs "The Lord of the Rings")
+function normTitle(t) {
+  return (t || '').toLowerCase().replace(/^(the|a|an)\s+/, '').trim();
+}
+
 async function buildCandidatePool() {
-  // Builds a personalized candidate pool from 3 streams, in priority order:
-  // Stream A: Watch list films (already expressed intent, highest priority)
-  // Stream B: Director affinity (top-rated directors' other films via TMDB)
-  // Stream C: TMDB discover (genre + era weighted, replaces generic popular)
+  // Builds a personalized candidate pool from 2 streams:
+  // Stream A: Director affinity (top-rated directors' other films via TMDB)
+  // Stream B: TMDB discover (genre + era weighted)
 
   const ratedIds = new Set(MOVIES.map(m => String(m.tmdbId)).filter(Boolean));
-  const ratedTitles = new Set(MOVIES.map(m => m.title.toLowerCase()));
+  const ratedTitlesNorm = new Set(MOVIES.map(m => normTitle(m.title)));
   const watchlistIds = new Set((currentUser?.watchlist || []).map(w => String(w.tmdbId)));
+  const watchlistTitlesNorm = new Set((currentUser?.watchlist || []).map(w => normTitle(w.title)));
 
   // Exclude rated, watchlisted, and dismissed films from all streams
   const seen = new Set([...ratedIds, ...watchlistIds, ...dismissedTmdbIds]);
+  const isKnown = (id, title) =>
+    seen.has(String(id)) ||
+    ratedTitlesNorm.has(normTitle(title)) ||
+    watchlistTitlesNorm.has(normTitle(title));
   const candidates = [];
 
   // ── Stream A: Director affinity ─────────────────────────────────────────────
@@ -363,12 +372,12 @@ async function buildCandidatePool() {
       const credData = await credRes.json();
       const directed = (credData.crew || [])
         .filter(c => c.job === 'Director' && c.vote_count > 100 && c.poster_path)
-        .filter(c => !seen.has(String(c.id)) && !ratedTitles.has((c.title || '').toLowerCase()))
+        .filter(c => !isKnown(c.id, c.title))
         .sort((a, b) => b.vote_average - a.vote_average)
         .slice(0, 3);
 
       directed.forEach(film => {
-        if (seen.has(String(film.id))) return;
+        if (isKnown(film.id, film.title)) return;
         seen.add(String(film.id));
         candidates.push({
           tmdbId: film.id,
@@ -445,8 +454,7 @@ async function buildCandidatePool() {
 
   const discoverResults = (await Promise.all(discoverCalls)).flat();
   discoverResults.forEach(film => {
-    const id = String(film.id);
-    if (seen.has(id) || !film.poster_path) return;
+    if (isKnown(film.id, film.title) || !film.poster_path) return;
     seen.add(id);
     candidates.push({
       tmdbId: film.id,
@@ -763,7 +771,20 @@ async function findMeAFilm() {
     }));
 
     // ── Phase 4: Collect results and render top 3 ────────────────────────────
+    // Final safety filter: never surface anything already rated or watchlisted,
+    // even if it slipped through candidate pool filtering (e.g. missing tmdbId, title mismatch)
+    const ratedIdsCheck = new Set(MOVIES.map(m => String(m.tmdbId)).filter(Boolean));
+    const ratedTitlesCheck = new Set(MOVIES.map(m => normTitle(m.title)));
+    const wlIdsCheck = new Set((currentUser?.watchlist || []).map(w => String(w.tmdbId)));
+    const wlTitlesCheck = new Set((currentUser?.watchlist || []).map(w => normTitle(w.title)));
+    const alreadyKnown = (c) =>
+      ratedIdsCheck.has(String(c.tmdbId)) ||
+      ratedTitlesCheck.has(normTitle(c.title)) ||
+      wlIdsCheck.has(String(c.tmdbId)) ||
+      wlTitlesCheck.has(normTitle(c.title));
+
     const results = top5
+      .filter(c => !alreadyKnown(c))
       .map(c => {
         const cached = currentUser?.predictions?.[String(c.tmdbId)];
         if (!cached?.prediction) return null;
