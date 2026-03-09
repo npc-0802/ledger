@@ -224,10 +224,9 @@ function renderSecondaryCards(results) {
   if (!gridEl || !sectionEl) return;
 
   if (!results || !results.length) {
-    sectionEl.style.display = 'none';
+    gridEl.innerHTML = '';
     return;
   }
-  sectionEl.style.display = '';
 
   gridEl.innerHTML = results.map((r, i) => {
     const posterImg = r.poster
@@ -273,8 +272,8 @@ function loadForYouRecommendations() {
         <div class="foryou-hero-loading-sub">Reading your taste · scouting candidates · ranking by fit</div>
       </div>`;
   }
-  const sectionEl = document.getElementById('foryou-secondary-section');
-  if (sectionEl) sectionEl.style.display = 'none';
+  const secGrid = document.getElementById('foryou-secondary-grid');
+  if (secGrid) secGrid.innerHTML = '';
   renderForYouEyebrow(null);
   findMeAFilm();
 }
@@ -1481,9 +1480,8 @@ async function loadDiscoveryRecommendations() {
   if (!sectionEl || !gridEl) return;
 
   // Need 10+ films
-  if (MOVIES.length < 10) { sectionEl.style.display = 'none'; return; }
+  if (MOVIES.length < 10) { gridEl.innerHTML = ''; return; }
 
-  sectionEl.style.display = '';
   gridEl.innerHTML = `<div class="discovery-loading">Scouting new territory…</div>`;
 
   try {
@@ -1555,8 +1553,7 @@ function renderDiscoveryCards(results) {
   const gridEl = document.getElementById('foryou-discovery-grid');
   const sectionEl = document.getElementById('foryou-discovery-section');
   if (!gridEl || !sectionEl) return;
-  if (!results?.length) { sectionEl.style.display = 'none'; return; }
-  sectionEl.style.display = '';
+  if (!results?.length) { gridEl.innerHTML = ''; return; }
 
   gridEl.innerHTML = results.map(r => {
     const poster = r.poster
@@ -2074,7 +2071,7 @@ window.predictToggleWatchlist = async function() {
   if (btn) {
     const nowOnWl = !onWl;
     btn.textContent = nowOnWl ? '✓ On Watch List' : '＋ Watchlist';
-    btn.style.cssText = nowOnWl ? 'background:var(--green);color:white;border-color:var(--green)' : '';
+    btn.style.cssText = nowOnWl ? 'background:var(--green);color:white;border-color:var(--green)' : 'color:var(--on-dark-dim);border-color:rgba(255,255,255,0.2)';
   }
 };
 

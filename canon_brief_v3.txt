@@ -1,5 +1,5 @@
 Palate Map
-Product Brief · Living Document · v3.20
+Product Brief · Living Document · v3.23
 Last updated: March 2026
 Confidential — do not distribute
 
@@ -52,14 +52,17 @@ Spacing scale: --s1 (8px) through --s12 (96px), 8pt grid.
 Design Principles
 • Swiss-editorial. Typographic-first. Feels like a tool a film critic would actually use.
 • High fashion / editorial energy — the platform should let your taste shine, not compete with it.
-• Dark surfaces for identity moments (archetype reveal in onboarding, palate block in profile).
+• Two surface systems, by intent:
+  Dark surfaces = identity moments (onboarding, archetype reveal, starter films, For You hero, profile palate block).
+  Paper surfaces = daily utility (rankings, scoring, analysis, watchlist).
+  This duality is intentional and should be preserved. The fix is not to change either surface — it's to design the seam between them.
 • No dark mode yet. Clean paper aesthetic is intentional and differentiating.
-• Animations: layered motion system. Cold landing: staggered reveal (wordmark → hero → rule → value props → auth card with glow). Modals: two-class system (open → display:flex, visible → opacity/transform transition). Screen transitions: per-screen (Rankings instant, For You slide-up, Profile slow fade). Quiz: cross-fade between steps, cinematic first-step intro with staggered card reveal, dramatic archetype reveal with scale animation. Film cards: lift + shadow on hover, score badge pop. Global search: fade-in overlay + slide-down content. Welcome modal: animated dismiss (fade + slide-down). No bounces.
+• Animations: layered motion system. Cold landing: staggered reveal (wordmark → hero → rule → value props → auth card with glow); exit: fade-out-down (0.4s, ease-in). Onboarding → app: curtain lift (0.5s, accelerating ease-out on overlay; 0.4s deceleration ease-in on app content with 200ms offset — creates dissolve-overlap). Modals: two-class system (open → display:flex, visible → opacity/transform transition). Screen transitions: per-screen (Rankings instant, For You slide-up, Profile slow fade). Quiz: cross-fade between steps, cinematic first-step intro with staggered card reveal, dramatic archetype reveal with scale animation. Film cards: lift + shadow on hover, score badge pop. Global search: fade-in overlay + slide-down content. Add Film: poster scale-in (0.97→1), score card horizontal slide transitions, craft/experience interstitial fade, result reveal 7-phase staged animation on dark surface. No bounces — motion feels like gravity and intention.
 • Mobile: responsive bottom bar redesigned. Tab strip (5 items: Rankings, Analysis, Friends, Watch, Profile) sits above a full-width persimmon "Search" CTA bar (opens global search overlay). The .mobile-bottom wrapper handles fixed positioning; ::after pseudo-element matches action color to cover browser chrome gap transitions. Screen padding accounts for both rows.
 • Rankings nav icon is a medal (ribbon + circle), not a hamburger. Analysis uses bar chart. Icons are distinct across all 5 tabs.
 
 03  Current Architecture
-Status: Phase 1 complete, Phase 2 complete, Phase 3.1–3.8 complete, 3.11 complete, 3.13 complete, 3.15–3.21 complete. Vite multi-file vanilla JS.
+Status: Phase 1 complete, Phase 2 complete, Phase 3.1–3.8 complete, 3.11 complete, 3.13 complete, 3.15–3.23 complete. Vite multi-file vanilla JS.
 
 File Structure
 palatemap/
@@ -87,6 +90,7 @@ palatemap/
       archetypemodal.js  weight editor modal, sign out
       friends.js       friends list, friend profile, invite modal, overlap + taste + predict views
       watchlist.js     watch list screen — add, remove, rank from queue
+      hints.js         dismissable educational hints system (shouldShowHint, renderHint)
       supabase.js      all cloud sync + auth + friends DB logic
       storage.js       localStorage helpers
       upgrade.js       upgrade nudge toast, upgrade modal, checkout flow
@@ -195,11 +199,11 @@ Right column: dark surface card ("Your taste has a shape. Let's find it." + bran
 
 Onboarding (3 entry points)
 New user: cold landing → auth step (Google OAuth primary, or name + email → magic link) → 6-question quiz (dark surface intro block: "Six questions. Your taste, revealed.") → archetype reveal (dark surface: name + description + quote + secondary + username) → "See what your palate says →" → starter films → welcome modal → main app.
-Starter films: after archetype reveal, presents a curated grid of 10 films selected for the user's palate type (from starter-films.js, 9 archetypes × 10 films + 10 universal fallbacks). 4-column desktop grid, 2-column mobile. Each card shows poster (2:3 aspect ratio, object-fit cover). Tapping a card expands a full-width rate card below the grid with 2-column slider layout and archetype-weighted defaults. Progress bar tracks rated count. "Show more" reveals additional films. Skip available at any point. Cross-fade animation between reveal and starters steps.
+Starter films: after archetype reveal, presents a curated grid of 10 films selected for the user's palate type (from starter-films.js, 9 archetypes × 10 films + 10 universal fallbacks). 4-column desktop grid, 2-column mobile. Each card shows poster (2:3 aspect ratio, object-fit cover). Tapping a card inserts an inline rate card immediately below the clicked poster (using grid-column: 1/-1 to span full width), preserving spatial continuity. 2-column slider layout with archetype-weighted defaults. After rating, auto-scrolls back to top of the overlay. Progress bar tracks rated count. "Show more" reveals additional films. Skip available at any point. Cross-fade animation between reveal and starters steps.
 Returning user: "Log in →" link on auth step. Shows Google OAuth or email-only magic link (no name field). On click: redirects to Google or sends magic link. Supabase session auto-loads profile on return. Legacy profiles with no auth_id are auto-linked on first sign-in (auth session linked to localStorage user, auth_id + email written to Supabase row).
 Letterboxd import: drag-and-drop ratings.csv → parses star ratings (×20 = score) → loads films → proceeds to quiz. CTA on name step ("On Letterboxd? Import your ratings →").
 Quiz overlay: flex-column, flex-start, 48px top padding so content is scrollable and never clips. "← Start over" button renders below the card (outside it) when a pending auth session exists — plain border style, visually separated, hidden on all non-quiz steps.
-Welcome modal: fires once after obFinish() (palatemap_welcome_shown localStorage flag). Shows user's name + palate type in archetype palette color. Lays out the platform: Rankings (rate & rank), Taste Profile (patterns & fingerprint), Predict & For You (unlocks at 10 films — predicted scores + personalized recommendations), Friends & Overlap (invite friends, compare taste, overlap predict). Contextual CTA button adapts to user's rated count ("Rate your first film →" / "Keep rating →" / "Explore your palate →"). Button uses archetype palette color.
+Welcome modal: removed. The curtain lift transition from onboarding → app replaces the old welcome modal. obFinish() now triggers a CSS curtain-lift animation (overlay slides up with accelerating easing, app content settles in with deceleration easing + 200ms offset) instead of showing a modal. The palatemap_welcome_shown localStorage flag prevents re-showing the onboarding overlay.
 
 Rankings (Main Screen)
 Default: poster grid (5 columns). Sort pills above grid control sort order + which score badge shows on each card. Toggle to table view (8 category columns + total).
@@ -221,8 +225,11 @@ Index tabs: Directors / Writers / Actors / Companies / Years. Entities with 2+ f
 Entity page: avg score, rank among peers, film count, TMDB portrait in dark header, per-category breakdown (Craft / Experience axis groups) with per-category ranks, AI insight blurb, full film list with poster thumbnails and score columns.
 Empty state: "Terra incognita." dashed-border uncharted treatment.
 
-Predict
-Search unrated films. Builds taste fingerprint. Finds comparables by shared director/cast. Calls Claude via Cloudflare proxy. Returns predicted score per category, confidence, 2nd-person reasoning anchored to user's specific films. Results cached in currentUser.predictions (keyed by tmdbId) and synced to Supabase — subsequent opens show cached result instantly with "Re-predict →" available. ＋ Watchlist and Rate now → actions on result.
+Predict / For You
+Editorial header: DM Mono eyebrow ("FOR YOU · BASED ON N FILMS"), Playfair italic headline (contextual: "What to watch tonight." / "Getting to know your taste." at <50 films), archetype color accent bar, metadata line with last-updated timestamp + archetype name.
+Section order (top to bottom): (1) editorial header, (2) hero recommendation (dark surface, full-width), (3) "I'm in the mood for…" entity search (promoted, Playfair headline, warm inviting input), (4) secondary picks as poster strip (4-column grid, poster-dominant cards with score badge overlay, matching Watch List card pattern), (5) "New Territory" discovery cards, (6) "Predict a specific film ▸" collapsed toggle (power-user escape hatch).
+Manual predict search: collapsed by default, expands on click.
+Prediction engine: search unrated films. Builds taste fingerprint. Finds comparables by shared director/cast. Calls Claude via Cloudflare proxy. Returns predicted score per category, confidence, 2nd-person reasoning anchored to user's specific films. Results cached in currentUser.predictions (keyed by tmdbId) and synced to Supabase — subsequent opens show cached result instantly with "Re-predict →" available. ＋ Watchlist and Rate now → actions on result.
 "Find me a film →": personalized recommendation engine. Builds a candidate pool from TMDB popular + genre-seeded discover pages, filtered against rated + watchlisted films + the user's watch list. Pre-scores candidates locally using director/cast overlap with user's top-rated films. Top 6 go to Claude for full prediction. Shows top 3 as recommendation cards (poster, title, predicted total, confidence, truncated reasoning, "+ Watch List" / "Full prediction →"). "Refresh →" advances page offset. Sequel filtering: candidates in a TMDB collection are excluded if the user hasn't rated all preceding films in the collection (uses belongs_to_collection + collection parts sorted by release date; first films in a series are allowed). Collection data cached per session.
 "New Territory →": discovery mode surfaced below For You recommendations. Finds films outside the user's comfort zone — underrepresented genres, eras, and origins in their rated library. Builds discovery pool from TMDB discover API with explicit genre/year/region filters targeting gaps. Same sequel filtering and prediction pipeline as For You. Cards labeled "new territory" with distinct header styling.
 
@@ -234,10 +241,17 @@ Elo-based head-to-head. Choose category + intensity (15/30/50 matchups). Review 
 Accessible via Profile screen "Calibrate your scores →" button (not in bottom nav).
 
 Add Film
-4-step: TMDB search → cast/crew/company curation → 8-category scoring → result card.
-Score guide in step 2 reflects actual LABELS thresholds (90/85/80/75/70/65/60/55/50) from state.js.
-Poster correction: curation step includes a "Wrong poster? Choose another match →" action. Opens alternate TMDB search results; selecting a replacement swaps in the new poster, metadata (title, year, director, writer, cast, companies, overview), and TMDB id before proceeding to scoring.
-Predicted vs actual: if the film was previously predicted, the Step 4 confirmation card shows predicted total vs actual total with delta and a qualitative accuracy label ("Nailed it" ≤3, "Close" ≤8, "Off the mark" >8). Delta is stored in the prediction cache entry (predictedTotal, actualTotal, delta, ratedAt).
+4-step ceremonial flow: TMDB search → film confirmation → scoring → head-to-head refinement → result reveal. Minimal text step indicator (DM Mono, updates contextually: "Select a film" / "Score · Acting" / "Refine" / "Result") replaces the old 4-circle stepper.
+
+Step 1 — Search + Confirmation: centered search state (flexbox, vertically centered headline "What did you watch?" + subline + search input with icon). Results render as rich rows (.add-result: poster thumbnail, title, year/director meta, truncated overview, arrow indicator). Below the search input, a "From your watch list" section shows watchlist film thumbnails as quick-add shortcuts. After selecting a film, a side-by-side confirmation hero appears (large w342 poster left + body right: Playfair title, meta line with year · runtime · director, overview, persimmon "Rate this film →" CTA, "Not this one" secondary). Below the hero, detail chips show director, top cast (up to 6), and studio as labeled rows. Cast/crew curation collapses behind "Adjust cast & crew ▸" toggle (default collapsed — top 8 cast pre-checked is correct 90% of the time). Poster correction ("Wrong poster?") lives inside the collapsed section.
+
+Step 2 — Card-Based Scoring: always defaults to one-at-a-time card mode (localStorage preference ignored). "Show all categories →" toggle available for power users. Scoring intro hint: dismissable explainer on first use introducing the 8-category system (Craft: Plot, Execution, Acting, Production — how the film was made; Experience: Enjoyability, Rewatchability, Ending, Uniqueness — how it made you feel) with a score guide (90+ masterful, 80s excellent, 70s solid, 60s mixed, <60 weak). Uses hints.js shouldShowHint/renderHint system with localStorage persistence. Card mode: 8 progress dots at top (color-coded by score tier as each is completed), Craft/Experience grouping visible in eyebrow ("CRAFT · CATEGORY 3 OF 8"), large 64px score number (Playfair italic, tier-colored, updates live), reference anchor films (up to 3, with data-score attribute — anchor deselects back to white when user manually moves slider off that score), full-width slider, Back/Next navigation. Interstitial between categories 4→5: "Now for how it made you feel." (separates analytical Craft from emotional Experience). Category-specific tips rotate at bottom. All-at-once mode: same as legacy 8-slider vertical layout.
+
+Step 3 — Head-to-Head: same core interaction (pick a winner for close-scoring films). Added: poster thumbnails (40×60px) on both cards, fade-in transitions between matchups. Auto-advance with 1.5s delay when no close comparisons exist ("Your scores are clearly differentiated. No adjustments needed.").
+
+Step 4 — Result Reveal: dark surface (var(--surface-dark)) fills the panel. 7-phase staged animation: eyebrow "YOUR VERDICT" → title slide up (300ms) → score scale-in at 80px (600ms) → label → prediction comparison if applicable (750ms) → rank context (900ms) → category grid 4×2 (1200ms) → nearby films leaderboard (1500ms) → action buttons (1800ms). All text styled for dark surface. Prediction comparison: "Predicted 82.1 → Actual 78.4 / −3.7 · Close."
+
+Predicted vs actual: if the film was previously predicted, the result reveal shows predicted total vs actual total with delta and accuracy label ("Nailed it" ≤3, "Close" ≤8, "Off the mark" >8). Delta stored in prediction cache entry (predictedTotal, actualTotal, delta, ratedAt).
 
 Nav Strip
 Top bar above nav tabs. Contains: "Add a film" (primary) + "Invite a friend →" (secondary). "Invite a friend →" opens invite modal (not nav to Friends screen).
@@ -245,7 +259,7 @@ Top bar above nav tabs. Contains: "Add a film" (primary) + "Invite a friend →"
 Watch List (Phase 3.4 — Complete)
 Own nav tab in both desktop strip and mobile bottom bar (bookmark icon).
 Films saved from anywhere in the app: entity stub modal (＋ Watchlist button), Predict result, friend film modal, Overlap Predict result. Button toggles to "✓ On Watch List" (green, click removes) everywhere it appears.
-Watch list screen: TMDB search bar at top (debounced, adds immediately without refresh); poster + title + year list below with "you'd give ~82.7 · Great" tier line (getLabel) once predicted; "estimating ···" pulsing blue dots while pending; Rank it → (navigates to Add Film pre-filled with cached/auto-predicted category scores), ✕ remove. Empty state. Count header. Row has horizontal padding for proper hover state.
+Watch list screen: editorial header ("WATCH LIST · N FILMS" eyebrow, "Up next." Playfair headline). Poster grid layout (5-column desktop, 2-column mobile) matching Rankings visual language. Each card: 2:3 aspect ratio poster, predicted score badge (blue, bottom-right) or "est…" pulsing badge for pending predictions, discovery compass badge (top-left) for New Territory films, title + year below. Click opens full film modal. TMDB search bar below the grid (content-first, search second). Empty state: "What's next?" with link to For You screen.
 Clicking a row opens full film modal: dark header with portrait poster, TMDB overview, director/writer/cast/company chips with portraits/logos, streaming providers (JustWatch via TMDB), and predicted score block ("we think you'd give this", big ~score + tier label + "based on your palate" + reasoning + per-category grid).
 Auto-predict: 30s timer on add; also queued on renderWatchlist for any items missing scores (staggered 1.5s apart).
 When a watchlisted film is rated and saved, it is automatically removed from the watch list.
@@ -297,9 +311,10 @@ Email notifications (via Resend + Cloudflare Worker)
 Profile Screen
 Nav screen (bottom tab).
 Sections:
-• Palate block — dark surface card (with grid texture) with primary + secondary archetype name in on-dark cream.
-• Description + quote from archetype data.
-• Taste Fingerprint — radar chart (user weights vs archetype baseline, dashed) + avg score bars per category.
+• Palate row — side-by-side layout (flex, stacks on mobile ≤768px):
+  Left: dark surface card (with grid texture) with primary + secondary archetype name in on-dark cream, description + quote from archetype data, "Edit weights →" link.
+  Right: Taste Fingerprint radar chart (user weights vs archetype baseline, dashed) + legend.
+• Avg score bars per category (Craft / Experience groups) below the palate row.
 • Stats row — 3-column editorial grid: films rated / avg total / strongest category (large Playfair numbers).
 • Signature Films — top 5 by total. Each row: poster thumbnail, rank, italic title, score badge (tier-colored).
 • Share cards — two side-by-side 320×440px fixed cards: (1) Palate Map Card: dark header with archetype + top 3 films + stats; (2) Taste Note Card: cream, first-person archetype quote as hero text.
@@ -334,7 +349,7 @@ Masthead
 Wordmark ("palate map") is clickable — navigates to Rankings (home). Search bar spans the full eyebrow area below the wordmark: white background, full border, 11px DM Mono, opens global search overlay on click. All other meta items (cloud status, storage status, export, film count, display name) removed from visible UI; ghost elements remain in DOM for JS compatibility.
 
 07  Known Issues & Tech Debt
-• No test coverage. Shipping by feel.
+• Playwright e2e test suite (tests/*.spec.js, 34 tests). Covers add film, rankings, scoring, navigation. Run: npx playwright test.
 • Cloudflare Worker renamed to palate-map-proxy — URL updated in all modules (predict.js, friends.js, insights.js).
 • Refreshing while inside a friend's profile page lands on friends list (friend ID not persisted). Acceptable for now.
 • Entity stub "Rate →" button navigates to Add Film screen and pre-fills search — relies on DOM timing (setTimeout 100ms) which is fragile. Revisit if unreliable.
@@ -428,7 +443,7 @@ Phase 3 — Growth Features [IN PROGRESS]
 
 • 3.18 Overlap Tab Layout ✓ — reorganized friend overlap tab content hierarchy: compatibility + blurb → shared watchlist → spider graph + taste analysis (side-by-side 50/50 grid) → For You Two (dark surface card) → films in common → overlap predict.
 
-• 3.19 Welcome Modal ✓ — post-onboarding modal introducing the platform. Shows palate type in archetype color, unlock thresholds (Predict & For You at 10 films), Friends & Overlap features, lay of the land (Rankings/Taste/Predict/Friends). Contextual CTA adapts to rated count. Fires after starter films or skip-to-search.
+• 3.19 Welcome Modal ✓ → removed in 3.23. Originally a post-onboarding modal introducing the platform. Replaced by the curtain lift transition (3.23) which provides a smoother handoff from onboarding to app without an intermediate modal.
 
 • 3.20 Technical Hardening ✓ — audit-driven pre-launch fixes:
   - Prediction trim limit increased from 50 → 200 (preserves training data for future fine-tuning)
@@ -450,6 +465,24 @@ Phase 3 — Growth Features [IN PROGRESS]
   - Remaining events (social, monetization, calibration, account management) to be wired after GTM container is live and validated.
   - Privacy policy update required before GTM goes live.
 
+• 3.22 Screen Redesign ✓ — Swiss-editorial upgrade across three screens:
+  - Watch List: poster grid (5-col desktop, 2-col mobile) replacing row-based list. Editorial header ("Up next."). Score badges on posters (blue for predictions, "est…" pulsing for pending). Search moved below grid. Empty state links to For You.
+  - For You: editorial header with contextual headline + archetype accent bar. Section reorder: hero → mood search (promoted) → secondary picks (poster strip, 4-col) → discovery → manual predict (collapsed). Secondary picks use same poster card pattern as Watch List.
+  - Add Film: ceremonial 4-step flow. Step 1: centered confirmation hero card (large poster, scale-in animation, "Rate this film →" CTA, collapsible cast/crew). Step 2: card-based one-at-a-time scoring (64px score number, 8 progress dots with tier colors, Craft/Experience interstitial, "Show all categories" toggle, localStorage preference). Step 3: poster thumbnails on H2H cards, auto-advance when no comparisons needed. Step 4: dark surface staged reveal (7-phase animation from 0→1.8s). Step indicator: minimal DM Mono text replacing circle stepper.
+  - Shared patterns: editorial headers (eyebrow → headline → accent bar → metadata), poster cards (2:3 aspect ratio, score badge bottom-right, title below), large score display (Playfair italic, tier-colored).
+
+• 3.23 UX Polish Pass ✓ — cross-cutting refinements:
+  - Add Film redesign: centered search state ("What did you watch?" + search icon input), rich search results (poster + meta + overview rows), watchlist thumbnails below search as quick-add, side-by-side confirmation hero (poster left, body right with title/meta/overview/CTAs), detail chips (director/cast/studio labeled rows). Always defaults to card-mode scoring (ignores localStorage preference). Scoring intro hint: dismissable explainer introducing 8-category system + score guide (uses hints.js). Anchor film deselection: selecting an anchor turns it blue; manually moving the slider off that score deselects it back to white.
+  - Profile layout: palate type description and taste fingerprint radar chart placed side by side (flex row, stacks on mobile ≤768px) to reduce vertical whitespace.
+  - Onboarding starter films: inline rate card inserted near the clicked poster (grid-column: 1/-1) instead of at page bottom. Auto-scrolls to top of overlay after rating. Removed mobile bottom-sheet pattern.
+  - Transitions — curtain lift system:
+    Cold landing → onboarding: fade-out-down animation (0.4s, ease-in) on the cold landing overlay.
+    Onboarding → app: curtain lift (overlay: 0.5s with accelerating easing cubic-bezier(0.4,0,1,1); app content: 0.4s with deceleration easing cubic-bezier(0.22,1,0.36,1) + 200ms delay — creates dissolve-overlap). Welcome modal removed; the curtain lift transition replaces it entirely.
+    Implementation: CSS animationend with { once: true } for lifecycle cleanup; double-tap guard via .exiting class check; GPU-accelerated (transform + opacity only).
+  - Design principle codified: dark surfaces = identity moments, paper surfaces = daily utility — the seam between them should be designed, not hard-swapped.
+  - New CSS classes: .add-search-state, .add-headline, .add-subline, .add-search-wrap, .add-search-input, .add-search-icon, .add-results, .add-result, .add-hero-wrap, .add-hero-poster, .add-hero-body, .add-hero-title, .add-hero-meta, .add-hero-overview, .add-hero-cta, .add-hero-secondary, .add-hero-details, .add-detail-row, .add-detail-chip, .add-recent, .add-recent-card, .profile-palate-row.
+  - Hints system (src/modules/hints.js): shouldShowHint(key) / renderHint(key, config) with localStorage persistence for dismissable educational hints.
+
 Phase 4 — Platform
 • 4.1 Universal entity search — global search surfacing any director/actor/writer/company (entity-level, not film-level — film search is covered by 3.8 Global Search). Entity page shows: TMDB data, user's own rankings (if any), community avg score (requires 4.2). Requires schema change: separate palatemap_ratings table (see below).
 • 4.2 Community ratings layer — requires migrating films from per-user JSON blob to a normalized palatemap_ratings table (user_id, tmdb_id, scores jsonb, total, metadata). Migration strategy: dual-write first (sync to both blob and table), validate counts match, then switch reads. See technical audit roadmap Section 1 for full schema + migration plan. Enables: community avg score on any film or entity, "popular with users like you" discovery, per-rating sync (eliminates row-size limits and full-row overwrite).
@@ -463,7 +496,15 @@ Starting a session (Claude Code)
 • Say: "Read the brief at ./canon_brief_v3.txt and the file structure, then let's work on [phase/task]."
 • Claude Code will read files directly — no need to upload anything.
 
+Testing (Claude Code)
+• Run `npx playwright test` before every build-and-deploy. Do not push if tests fail.
+• If a change touches UI rendering, navigation, or user flows covered by existing specs (tests/*.spec.js), run the full suite — don't skip tests that "seem unrelated."
+• If a change adds a new user-facing flow or screen, write a new Playwright spec for it in the same session.
+• If a test fails, fix the root cause (code or test), don't skip or delete the test.
+• After fixing a failure, re-run the full suite to confirm no regressions before proceeding.
+
 Ending a session
+• npx playwright test (must pass)
 • npm run build && rm -rf docs && mv dist docs
 • git add -p && git commit -m "[description]" && git push origin main
 • Update this brief if any schema, architecture, or product decisions changed.
@@ -626,4 +667,4 @@ This migration should be planned alongside Phase 4.2 (community ratings) as they
 
 Engineering rule: until the palatemap_predictions table exists, every prediction call must store the full predicted_scores, archetype_at_time, and weights_at_time on the prediction entry in currentUser.predictions. This ensures the data needed for future cross-user learning is captured now and will be migratable when the schema is ready. Do not store only the predicted total — always store the full score breakdown.
 
-Palate Map · private product brief · v3.20 · do not distribute
+Palate Map · private product brief · v3.22 · do not distribute

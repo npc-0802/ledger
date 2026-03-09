@@ -1814,7 +1814,7 @@ function renderForYouTwoCards(results, _friend, color, gridEl) {
     const onWl = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(r.tmdbId));
 
     const safeTmdbId = parseInt(r.tmdbId);
-    return `<div style="display:flex;gap:14px;padding:14px;border:1px solid rgba(244,239,230,0.12);cursor:pointer" onclick="openRecommendedDetail(${safeTmdbId})">
+    return `<div style="display:flex;gap:14px;padding:14px;border:1px solid rgba(244,239,230,0.12);cursor:pointer" onclick="openForYouTwoDetail(${safeTmdbId})">
       ${posterHtml}
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:3px">
@@ -1830,6 +1830,109 @@ function renderForYouTwoCards(results, _friend, color, gridEl) {
     </div>`;
   }).join('');
 }
+
+window.openForYouTwoDetail = async function(tmdbId) {
+  const cacheKey = currentFriendCache ? forYouTwoCacheKey(currentFriendCache) : null;
+  let match = null;
+  try {
+    const cached = JSON.parse(localStorage.getItem(cacheKey));
+    match = (cached || []).find(r => String(r.tmdbId) === String(tmdbId));
+  } catch {}
+  if (!match) return;
+
+  const film = match.film || {};
+  const score = match.prediction?.predicted_score;
+  const reasoning = match.prediction?.reasoning || '';
+  const onWl = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(tmdbId));
+
+  const headerHtml = film.poster
+    ? `<div style="position:relative;display:flex;align-items:stretch;background:var(--surface-dark);margin:-40px -40px 28px;padding:28px 32px">
+         <button onclick="closeModal()" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--on-dark-dim);line-height:1;padding:4px 8px">×</button>
+         <img style="width:100px;height:150px;object-fit:cover;flex-shrink:0;display:block" src="https://image.tmdb.org/t/p/w342${film.poster}" alt="">
+         <div style="flex:1;padding:0 40px 0 20px;display:flex;flex-direction:column;justify-content:flex-end">
+           <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px">For You Two</div>
+           <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(20px,3.5vw,30px);line-height:1.1;color:var(--on-dark);letter-spacing:-0.5px;margin-bottom:8px">${film.title || ''}</div>
+           <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${film.year || ''}</div>
+         </div>
+       </div>`
+    : `<div style="position:relative;background:var(--surface-dark);margin:-40px -40px 28px;padding:32px 40px 28px">
+         <button onclick="closeModal()" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--on-dark-dim);line-height:1;padding:4px 8px">×</button>
+         <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px">For You Two</div>
+         <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(20px,3.5vw,30px);line-height:1.1;color:var(--on-dark);letter-spacing:-0.5px;margin-bottom:8px">${film.title || ''}</div>
+         <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${film.year || ''}</div>
+       </div>`;
+
+  const scoreHtml = score != null ? `
+    <div style="border-top:1px solid var(--rule);padding-top:20px;margin-bottom:20px">
+      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:14px">— predicted shared score —</div>
+      <div style="font-family:'Playfair Display',serif;font-size:60px;font-weight:900;font-style:italic;color:var(--blue);letter-spacing:-3px;line-height:1;margin-bottom:16px">~${score}</div>
+      ${reasoning ? `<div style="padding:16px 20px;background:var(--surface-dark);border-radius:6px">
+        <div style="font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-dark-dim);margin-bottom:8px">Why this film</div>
+        <div style="font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.7;color:var(--on-dark)">${reasoning}</div>
+      </div>` : ''}
+    </div>` : '';
+
+  document.getElementById('modalContent').innerHTML = `
+    ${headerHtml}
+    <div id="rec-detail-meta" style="margin-bottom:16px">
+      ${film.overview ? `<div class="modal-overview">${film.overview}</div>` : ''}
+    </div>
+    <div id="rec-detail-streaming" style="margin-bottom:4px"></div>
+    ${scoreHtml}
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button id="rec-detail-wl-btn" onclick="recDetailToggleWl('${tmdbId}')" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;${onWl ? 'background:var(--green);border:1px solid var(--green);color:white' : 'background:none;border:1px solid var(--rule);color:var(--dim)'};padding:10px 20px;cursor:pointer;flex:1">${onWl ? '✓ On Watch List' : '＋ Watchlist'}</button>
+      <button onclick="closeModal();predictSelectFilm(${parseInt(tmdbId)},'${(film.title||'').replace(/'/g,"\\'")}','${String(film.year||'').replace(/'/g,"\\'")}');document.getElementById('predict-result').scrollIntoView({behavior:'smooth'})" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:10px 20px;cursor:pointer;flex:2">Full prediction →</button>
+    </div>
+  `;
+
+  const fmEl = document.getElementById('filmModal');
+  fmEl.classList.add('open');
+  requestAnimationFrame(() => fmEl.classList.add('visible'));
+
+  // Load enriched TMDB details
+  try {
+    const TMDB = 'https://api.themoviedb.org/3';
+    const [detailRes, creditsRes] = await Promise.all([
+      fetch(`${TMDB}/movie/${tmdbId}?api_key=${TMDB_KEY}`),
+      fetch(`${TMDB}/movie/${tmdbId}/credits?api_key=${TMDB_KEY}`)
+    ]);
+    const detail = await detailRes.json();
+    const credits = await creditsRes.json();
+    const directorsFull = (credits.crew || []).filter(c => c.job === 'Director');
+    const writersFull = (credits.crew || []).filter(c => ['Screenplay', 'Writer', 'Story'].includes(c.job)).filter((v, i, a) => a.findIndex(x => x.name === v.name) === i).slice(0, 3);
+    const castFull = (credits.cast || []).slice(0, 8);
+    const companiesFull = (detail.production_companies || []);
+    const overview = detail.overview || film.overview || '';
+
+    const metaEl = document.getElementById('rec-detail-meta');
+    if (!metaEl) return;
+
+    const chip = (name, type, imgPath = null) => {
+      const isCompany = type === 'company';
+      const imgHtml = imgPath
+        ? (!isCompany
+            ? `<img src="https://image.tmdb.org/t/p/w45${imgPath}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;flex-shrink:0">`
+            : `<span style="display:inline-flex;width:18px;height:18px;background:white;border-radius:3px;flex-shrink:0;align-items:center;justify-content:center;overflow:hidden"><img src="https://image.tmdb.org/t/p/w45${imgPath}" style="width:14px;height:14px;object-fit:contain"></span>`)
+        : '';
+      return `<span class="modal-meta-chip"${imgPath ? ' style="display:inline-flex;align-items:center;gap:5px"' : ''} onclick="closeModal();exploreEntity('${type}','${name.replace(/'/g, "\\'")}')">${imgHtml}${name}</span>`;
+    };
+    const row = (label, people, type) => people.length ? `<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px">
+      <span style="font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);min-width:44px;flex-shrink:0;padding-top:5px">${label}</span>
+      <div style="display:flex;flex-wrap:wrap;gap:4px">${people.map(p => chip(p.name || p, type, p.profile_path || p.logo_path || null)).join('')}</div>
+    </div>` : '';
+
+    metaEl.innerHTML = `
+      ${overview ? `<div class="modal-overview">${overview}</div>` : ''}
+      ${row('Dir.', directorsFull, 'director')}
+      ${row('Wri.', writersFull, 'writer')}
+      ${row('Cast', castFull, 'actor')}
+      ${row('Prod.', companiesFull, 'company')}
+    `;
+
+    const { loadStreamingProviders } = await import('./modal.js');
+    loadStreamingProviders(tmdbId, film.title, film.year, 'rec-detail-streaming');
+  } catch { /* silent */ }
+};
 
 window.forYouTwoWatchlist = async function(tmdbId) {
   const onWl = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(tmdbId));
