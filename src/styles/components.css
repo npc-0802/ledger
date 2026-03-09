@@ -1287,6 +1287,7 @@ input[type="range"]::-webkit-slider-thumb:hover { background: var(--blue-dark); 
   .foryou-discovery-grid { grid-template-columns: 1fr; }
   .starter-grid { grid-template-columns: repeat(2, 1fr) !important; }
   .overlap-fingerprint-row { grid-template-columns: 1fr !important; }
+  .starter-sliders-grid { grid-template-columns: 1fr; }
 }
 
 /* ── STARTER FILMS ── */
@@ -1339,11 +1340,15 @@ input[type="range"]::-webkit-slider-thumb:hover { background: var(--blue-dark); 
   animation: badgePop 0.25s ease both;
 }
 .starter-rate-card {
-  margin-top: 8px;
   background: var(--surface-dark);
-  padding: 16px;
+  padding: 20px;
   overflow: hidden;
   animation: obSlideUp 0.3s ease both;
+}
+.starter-sliders-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 20px;
 }
 .starter-progress-fill {
   transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);

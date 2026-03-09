@@ -517,6 +517,7 @@ function renderStarterFilms() {
       <div class="starter-grid">
         ${allFilms.map((film, i) => renderStarterCard(film, i, palColor)).join('')}
       </div>
+      ${starterExpandedId != null ? renderStarterRateCard(allFilms.find(f => f.tmdbId === starterExpandedId), palColor) : ''}
 
       ${!starterShowMore ? `
         <div style="text-align:center;margin-top:20px">
@@ -548,8 +549,8 @@ function renderStarterCard(film, idx, palColor) {
 
   return `
     <div class="starter-card-wrap" style="animation-delay:${idx * 60}ms">
-      <div class="starter-card ${isRated || alreadyInMovies ? 'rated' : ''} ${isExpanded ? 'expanded' : ''}"
-           onclick="${!isExpanded && !alreadyInMovies ? `starterTapFilm(${film.tmdbId})` : ''}"
+      <div class="starter-card ${isRated || alreadyInMovies ? 'rated' : ''}"
+           onclick="${!alreadyInMovies && !isRated ? `starterTapFilm(${film.tmdbId})` : ''}"
            style="${isExpanded ? `border-color:${palColor}` : ''}">
         <div style="position:relative;overflow:hidden">
           ${posterUrl ? `<img src="${posterUrl}" alt="${film.title}" style="width:100%;display:block;${isRated || alreadyInMovies ? 'opacity:0.6' : ''}">` : `<div style="width:100%;aspect-ratio:2/3;background:var(--surface-dark);display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:10px;color:var(--dim)">No poster</div>`}
@@ -560,47 +561,46 @@ function renderStarterCard(film, idx, palColor) {
           <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim)">${film.year} · ${(film.director || '').split(',')[0]}</div>
         </div>
       </div>
-      ${isExpanded ? renderStarterRateCard(film, palColor) : ''}
     </div>
   `;
 }
 
 function renderStarterRateCard(film, palColor) {
+  if (!film) return '';
   const defaults = getStarterDefaults();
   const existing = starterScores[film.tmdbId]?.scores || {};
   const posterUrl = film.poster ? `https://image.tmdb.org/t/p/w92${film.poster}` : null;
 
   return `
-    <div class="starter-rate-card open" style="border-left:3px solid ${palColor}">
-      <div style="display:flex;gap:12px;margin-bottom:16px;align-items:center">
+    <div class="starter-rate-card open" style="border-left:3px solid ${palColor};margin-top:16px">
+      <div style="display:flex;gap:14px;margin-bottom:14px;align-items:center">
         ${posterUrl ? `<img src="${posterUrl}" style="width:46px;flex-shrink:0">` : ''}
-        <div>
-          <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:15px;color:var(--on-dark)">${film.title}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:16px;color:var(--on-dark)">${film.title}</div>
           <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim)">${film.year} · ${film.director || ''}</div>
         </div>
+        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim);cursor:pointer;text-decoration:underline;flex-shrink:0" onclick="starterCollapseCard()">← Back</span>
       </div>
-      ${CATEGORIES.map(cat => {
-        const val = existing[cat.key] ?? defaults[cat.key];
-        return `
-        <div style="margin-bottom:10px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
-            <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);text-transform:uppercase;letter-spacing:1px">${cat.label}</span>
-            <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark)" id="starter-sv-${film.tmdbId}-${cat.key}">${val}</span>
-          </div>
-          <input type="range" min="1" max="100" value="${val}" class="starter-slider"
-            style="width:100%;accent-color:${palColor}"
-            oninput="starterSliderChange(${film.tmdbId}, '${cat.key}', this.value)">
-        </div>`;
-      }).join('')}
-      <div id="starter-score-guide-${film.tmdbId}" style="display:none;margin-bottom:12px;font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim);line-height:1.8">
-        90+ An all-time favorite · 80 Excellent · 70 Great · 60 A cut above · 50 Solid · 40 Sub-par · 30 Poor · 20 Wouldn't watch by choice
+      <div class="starter-sliders-grid">
+        ${CATEGORIES.map(cat => {
+          const val = existing[cat.key] ?? defaults[cat.key];
+          return `
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
+              <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim);text-transform:uppercase;letter-spacing:0.5px">${cat.label}</span>
+              <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark)" id="starter-sv-${film.tmdbId}-${cat.key}">${val}</span>
+            </div>
+            <input type="range" min="1" max="100" value="${val}" class="starter-slider"
+              oninput="starterSliderChange(${film.tmdbId}, '${cat.key}', this.value)">
+          </div>`;
+        }).join('')}
       </div>
-      <div style="text-align:right;margin-bottom:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px">
         <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim);cursor:pointer;text-decoration:underline" onclick="document.getElementById('starter-score-guide-${film.tmdbId}').style.display=document.getElementById('starter-score-guide-${film.tmdbId}').style.display==='none'?'block':'none'">What do the numbers mean?</span>
+        <button class="ob-btn" style="margin:0;padding:10px 24px;background:${palColor}" onclick="starterRateFilm(${film.tmdbId})">Rate this film →</button>
       </div>
-      <div style="display:flex;gap:12px;justify-content:flex-end">
-        <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);cursor:pointer;letter-spacing:0.5px;padding:8px 0" onclick="starterCollapseCard()">← Back to list</span>
-        <button class="ob-btn" style="margin:0;padding:10px 20px;background:${palColor}" onclick="starterRateFilm(${film.tmdbId})">Rate this film →</button>
+      <div id="starter-score-guide-${film.tmdbId}" style="display:none;margin-top:10px;font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim);line-height:1.8">
+        90+ All-time favorite · 80 Excellent · 70 Great · 60 A cut above · 50 Solid · 40 Sub-par · 30 Poor
       </div>
     </div>
   `;
