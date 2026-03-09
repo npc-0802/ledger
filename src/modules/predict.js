@@ -8,6 +8,18 @@ const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
 const TMDB = 'https://api.themoviedb.org/3';
 const PROXY_URL = 'https://palate-map-proxy.noahparikhcott.workers.dev';
 
+// Fingerprint of current library state (count + score sum) for refresh gating
+function libraryFingerprint() {
+  const sum = MOVIES.reduce((s, m) => s + (m.total || 0), 0);
+  return `${MOVIES.length}:${Math.round(sum * 100)}`;
+}
+
+function canRefreshRecommendations() {
+  const stored = currentUser?.recommendationFingerprint;
+  if (!stored) return true;
+  return stored !== libraryFingerprint();
+}
+
 function trimPredictions(predictions, limit = 200) {
   const entries = Object.entries(predictions);
   if (entries.length <= limit) return predictions;
@@ -215,7 +227,18 @@ function renderHeroCard(result) {
       <button class="btn btn-primary" onclick="openRecommendedDetail(${safeTmdbId})">See details →</button>
       <button class="btn btn-outline" id="foryou-hero-wl-btn" onclick="toggleRecommendWatchlist('${result.tmdbId}')" style="${onWl ? 'background:var(--green);color:white;border-color:var(--green)' : 'color:var(--on-dark);border-color:rgba(255,255,255,0.2)'}">${onWl ? '✓ Watch List' : '+ Watch List'}</button>
     </div>
-    <div class="foryou-hero-footer">Based on ${MOVIES.length} films · refreshes after ${refreshNeeded} more rating${refreshNeeded !== 1 ? 's' : ''} · <a onclick="event.stopPropagation();loadForYouRecommendations()">Refresh now</a></div>`;
+    <div class="foryou-hero-footer">Based on ${MOVIES.length} films · ${canRefreshRecommendations()
+      ? `<a onclick="event.stopPropagation();loadForYouRecommendations()">Refresh now</a>`
+      : `<span style="color:var(--on-dark-dim);opacity:0.5">rate or add a film to refresh</span>`}</div>`;
+}
+
+function updateRefreshButtonState() {
+  const btn = document.getElementById('foryou-refresh-btn');
+  if (!btn) return;
+  const canRefresh = canRefreshRecommendations();
+  btn.disabled = !canRefresh;
+  btn.style.opacity = canRefresh ? '' : '0.3';
+  btn.style.cursor = canRefresh ? '' : 'default';
 }
 
 function renderSecondaryCards(results) {
@@ -255,6 +278,7 @@ function renderForYouFromCache() {
   renderForYouEyebrow(currentUser.lastRecommendationAt);
   renderHeroCard(cached[0]);
   renderSecondaryCards(cached.slice(1, 5));
+  updateRefreshButtonState();
   // Discovery shares the same cache lifecycle
   const cachedDiscovery = currentUser?.cachedDiscovery;
   if (cachedDiscovery?.length) {
@@ -1307,7 +1331,8 @@ async function findMeAFilm() {
       ...currentUser,
       cachedRecommendations: results,
       lastRecommendationAt: now,
-      moviesCountAtLastRecommendation: MOVIES.length
+      moviesCountAtLastRecommendation: MOVIES.length,
+      recommendationFingerprint: libraryFingerprint()
     });
     saveUserLocally();
     syncToSupabase();
@@ -1315,6 +1340,7 @@ async function findMeAFilm() {
     renderForYouEyebrow(now);
     renderHeroCard(results[0]);
     renderSecondaryCards(results.slice(1, 5));
+    updateRefreshButtonState();
 
     // Load discovery as part of the same refresh cycle
     if (MOVIES.length >= 10) {
@@ -1994,6 +2020,7 @@ window.recDetailToggleWl = async function(tmdbId) {
 };
 
 window.findMeAFilmRefresh = function() {
+  if (!canRefreshRecommendations()) return;
   loadForYouRecommendations();
 };
 
