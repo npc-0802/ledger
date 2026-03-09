@@ -328,34 +328,11 @@ async function buildCandidatePool() {
   const ratedTitles = new Set(MOVIES.map(m => m.title.toLowerCase()));
   const watchlistIds = new Set((currentUser?.watchlist || []).map(w => String(w.tmdbId)));
 
-  const seen = new Set([...ratedIds, ...dismissedTmdbIds]);
+  // Exclude rated, watchlisted, and dismissed films from all streams
+  const seen = new Set([...ratedIds, ...watchlistIds, ...dismissedTmdbIds]);
   const candidates = [];
 
-  // ── Stream A: Watch list ────────────────────────────────────────────────────
-  const watchlist = currentUser?.watchlist || [];
-  for (const item of watchlist) {
-    if (!item.tmdbId) continue;
-    const id = String(item.tmdbId);
-    if (dismissedTmdbIds.has(id)) continue;
-    const cached = currentUser?.predictions?.[id];
-    const predTotal = cached?.prediction ? calcPredictedTotal(cached.prediction) : null;
-    if (!cached || predTotal >= 78) {
-      candidates.push({
-        tmdbId: item.tmdbId,
-        title: item.title,
-        year: item.year,
-        poster: item.poster,
-        director: item.director || '',
-        cast: '',
-        genres: '',
-        overview: item.overview || '',
-        source: 'watchlist'
-      });
-    }
-    seen.add(id);
-  }
-
-  // ── Stream B: Director affinity ─────────────────────────────────────────────
+  // ── Stream A: Director affinity ─────────────────────────────────────────────
   const directorMap = {};
   MOVIES.forEach(m => {
     const dirs = (m.director || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -749,11 +726,7 @@ async function findMeAFilm() {
     const scored = rawCandidates
       .filter(c => !dismissedTmdbIds.has(String(c.tmdbId)))
       .map(c => ({ ...c, compatScore: scoreCandidate(c) }))
-      .sort((a, b) => {
-        if (a.source === 'watchlist' && b.source !== 'watchlist') return -1;
-        if (b.source === 'watchlist' && a.source !== 'watchlist') return 1;
-        return b.compatScore - a.compatScore;
-      });
+      .sort((a, b) => b.compatScore - a.compatScore);
 
     if (!scored.length) {
       resultEl.innerHTML = `<div class="tmdb-error">Not enough data to generate recommendations yet. Rate more films and try again.</div>`;
@@ -797,11 +770,7 @@ async function findMeAFilm() {
         return { ...c, prediction: cached.prediction, predTotal: calcPredictedTotal(cached.prediction) };
       })
       .filter(Boolean)
-      .sort((a, b) => {
-        if (a.source === 'watchlist' && b.source !== 'watchlist') return -1;
-        if (b.source === 'watchlist' && a.source !== 'watchlist') return 1;
-        return b.predTotal - a.predTotal;
-      })
+      .sort((a, b) => b.predTotal - a.predTotal)
       .slice(0, 3);
 
     if (!results.length) {
