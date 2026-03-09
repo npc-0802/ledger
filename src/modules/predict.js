@@ -91,15 +91,6 @@ export function initPredict() {
     renderForYouFromCache();
   }
 
-  // Discovery section: render from cache or load lazily
-  const cachedDiscovery = currentUser?.cachedDiscovery;
-  if (cachedDiscovery?.length) {
-    renderDiscoveryCards(cachedDiscovery);
-  } else if (MOVIES.length >= 10) {
-    // Load discovery after a short delay so main recs render first
-    setTimeout(() => loadDiscoveryRecommendations(), 2000);
-  }
-
   // Restore constrained results if cached
   const lastConstrained = currentUser?.lastConstrainedEntity;
   if (lastConstrained?.results?.length) {
@@ -244,6 +235,11 @@ function renderForYouFromCache() {
   renderForYouEyebrow(currentUser.lastRecommendationAt);
   renderHeroCard(cached[0]);
   renderSecondaryCards(cached.slice(1, 5));
+  // Discovery shares the same cache lifecycle
+  const cachedDiscovery = currentUser?.cachedDiscovery;
+  if (cachedDiscovery?.length) {
+    renderDiscoveryCards(cachedDiscovery);
+  }
 }
 
 function loadForYouRecommendations() {
@@ -1169,6 +1165,11 @@ async function findMeAFilm() {
     renderHeroCard(results[0]);
     renderSecondaryCards(results.slice(1, 5));
 
+    // Load discovery as part of the same refresh cycle
+    if (MOVIES.length >= 10) {
+      loadDiscoveryRecommendations();
+    }
+
   } catch(e) {
     const heroEl = document.getElementById('foryou-hero');
     if (heroEl) heroEl.innerHTML = `<div style="padding:40px 20px;text-align:center;font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">Something went wrong — ${e.message}. <a style="color:var(--blue);cursor:pointer;text-decoration:underline" onclick="loadForYouRecommendations()">Try again</a></div>`;
@@ -1190,11 +1191,11 @@ function buildKnownEntities() {
 export const DISCOVERY_ICON_SVG = '<svg class="discovery-compass-icon" width="12" height="12" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.2"/><path d="M7 1.5L8.2 5.8 12.5 7 8.2 8.2 7 12.5 5.8 8.2 1.5 7 5.8 5.8z" fill="currentColor" opacity="0.7"/></svg>';
 
 export function isNewTerritory(film) {
-  // A film is "new territory" if its director and top-3 cast are all unknown to the user
+  // A film is "new territory" if its director and top-5 cast are all unknown to the user
   if (!film || MOVIES.length < 10) return false;
   const known = buildKnownEntities();
   const directors = mergeSplitNames((film.director || '').split(',').map(s => s.trim()).filter(Boolean));
-  const cast = mergeSplitNames((film.cast || '').split(',').map(s => s.trim()).filter(Boolean)).slice(0, 3);
+  const cast = mergeSplitNames((film.cast || '').split(',').map(s => s.trim()).filter(Boolean)).slice(0, 5);
   const hasKnownDir = directors.some(d => known.directors.has(d));
   const hasKnownCast = cast.some(a => known.actors.has(a));
   return !hasKnownDir && !hasKnownCast && (directors.length > 0 || cast.length > 0);
@@ -1276,9 +1277,9 @@ async function buildDiscoveryPool() {
       const detail = await dRes.json();
       const credits = await crRes.json();
       const directors = (credits.crew || []).filter(x => x.job === 'Director').map(x => x.name);
-      const topCast = (credits.cast || []).slice(0, 3).map(x => x.name);
+      const topCast = (credits.cast || []).slice(0, 5).map(x => x.name);
 
-      // Filter: skip if director OR top-3 cast is known
+      // Filter: skip if director OR top-5 cast is known
       // (Company filter removed — major studios are too ubiquitous to be meaningful)
       const hasKnownDirector = directors.some(d => knownEntities.directors.has(d));
       const hasKnownCast = topCast.some(a => knownEntities.actors.has(a));
@@ -1305,9 +1306,8 @@ async function buildDiscoveryPool() {
     } catch { /* skip */ }
   }));
 
-  // Prefer truly unfamiliar films, but allow partially familiar as fallback
-  candidates.sort((a, b) => a.familiarityScore - b.familiarityScore);
-  return candidates;
+  // Hard filter: only truly unfamiliar films qualify as "new territory"
+  return candidates.filter(c => c.familiarityScore === 0);
 }
 
 async function loadDiscoveryRecommendations() {
@@ -1324,7 +1324,7 @@ async function loadDiscoveryRecommendations() {
   try {
     const candidates = await buildDiscoveryPool();
     if (!candidates.length) {
-      gridEl.innerHTML = `<div class="discovery-loading">No new territory found this time. <a style="color:var(--discover);cursor:pointer;text-decoration:underline" onclick="refreshDiscovery()">Try again</a></div>`;
+      gridEl.innerHTML = `<div class="discovery-loading">No new territory found this time. <a style="color:var(--discover);cursor:pointer;text-decoration:underline" onclick="loadForYouRecommendations()">Try again</a></div>`;
       return;
     }
 
@@ -1372,18 +1372,17 @@ async function loadDiscoveryRecommendations() {
       .slice(0, 3);
 
     if (!results.length) {
-      gridEl.innerHTML = `<div class="discovery-loading">Couldn't chart this territory. <a style="color:var(--discover);cursor:pointer;text-decoration:underline" onclick="refreshDiscovery()">Try again</a></div>`;
+      gridEl.innerHTML = `<div class="discovery-loading">Couldn't chart this territory. <a style="color:var(--discover);cursor:pointer;text-decoration:underline" onclick="loadForYouRecommendations()">Try again</a></div>`;
       return;
     }
 
-    // Cache
+    // Cache discovery alongside main recs
     setCurrentUser({ ...currentUser, cachedDiscovery: results });
     saveUserLocally();
-
     renderDiscoveryCards(results);
 
   } catch(e) {
-    gridEl.innerHTML = `<div class="discovery-loading">Something went wrong. <a style="color:var(--discover);cursor:pointer;text-decoration:underline" onclick="refreshDiscovery()">Try again</a></div>`;
+    gridEl.innerHTML = `<div class="discovery-loading">Something went wrong. <a style="color:var(--discover);cursor:pointer;text-decoration:underline" onclick="loadForYouRecommendations()">Try again</a></div>`;
   }
 }
 
@@ -1807,7 +1806,7 @@ function constrainedClear() {
 
 window.findMeAFilm = findMeAFilm;
 window.loadForYouRecommendations = loadForYouRecommendations;
-window.refreshDiscovery = loadDiscoveryRecommendations;
+
 window.constrainedSearchDebounce = constrainedSearchDebounce;
 window.constrainedSelectEntity = constrainedSelectEntity;
 window.constrainedClear = constrainedClear;
