@@ -6,6 +6,7 @@ import { removeFromWatchlist } from './watchlist.js';
 import { openPosterPicker } from './posterpicker.js';
 import { fetchTmdbMovieBundle } from './tmdb-movie.js';
 import { track } from '../analytics.js';
+import { shouldShowHint, renderHint } from './hints.js';
 
 const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
 const TMDB = 'https://api.themoviedb.org/3';
@@ -485,7 +486,19 @@ function renderScoreCard() {
   const indicator = document.getElementById('addfilm-step-indicator');
   if (indicator) indicator.textContent = `Score · ${cat.label}`;
 
+  // Intro hint — first time a user sees the scoring flow
+  const introHint = currentCardIdx === 0 && shouldShowHint('scoring_intro', () => true)
+    ? renderHint('scoring_intro',
+        '<strong>How scoring works.</strong> You\'ll rate this film across 8 categories — ' +
+        'four measure <strong>craft</strong> (plot, execution, acting, production) and four measure ' +
+        '<strong>experience</strong> (enjoyability, rewatchability, ending, uniqueness). ' +
+        'Your palate weights each one differently to produce a final score that reflects how <em>you</em> evaluate film. ' +
+        '<span style="display:block;margin-top:8px;font-family:\'DM Mono\',monospace;font-size:10px;color:var(--dim)">' +
+        '90+ all-time great · 80+ excellent · 70+ great · 60+ a cut above · 50 solid · below 50 sub-par</span>')
+    : '';
+
   container.innerHTML = `
+    ${introHint}
     <div style="position:relative">
       <div class="score-progress-dots">${dots}</div>
     </div>
