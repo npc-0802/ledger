@@ -65,13 +65,20 @@ async function _applyUserData(data) {
   const { setCloudStatus, updateMastheadProfile, updateStorageStatus } = await import('../ui-callbacks.js');
   const { renderRankings } = await import('./rankings.js');
 
+  // Preserve locally cached recommendation data across Supabase reloads
+  const prev = currentUser || {};
   setCurrentUser({
     id: data.id, username: data.username, display_name: data.display_name,
     archetype: data.archetype, archetype_secondary: data.archetype_secondary,
     weights: data.weights, harmony_sensitivity: data.harmony_sensitivity,
     email: data.email, auth_id: data.auth_id,
     watchlist: data.watchlist || [],
-    predictions: data.predictions || {}
+    predictions: data.predictions || {},
+    cachedRecommendations: prev.cachedRecommendations || null,
+    lastRecommendationAt: prev.lastRecommendationAt || null,
+    moviesCountAtLastRecommendation: prev.moviesCountAtLastRecommendation || 0,
+    cachedDiscovery: prev.cachedDiscovery || null,
+    lastConstrainedEntity: prev.lastConstrainedEntity || null
   });
 
   if (data.movies && Array.isArray(data.movies) && data.movies.length >= MOVIES.length) {
