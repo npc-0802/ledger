@@ -211,6 +211,37 @@ body {
 #add.active { animation: none; }
 #calibration.active { animation: screenSlideUp 0.3s ease both; }
 
+/* ── TRANSITION: Cold Landing exit ── */
+#cold-landing.exiting {
+  animation: fadeOutDown 0.4s ease forwards;
+  pointer-events: none;
+}
+@keyframes fadeOutDown {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(20px); }
+}
+
+/* ── TRANSITION: Onboarding curtain lift ── */
+#onboarding-overlay.exiting {
+  animation: curtainLift 0.5s cubic-bezier(0.4, 0, 1, 1) forwards;
+  pointer-events: none;
+}
+@keyframes curtainLift {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-100%); }
+}
+
+/* App content settles in as overlay lifts */
+.app-entering .masthead,
+.app-entering .nav-strip,
+.app-entering .screen.active {
+  animation: appSettle 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
+}
+@keyframes appSettle {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* ── RANKINGS TABLE ── */
 .rankings-header {
   display: grid;

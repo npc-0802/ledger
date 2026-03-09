@@ -130,9 +130,18 @@ export function showColdLanding() {
   }
 }
 
+function exitColdLanding(el) {
+  if (!el) return;
+  el.classList.add('exiting');
+  el.addEventListener('animationend', () => {
+    el.style.display = 'none';
+    el.classList.remove('exiting');
+  }, { once: true });
+}
+
 window.startFromLanding = function() {
   const el = document.getElementById('cold-landing');
-  if (el) el.style.display = 'none';
+  exitColdLanding(el);
   launchOnboarding();
 };
 
@@ -150,7 +159,7 @@ window.landingGoogle = async function() {
 
 window.startFromLandingReturning = function() {
   const el = document.getElementById('cold-landing');
-  if (el) el.style.display = 'none';
+  exitColdLanding(el);
   launchOnboarding();
   // Switch to returning step after overlay opens
   setTimeout(() => { window.obShowReturning?.(); }, 50);

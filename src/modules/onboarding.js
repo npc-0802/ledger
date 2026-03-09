@@ -945,13 +945,27 @@ async function obFinish(primary, secondary, weights, harmonySensitivity) {
   applyUserWeights();
   recalcAllTotals();
 
-  document.getElementById('onboarding-overlay').style.display = 'none';
+  // Render app content underneath the overlay before animating
   const { updateMastheadProfile, updateStorageStatus, setCloudStatus } = await import('../ui-callbacks.js');
   updateMastheadProfile();
   updateStorageStatus();
   setCloudStatus('syncing');
   renderRankings();
   saveUserLocally();
+
+  // Curtain lift: overlay slides up while app settles in
+  const overlay = document.getElementById('onboarding-overlay');
+  if (overlay.classList.contains('exiting')) return; // guard against double-tap
+  document.body.classList.add('app-entering');
+  overlay.classList.add('exiting');
+  overlay.addEventListener('animationend', () => {
+    overlay.style.display = 'none';
+    overlay.classList.remove('exiting');
+    document.body.classList.remove('app-entering');
+  }, { once: true });
+
+  // Mark welcome modal as shown — starter films already teach through doing
+  localStorage.setItem('palatemap_welcome_shown', '1');
 
   syncToSupabase().catch(e => console.warn('Initial sync failed:', e));
 
@@ -960,11 +974,6 @@ async function obFinish(primary, secondary, weights, harmonySensitivity) {
     archetype: primary,
     time_in_onboarding_seconds: _obStartTime ? Math.round((Date.now() - _obStartTime) / 1000) : null,
   });
-
-  // Show welcome modal after settling
-  if (!localStorage.getItem('palatemap_welcome_shown')) {
-    setTimeout(() => showWelcomeModal(obDisplayName, primary), 500);
-  }
 }
 
 function showWelcomeModal(name, archetype) {
