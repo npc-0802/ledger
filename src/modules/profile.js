@@ -55,7 +55,7 @@ function radarChart(weights, archWeights, size = 220) {
   }).join('');
 
   const pad = 36;
-  return `<svg width="${size + pad*2}" height="${size + pad*2}" viewBox="${-pad} ${-pad} ${size+pad*2} ${size+pad*2}" style="overflow:visible;display:block">
+  return `<svg viewBox="${-pad} ${-pad} ${size+pad*2} ${size+pad*2}" style="overflow:visible;display:block;width:100%;max-width:${size+pad*2}px;height:auto">
     ${grid}${axes}${archPoly}${userPoly}${dots}${lbls}
   </svg>`;
 }
@@ -292,10 +292,10 @@ export function renderProfile() {
       </div>
 
       <!-- PALATE + FINGERPRINT (side by side) -->
-      <div class="profile-palate-row" style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;margin-bottom:40px;padding-bottom:32px;border-bottom:1px solid var(--rule)">
+      <div class="profile-palate-row" style="display:flex;gap:32px;align-items:flex-start;margin-bottom:40px;padding-bottom:32px;border-bottom:1px solid var(--rule)">
 
         <!-- Left: Archetype -->
-        <div style="flex:1 1 55%;min-width:280px">
+        <div style="flex:1 1 0%;min-width:0">
           <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:16px">Palate</div>
           <div class="dark-grid profile-palate-block" style="background:var(--surface-dark);padding:28px 32px;margin-bottom:20px;border-top:3px solid ${arch.palette || '#3d5a80'};position:relative">
             <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--on-dark-dim);margin-bottom:10px">primary</div>
@@ -310,7 +310,7 @@ export function renderProfile() {
         </div>
 
         <!-- Right: Fingerprint -->
-        <div style="flex:0 0 auto;max-width:320px">
+        <div style="flex:0 0 280px">
           <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:16px">Taste Fingerprint</div>
           ${radarChart(weights, archWeights)}
           ${radarLegend(user.archetype)}
