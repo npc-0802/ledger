@@ -836,32 +836,35 @@ function renderFriendProfile(el, friend) {
         ${sharedWatchlistHTML(friend, color)}
 
         <div style="padding-bottom:28px;margin-bottom:28px;border-bottom:1px solid var(--rule)">
-          <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:20px">Taste Fingerprint Overlap</div>
-          <div style="display:flex;flex-direction:column;align-items:center;overflow-x:auto;width:100%">
-            ${radarOverlay(currentUser.weights || {}, friend.weights || {}, 'var(--blue)', color)}
-            <div style="display:flex;gap:24px;margin-top:10px;font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">
-              <span style="display:flex;align-items:center;gap:6px"><svg width="12" height="12"><rect width="12" height="12" rx="2" fill="var(--blue)"/></svg>You</span>
-              <span style="display:flex;align-items:center;gap:6px"><svg width="12" height="12"><rect width="12" height="12" rx="2" fill="${color}"/></svg>${friend.display_name}</span>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start" class="overlap-fingerprint-row">
+            <div>
+              <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:16px">Taste Fingerprint</div>
+              <div style="display:flex;flex-direction:column;align-items:center;overflow-x:auto;width:100%">
+                ${radarOverlay(currentUser.weights || {}, friend.weights || {}, 'var(--blue)', color)}
+                <div style="display:flex;gap:24px;margin-top:10px;font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">
+                  <span style="display:flex;align-items:center;gap:6px"><svg width="12" height="12"><rect width="12" height="12" rx="2" fill="var(--blue)"/></svg>You</span>
+                  <span style="display:flex;align-items:center;gap:6px"><svg width="12" height="12"><rect width="12" height="12" rx="2" fill="${color}"/></svg>${friend.display_name}</span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div id="friend-insight-label" style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:12px">Taste Analysis</div>
+              <div id="friend-insight" style="font-family:'DM Sans',sans-serif;font-size:14px;color:var(--dim);font-style:italic;line-height:1.8">Analyzing…</div>
             </div>
           </div>
         </div>
 
-        ${coRatedHTML(compat.coRated, color)}
-
-        <div style="padding-bottom:28px;margin-bottom:28px;border-bottom:1px solid var(--rule)">
-          <div id="friend-insight-label" style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:12px">Taste Analysis</div>
-          <div id="friend-insight" style="font-family:'DM Sans',sans-serif;font-size:14px;color:var(--dim);font-style:italic;line-height:1.8">Analyzing…</div>
-        </div>
-
-        <div style="padding-bottom:28px;margin-bottom:28px;border-bottom:1px solid var(--rule)">
+        <div style="background:var(--surface-dark);padding:24px 28px;margin-bottom:28px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-            <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim)">For You Two</div>
-            <span id="foryou-two-status" style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);font-style:italic"></span>
+            <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--on-dark-dim)">For You Two</div>
+            <span id="foryou-two-status" style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim);font-style:italic"></span>
           </div>
           <div id="foryou-two-grid" style="display:grid;grid-template-columns:1fr;gap:12px">
-            <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--dim);font-style:italic">Loading recommendations…</div>
+            <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--on-dark-dim);font-style:italic">Loading recommendations…</div>
           </div>
         </div>
+
+        ${coRatedHTML(compat.coRated, color)}
 
         <div style="padding-bottom:48px">
           <div class="dark-grid" style="background:var(--surface-dark);padding:28px 32px;border-top:3px solid ${color}">
@@ -1806,17 +1809,17 @@ function renderForYouTwoCards(results, _friend, color, gridEl) {
     const director = (r.film?.director || r.director || '').split(',')[0];
     const onWl = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(r.tmdbId));
 
-    return `<div style="display:flex;gap:14px;padding:14px;border:1px solid var(--rule);cursor:default">
+    return `<div style="display:flex;gap:14px;padding:14px;border:1px solid rgba(244,239,230,0.12);cursor:default">
       ${posterHtml}
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:3px">
-          <span style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:15px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${title}</span>
+          <span style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:15px;color:var(--on-dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${title}</span>
           ${score != null ? `<span style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:18px;color:${friendColor};letter-spacing:-0.5px;flex-shrink:0">~${score}</span>` : ''}
         </div>
-        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-bottom:6px">${year}${director ? ' · ' + director : ''}</div>
-        ${reasoning ? `<div style="font-family:'DM Sans',sans-serif;font-size:12px;color:var(--dim);line-height:1.5">${reasoning}</div>` : ''}
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);margin-bottom:6px">${year}${director ? ' · ' + director : ''}</div>
+        ${reasoning ? `<div style="font-family:'DM Sans',sans-serif;font-size:12px;color:var(--on-dark-dim);line-height:1.5">${reasoning}</div>` : ''}
         <div style="margin-top:8px">
-          <button onclick="forYouTwoWatchlist('${r.tmdbId}')" id="fy2-wl-${r.tmdbId}" style="font-family:'DM Mono',monospace;font-size:9px;padding:5px 10px;background:${onWl ? 'var(--green)' : 'none'};color:${onWl ? 'white' : 'var(--dim)'};border:1px solid ${onWl ? 'var(--green)' : 'var(--rule-dark)'};cursor:pointer;letter-spacing:0.5px">${onWl ? '✓ List' : '+ List'}</button>
+          <button onclick="forYouTwoWatchlist('${r.tmdbId}')" id="fy2-wl-${r.tmdbId}" style="font-family:'DM Mono',monospace;font-size:9px;padding:5px 10px;background:${onWl ? 'var(--green)' : 'none'};color:${onWl ? 'white' : 'var(--on-dark-dim)'};border:1px solid ${onWl ? 'var(--green)' : 'rgba(244,239,230,0.2)'};cursor:pointer;letter-spacing:0.5px">${onWl ? '✓ List' : '+ List'}</button>
         </div>
       </div>
     </div>`;

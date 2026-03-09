@@ -1286,6 +1286,7 @@ input[type="range"]::-webkit-slider-thumb:hover { background: var(--blue-dark); 
   .constrained-results-grid { grid-template-columns: 1fr; }
   .foryou-discovery-grid { grid-template-columns: 1fr; }
   .starter-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .overlap-fingerprint-row { grid-template-columns: 1fr !important; }
 }
 
 /* ── STARTER FILMS ── */
