@@ -336,7 +336,7 @@ export function confirmTmdbData() {
 // ── STEP 2: SCORING ──
 
 let prefillScores = null;
-let scoringMode = localStorage.getItem('pm_scoring_mode') || 'card'; // 'card' or 'all'
+let scoringMode = 'card'; // always start one-at-a-time
 let currentCardIdx = 0;
 let showingInterstitial = false;
 
