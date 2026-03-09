@@ -795,13 +795,9 @@ function showWelcomeModal(name, archetype) {
   const arch = ARCHETYPES[archetype];
   const palColor = arch?.palette || '#3d5a80';
 
-  const predictStatus = ratedCount >= 10
-    ? `<div style="display:flex;align-items:center;gap:8px"><div style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0"></div><span style="color:var(--ink)">Predict is unlocked.</span> Search any film to see how you'd score it.</div>`
-    : `<div style="display:flex;align-items:center;gap:8px"><div style="width:8px;height:8px;border-radius:50%;background:var(--rule-dark);flex-shrink:0"></div><span>${remaining} more film${remaining !== 1 ? 's' : ''} to unlock <strong style="color:var(--ink)">Predict</strong> — personalized score predictions for any film.</span></div>`;
-
-  const forYouStatus = ratedCount >= 10
-    ? `<div style="display:flex;align-items:center;gap:8px"><div style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0"></div><span style="color:var(--ink)">For You is unlocked.</span> AI-picked films based on your taste fingerprint.</div>`
-    : `<div style="display:flex;align-items:center;gap:8px"><div style="width:8px;height:8px;border-radius:50%;background:var(--rule-dark);flex-shrink:0"></div><span>${remaining} more film${remaining !== 1 ? 's' : ''} to unlock <strong style="color:var(--ink)">For You</strong> — personalized film recommendations.</span></div>`;
+  const predictForYouStatus = ratedCount >= 10
+    ? `<div style="display:flex;align-items:flex-start;gap:10px"><div style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;margin-top:6px"></div><span><strong style="color:var(--ink)">Predict & For You</strong> are unlocked. Search any film to see your predicted score, or check the For You tab for personalized recommendations.</span></div>`
+    : `<div style="display:flex;align-items:flex-start;gap:10px"><div style="width:8px;height:8px;border-radius:50%;background:var(--rule-dark);flex-shrink:0;margin-top:6px"></div><span>${remaining} more film${remaining !== 1 ? 's' : ''} to unlock <strong style="color:var(--ink)">Predict & For You</strong> — personalized score predictions and AI-picked recommendations based on your taste fingerprint.</span></div>`;
 
   const overlay = document.createElement('div');
   overlay.id = 'welcome-modal-overlay';
@@ -815,11 +811,10 @@ function showWelcomeModal(name, archetype) {
       <div style="border-top:1px solid var(--rule);padding-top:24px;margin-bottom:24px">
         <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:16px">What you can unlock</div>
         <div style="display:flex;flex-direction:column;gap:12px;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--dim);line-height:1.6">
-          ${predictStatus}
-          ${forYouStatus}
-          <div style="display:flex;align-items:center;gap:8px">
-            <div style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0"></div>
-            <span style="color:var(--ink)">Friends & Overlap</span> — compare taste profiles and get joint recommendations.
+          ${predictForYouStatus}
+          <div style="display:flex;align-items:flex-start;gap:10px">
+            <div style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;margin-top:6px"></div>
+            <span><strong style="color:var(--ink)">Friends & Overlap</strong> — add friends by username to compare taste profiles and get joint recommendations.</span>
           </div>
         </div>
       </div>
