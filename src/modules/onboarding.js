@@ -841,7 +841,7 @@ function showWelcomeModal(name, archetype) {
         </div>
       </div>
 
-      <button onclick="document.getElementById('welcome-modal-overlay').remove()" style="width:100%;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:2px;text-transform:uppercase;background:${palColor};color:white;border:none;padding:14px 24px;cursor:pointer;transition:opacity 0.2s" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Let's go →</button>
+      <button onclick="document.getElementById('welcome-modal-overlay').remove()" style="width:100%;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:2px;text-transform:uppercase;background:var(--persimmon);color:white;border:none;padding:14px 24px;cursor:pointer;transition:opacity 0.2s" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Let's go →</button>
     </div>`;
   document.body.appendChild(overlay);
 }

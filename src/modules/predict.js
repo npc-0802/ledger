@@ -27,6 +27,7 @@ export function initPredict() {
   const heroSection = document.getElementById('foryou-hero-section');
   const secondarySection = document.getElementById('foryou-secondary-section');
   const manualSection = document.getElementById('foryou-manual');
+  const constrainedSection = document.getElementById('foryou-constrained');
 
   if (MOVIES.length < MIN_FILMS) {
     const needed = MIN_FILMS - MOVIES.length;
@@ -35,6 +36,7 @@ export function initPredict() {
     if (heroSection) heroSection.style.display = 'none';
     if (secondarySection) secondarySection.style.display = 'none';
     if (manualSection) manualSection.style.display = 'none';
+    if (constrainedSection) constrainedSection.style.display = 'none';
 
     let lockEl = document.getElementById('predict-lock-state');
     if (!lockEl) {
@@ -63,6 +65,7 @@ export function initPredict() {
   if (heroSection) heroSection.style.display = '';
   if (secondarySection) secondarySection.style.display = '';
   if (manualSection) manualSection.style.display = '';
+  if (constrainedSection) constrainedSection.style.display = '';
 
   // Reset manual predict section
   const searchEl = document.getElementById('predict-search');

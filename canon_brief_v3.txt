@@ -1,5 +1,5 @@
 Palate Map
-Product Brief · Living Document · v3.16
+Product Brief · Living Document · v3.18
 Last updated: March 2026
 Confidential — do not distribute
 
@@ -59,7 +59,7 @@ Design Principles
 • Rankings nav icon is a medal (ribbon + circle), not a hamburger. Analysis uses bar chart. Icons are distinct across all 5 tabs.
 
 03  Current Architecture
-Status: Phase 1 complete, Phase 2 complete, Phase 3.1–3.4 complete. Vite multi-file vanilla JS.
+Status: Phase 1 complete, Phase 2 complete, Phase 3.1–3.8 complete, 3.11 complete, 3.15–3.19 complete. Vite multi-file vanilla JS.
 
 File Structure
 palatemap/
@@ -71,23 +71,34 @@ palatemap/
       movies.js        94 baseline films (owner only, with TMDB posters/overviews)
       archetypes.js    9 archetypes + weights + descriptions + OB_QUESTIONS
       categories.js    8 scoring categories
+      starter-films.js 9 archetypes × 10 curated films + 10 universal fallbacks (pre-baked TMDB metadata)
     modules/
       rankings.js      poster grid (default) + table toggle, sort pills, score badges
       modal.js         film detail modal + inline score editing
-      predict.js       AI prediction engine (Claude via Cloudflare proxy)
+      predict.js       AI prediction engine, For You, New Territory, sequel filtering (Claude via Cloudflare proxy)
       explore.js       director/actor/writer/company explore + entity pages
       calibrate.js     Elo calibration system
       analysis.js      analysis screen — category bars, entity leaderboards
-      onboarding.js    quiz, archetype reveal, import, cold landing flow
+      onboarding.js    quiz, archetype reveal, starter films, welcome modal, import, cold landing flow
       profile.js       taste profile — fingerprint, radar, signature films w/ posters, card
       archetypemodal.js  weight editor modal, sign out
       friends.js       friends list, friend profile, invite modal, overlap + taste + predict views
       watchlist.js     watch list screen — add, remove, rank from queue
       supabase.js      all cloud sync + auth + friends DB logic
       storage.js       localStorage helpers
+      upgrade.js       upgrade nudge toast, upgrade modal, checkout flow
     styles/
       main.css         layout, nav, masthead, dark surface variables
       components.css   all reusable UI components, badge tiers, grid
+  scripts/
+    backfill-starters.mjs  one-time TMDB metadata backfill for starter films
+  netlify/
+    functions/
+      create-checkout.js   Stripe Checkout session creation
+      stripe-webhook.js    Stripe webhook handler (subscription lifecycle → Supabase)
+      manage-billing.js    Stripe billing portal session creation
+  public/
+    tos.html               Terms of Service (static, standalone)
 
 Hosting & Deploy
 • Host: GitHub Pages at palatemap.com (custom domain). Netlify migration deferred.
@@ -127,6 +138,10 @@ predictions         jsonb  { [tmdbId]: { film, prediction, predictedAt } }  (cac
 email               text   (populated on first auth; used for account linking)
 auth_id             text   (Supabase auth user id; populated on first Google/magic link sign-in)
 invite_token        text   (single-use UUID for friend invite links; cleared after use)
+is_pro              boolean default false (single source of truth for paid access — set by Stripe webhook, never computed client-side)
+stripe_customer_id  text   (links webhook events back to user)
+subscription_status text   ('active' | 'canceled' | 'past_due' | 'unpaid' — mirrors Stripe; informational only, is_pro gates features)
+subscription_period_end  timestamptz  (current paid period end; shown in Profile as "Renews [date]")
 created_at / updated_at  timestamp
 
 Watchlist Object Schema
@@ -174,11 +189,12 @@ Left column: 4 numbered value props with blue number markers (01–04): "Your fo
 Right column: dark surface card ("Your taste has a shape. Let's find it." + brand copy), Google sign-in button, "or" divider, "Continue with email →" (persimmon), Log in / Import links in readable on-dark contrast. Card stretches to match left column height. Footer: "Starting with film. Expanding to everything."
 
 Onboarding (3 entry points)
-New user: cold landing → auth step (Google OAuth primary, or name + email → magic link) → 6-question quiz (dark surface intro block: "Six questions. Your taste, revealed.") → archetype reveal (dark surface: name + description + quote + secondary + username) → "Enter Palate Map →" → welcome modal (one-time, localStorage flag).
+New user: cold landing → auth step (Google OAuth primary, or name + email → magic link) → 6-question quiz (dark surface intro block: "Six questions. Your taste, revealed.") → archetype reveal (dark surface: name + description + quote + secondary + username) → "See what your palate says →" → starter films → welcome modal → main app.
+Starter films: after archetype reveal, presents a curated grid of 10 films selected for the user's palate type (from starter-films.js, 9 archetypes × 10 films + 10 universal fallbacks). 4-column desktop grid, 2-column mobile. Each card shows poster (2:3 aspect ratio, object-fit cover). Tapping a card expands a full-width rate card below the grid with 2-column slider layout and archetype-weighted defaults. Progress bar tracks rated count. "Show more" reveals additional films. Skip available at any point. Cross-fade animation between reveal and starters steps.
 Returning user: "Log in →" link on auth step. Shows Google OAuth or email-only magic link (no name field). On click: redirects to Google or sends magic link. Supabase session auto-loads profile on return. Legacy profiles with no auth_id are auto-linked on first sign-in (auth session linked to localStorage user, auth_id + email written to Supabase row).
 Letterboxd import: drag-and-drop ratings.csv → parses star ratings (×20 = score) → loads films → proceeds to quiz. CTA on name step ("On Letterboxd? Import your ratings →").
 Quiz overlay: flex-column, flex-start, 48px top padding so content is scrollable and never clips. "← Start over" button renders below the card (outside it) when a pending auth session exists — plain border style, visually separated, hidden on all non-quiz steps.
-Welcome modal: fires once after obFinish() (palatemap_welcome_shown localStorage flag). Shows name + archetype type + 3 first steps (rate 10 films / try Predict / invite a friend). "Let's go →" dismisses.
+Welcome modal: fires once after obFinish() (palatemap_welcome_shown localStorage flag). Shows user's name + palate type in archetype palette color. Lays out the platform: Rankings (rate & rank), Taste Profile (patterns & fingerprint), Predict & For You (unlocks at 10 films — predicted scores + personalized recommendations), Friends & Overlap (invite friends, compare taste, overlap predict). Contextual CTA button adapts to user's rated count ("Rate your first film →" / "Keep rating →" / "Explore your palate →"). Button uses archetype palette color.
 
 Rankings (Main Screen)
 Default: poster grid (5 columns). Sort pills above grid control sort order + which score badge shows on each card. Toggle to table view (8 category columns + total).
@@ -202,7 +218,8 @@ Empty state: "Terra incognita." dashed-border uncharted treatment.
 
 Predict
 Search unrated films. Builds taste fingerprint. Finds comparables by shared director/cast. Calls Claude via Cloudflare proxy. Returns predicted score per category, confidence, 2nd-person reasoning anchored to user's specific films. Results cached in currentUser.predictions (keyed by tmdbId) and synced to Supabase — subsequent opens show cached result instantly with "Re-predict →" available. ＋ Watchlist and Rate now → actions on result.
-"Find me a film →": button below search input. Fetches TMDB popular (2 pages) + 1 genre-seeded discover page using user's most-rated genre. Filters out rated + watchlisted films. Takes top 6 by quality-weighted vote_average. Runs 6 Claude predictions in parallel. Shows top 3 ranked by predicted total as recommendation cards. Each card: poster, title, predicted total, confidence, truncated reasoning, "+ Watch List" and "Full prediction →" buttons. "Full prediction →" loads cached result (no second API call). "Refresh →" advances page offset for fresh candidates.
+"Find me a film →": personalized recommendation engine. Builds a candidate pool from TMDB popular + genre-seeded discover pages, filtered against rated + watchlisted films + the user's watch list. Pre-scores candidates locally using director/cast overlap with user's top-rated films. Top 6 go to Claude for full prediction. Shows top 3 as recommendation cards (poster, title, predicted total, confidence, truncated reasoning, "+ Watch List" / "Full prediction →"). "Refresh →" advances page offset. Sequel filtering: candidates in a TMDB collection are excluded if the user hasn't rated all preceding films in the collection (uses belongs_to_collection + collection parts sorted by release date; first films in a series are allowed). Collection data cached per session.
+"New Territory →": discovery mode surfaced below For You recommendations. Finds films outside the user's comfort zone — underrepresented genres, eras, and origins in their rated library. Builds discovery pool from TMDB discover API with explicit genre/year/region filters targeting gaps. Same sequel filtering and prediction pipeline as For You. Cards labeled "new territory" with distinct header styling.
 
 Analysis
 Editorial header. Category averages split into Craft (Plot/Execution/Acting/Production) and Experience (Enjoyability/Rewatchability/Ending/Uniqueness) axis groups, shown as horizontal score bars. Below: Explore tabs — Directors / Writers / Actors / Production Co. / Years — ranked entity lists with click-through to entity detail pages.
@@ -263,9 +280,9 @@ Rankings tab (default): paginated list of friend's films sorted by score (10 at 
 
 Taste tab: solo radar (friend's archetype weights normalized by their max weight — same shape as their polygon in the overlap view) + category averages bar chart (Craft / Experience groups) + top-5 entities per type (directors/actors/writers/companies, min 2 films, sorted by avg score). Entities show TMDB portraits/logos loaded async. Each entity is expandable (▾/▴) to show inline film list. Film rows are clickable → score modal.
 
-Overlap tab: compatibility score (cosine similarity on weights + co-rated film agreement), dual radar overlay (both weight vectors in respective palette colors), co-rated films list sorted by biggest disagreement, AI-generated compatibility blurb via Claude proxy.
-Shared Watch List: if both users have watchlisted the same film, it surfaces in the Overlap tab as "Both want to watch."
-Overlap Predict: search bar at the bottom of the Overlap tab. Select any unrated film → sends both taste profiles (films, weights, archetypes) to Claude → returns a combined predicted score + reasoning that distinguishes what each person would respond to by name, anchored to their actual rated films. ＋ Watchlist button on result.
+Overlap tab: content order top to bottom — compatibility score (cosine similarity on weights + co-rated film agreement) with AI-generated compatibility blurb (cached per friendship) → Shared Watch List ("Both want to watch") → spider graph + taste analysis side-by-side (50/50, 2-column grid, stacks on mobile) → For You Two (dark surface card: var(--surface-dark) background, on-dark text/borders) → films in common (sorted by biggest disagreement) → Overlap Predict.
+For You Two: recommendation engine for friend pairs. Blends two users' taste profiles; finds films predicted to score well for both. Same pipeline as "Find me a film" (candidate pool → sequel filtering → Claude predictions) but called with a merged taste profile. Shows top 3 cards. Each card: poster, predicted score for each user by name, shared reasoning. Refresh available.
+Overlap Predict: search bar below films in common. Select any unrated film → sends both taste profiles (films, weights, archetypes) to Claude → returns a combined predicted score + reasoning that distinguishes what each person would respond to by name, anchored to their actual rated films. ＋ Watchlist button on result.
 
 Email notifications (via Resend + Cloudflare Worker)
 • Invite email: branded HTML, sent when user enters friend's email in invite modal.
@@ -285,6 +302,26 @@ Sections:
 • Letterboxd import — drag-and-drop ratings.csv; dedupes against existing films (Palate Map wins on conflict); adds net-new films.
 • Sign out at bottom.
 
+Subscription Section (in Profile)
+Free user: shows "Free" plan, brief line about what they're missing, "Upgrade to Pro →" button → openUpgradeModal().
+Pro user: shows "Pro" with archetype color accent, renewal date ("Renews [Month Day, Year]" from subscription_period_end), "Manage billing →" link → Stripe billing portal (via manage-billing.js Netlify Function).
+
+Upgrade Nudge (upgrade.js — openUpgradeNudge)
+Toast-style nudge at bottom of screen (above mobile nav). Dark surface, paper text. Message varies by limitKey: 'predictions' / 'watchlist' / 'history'. CTA: "Upgrade to Pro →" → openUpgradeModal(). Dismiss: "Maybe later" → markNudgeShown(limitKey). Auto-dismisses after 8s. One at a time — no stacking. Dismiss tracked in sessionStorage (resets on new session).
+
+Upgrade Modal (upgrade.js — openUpgradeModal)
+Full-screen dark overlay modal. Headline: "Your taste, fully unlocked." (Playfair italic, white on dark). Subhead: "Everything Palate Map knows about you, without limits." Feature comparison: 4-row DM Mono table (Free vs Pro), Pro items in var(--blue-pale). Two pricing cards side-by-side: Monthly ($4.99/mo, no badge) and Annual ($39.99/yr, "Save 33%" badge in archetype color, subtle recommended treatment). Default: Annual selected. Active card has var(--blue-pale) border. CTA: "Start Pro →" (full width, paper bg, ink text). Below CTA: "Cancel anytime. No commitment." Footer: "Billed via Stripe · Secure checkout." On click: POST to create-checkout Netlify Function → redirect to Stripe Checkout. On error: inline error, re-enable button.
+
+Feature Gating
+All gating checks use `currentUser.is_pro === true`. Limits are soft nudges (dismissible), not hard blocks. Nudge reappears next session.
+• Predictions: 5/month free. Count from currentUser.predictions entries where predictedAt is current calendar month. Re-predictions and cached loads don't count. At limit → openUpgradeNudge('predictions'). At 4 used → inline "1 free prediction remaining" note after result.
+• Watch list auto-predict: first 3 items free. Items beyond 3rd show lock state (padlock + "Pro" label) instead of "estimating ···". Clicking locked row → openUpgradeNudge('watchlist').
+• Prediction history: first 2 entries visible free. Beyond that → locked row "X more predictions in your history — upgrade to access" → openUpgradeNudge('history').
+• Group overlap (3+ friends): gated to Pro. Hidden entirely for free users until feature is built (Phase 3.2.4).
+
+Terms of Service (public/tos.html)
+Static standalone page at palatemap.com/tos.html. Same fonts/colors/masthead as app, no app JS. Max 760px centered. 13 sections: acceptance, description, accounts, data ownership, AI-generated content disclaimers, subscriptions/billing, acceptable use (no scraping/reverse engineering/competing model training), IP, disclaimers, limitation of liability, changes, governing law, contact. Linked from cold landing sign-up area ("By signing up you agree to our Terms of Service and Privacy Policy") and alongside existing privacy.html link.
+
 Archetype / Weight Editor Modal
 "Edit weights →" in Profile. Weight inputs capped at 5 (max). Save recalcs all totals, detects archetype shift via cosine similarity, shows toast if primary archetype changes ("OldArchetype → NewArchetype"), syncs to Supabase. Profile fingerprint/radar and all weight-derived UI rerender immediately on save — no page refresh required.
 
@@ -300,6 +337,7 @@ Wordmark ("palate map") is clickable — navigates to Rankings (home). Search ba
 • Auth quiz loop: mitigated with auto auth_id linking (legacy profiles now link on first sign-in) and "← Wrong account? Sign out" escape hatch on quiz intro when a pending auth session is detected. Root cause (no localStorage on first device) is expected — escape hatch is the UX solution.
 • Friends data cache (window._friendsDataCache) is loaded on init and when Friends screen is visited. If a friend adds a new film between sessions, the modal context will be stale until next app load. Acceptable for now.
 • Prediction cache (currentUser.predictions) is per-user, client-side. No server-side invalidation. Re-predict available manually.
+• Friendship blurbs cached per friendship pair (localStorage). No auto-invalidation when either user's library changes significantly.
 • TMDB search can return an incorrect first-match poster/record for some titles. Users can now correct these manually during Add Film (curation step) and from the ranked-film modal ("Fix poster"). If a user picks the wrong replacement, they must correct it again manually.
 
 08  Full Product Roadmap
@@ -361,13 +399,26 @@ Phase 3 — Growth Features [IN PROGRESS]
   Direction 4 — confidence calibration from actuals. Once 20+ reconciled predictions exist, group by reported confidence level and compute mean absolute delta per group. Store as currentUser.predictionCalibration and surface in Predict screen UI.
   Direction 5 — true fine-tuning on per-user prediction errors. Requires own model infrastructure. Out of scope until Phase 4 / ~10,000 paid users.
 
-• 3.11 "Find us a film" — recommendation engine for friend pairs. Appears in the Overlap tab. Blends two users' taste profiles; finds films predicted to score well for both. Same pipeline as "Find me a film" (findMeAFilm in predict.js) but called with a merged taste profile. [not started]
+• 3.11 "For You Two" ✓ — recommendation engine for friend pairs. Appears in the Overlap tab on a dark surface card. Blends two users' taste profiles; finds films predicted to score well for both. Same pipeline as "Find me a film" (candidate pool → sequel filtering → Claude predictions) but called with a merged taste profile. Shows top 3 cards with per-user predicted scores and shared reasoning.
 
-• 3.12 Monetization / paywall — see Section 11. Launch sequence ordered by dependency; gating logic goes in after Netlify migration + Stripe. Key gating points: prediction counter (predictedAt timestamps already stored — no schema change needed), watch list auto-predict limit (first 3 items free), prediction history access. [not started]
+• 3.12 Monetization [not started — briefs written]
+  3.12.1 Stripe integration — Netlify Functions (create-checkout, stripe-webhook, manage-billing). Supabase schema: is_pro, stripe_customer_id, subscription_status, subscription_period_end. Wire is_pro onto currentUser from Supabase. Checkout success/cancel query param handling in main.js. Prerequisite: Netlify migration.
+  3.12.2 Feature gating — 4 gating points (predictions 5/month, watchlist auto-predict 3 items, prediction history, group overlap). Soft nudges via openUpgradeNudge() in upgrade.js. Session-based dismiss (sessionStorage). Prerequisite: 3.12.1.
+  3.12.3 Upgrade flow — openUpgradeModal() in upgrade.js. Dark overlay, feature comparison, monthly/annual pricing cards, Stripe Checkout redirect. Prerequisite: 3.12.1 + 3.12.2.
 
 • 3.13 Google OAuth verification — submit app for Google review to remove "unverified app" warning. Required before public launch. [not started]
 
-• 3.14 Terms of Service page — required before taking payment. Must include anti-scraping, anti-reverse-engineering, prohibition on using Palate Map data to train competing models. [not started]
+• 3.14 Terms of Service page [not started — brief written] — static public/tos.html. 13 sections, plain English, matching app design. Links from cold landing + footer. Placeholders for [STATE], [CONTACT EMAIL], [EFFECTIVE DATE]. Required before taking payment.
+
+• 3.15 Starter Films ✓ — curated onboarding film grid presented after archetype reveal. 9 archetypes × 10 films + 10 universal fallbacks (starter-films.js). Pre-baked TMDB metadata (poster, director, genre, year). Archetype-weighted slider defaults: baseDefault(72) + (weight/maxWeight) × 12. Constraints: max 2 films per director, genre diversity across list, era spread (no more than 4 films from same decade), no sequels. Full-width rate card with 2-column slider layout. Progress bar, show more, skip available.
+
+• 3.16 New Territory / Discovery ✓ — discovery mode in Predict screen. Analyzes user's rated library for genre/era/origin gaps. Builds discovery pool from TMDB discover API targeting underrepresented areas. Same prediction + sequel filtering pipeline as For You. Cards labeled "new territory" with distinct styling.
+
+• 3.17 Sequel Filtering ✓ — global rule: no sequels recommended unless user has rated all preceding films in the TMDB collection. Applies to Find Me a Film, New Territory, and For You Two candidate pools. Uses TMDB belongs_to_collection → fetches collection parts → sorts by release_date → checks user's rated films. First films in a series are allowed. Collection data cached per session.
+
+• 3.18 Overlap Tab Layout ✓ — reorganized friend overlap tab content hierarchy: compatibility + blurb → shared watchlist → spider graph + taste analysis (side-by-side 50/50 grid) → For You Two (dark surface card) → films in common → overlap predict.
+
+• 3.19 Welcome Modal ✓ — post-onboarding modal introducing the platform. Shows palate type in archetype color, unlock thresholds (Predict & For You at 10 films), Friends & Overlap features, lay of the land (Rankings/Taste/Predict/Friends). Contextual CTA adapts to rated count. Fires after starter films or skip-to-search.
 
 Phase 4 — Platform
 • 4.1 Universal entity search — global search surfacing any director/actor/writer/company (entity-level, not film-level — film search is covered by 3.8 Global Search). Entity page shows: TMDB data, user's own rankings (if any), community avg score (requires 4.2). Requires schema change: separate palatemap_ratings table (see below).
@@ -409,6 +460,15 @@ Model: Freemium. Free tier is fully functional and designed to create the "aha" 
 
 Positioning: "Letterboxd charges you to log. Palate Map charges you to learn."
 Palate Map is currently priced as a niche film tool. When cross-domain expansion lands (Phase 4.3+), pricing will be revisited upward to reflect the product as a taste OS.
+
+Billing Infrastructure
+• Stripe subscription billing via Netlify Functions (server-side only — no Stripe keys in client code).
+• create-checkout.js: creates Stripe Checkout session, returns URL. Receives userId, email, priceId ('monthly'/'annual'). Reuses existing stripe_customer_id if present.
+• stripe-webhook.js: handles checkout.session.completed (set is_pro=true), customer.subscription.updated (sync status + period_end), customer.subscription.deleted (set is_pro=false). Verifies Stripe signature.
+• manage-billing.js: creates Stripe billing portal session for subscription management.
+• Supabase is_pro is the single source of truth — set by webhook, read on client load, never computed client-side.
+• Checkout success: ?checkout=success → toast + reload currentUser. ?checkout=cancelled → strip param silently.
+• Netlify env vars: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_MONTHLY, STRIPE_PRICE_ANNUAL.
 
 Pricing
 • Monthly: $4.99/mo
