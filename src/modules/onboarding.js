@@ -587,21 +587,36 @@ function renderStarterFilms() {
       '>' + total + '</div>';
   }).join('');
 
-  // Genre-grouped grid
+  // Genre-grouped grid — insert rate card inline after the tapped film
   const groups = groupFilmsByGenre(allFilms.slice(0, 8));
   let gridIdx = 0;
   const gridsHTML = groups.map((g, gi) => {
-    const cardsHTML = g.films.map(film => {
-      const html = renderStarterCard(film, gridIdx, palColor);
+    let cardsHTML = '';
+    let rateCardInserted = false;
+    g.films.forEach(film => {
+      cardsHTML += renderStarterCard(film, gridIdx, palColor);
       gridIdx++;
-      return html;
-    }).join('');
+      if (starterExpandedId != null && film.tmdbId === starterExpandedId) {
+        cardsHTML += '<div class="starter-rate-inline" style="grid-column:1/-1">' + renderStarterRateCard(allFilms.find(f => f.tmdbId === starterExpandedId), palColor) + '</div>';
+        rateCardInserted = true;
+      }
+    });
     return '<div class="starter-genre-label">' + g.label + '</div><div class="starter-grid">' + cardsHTML + '</div>';
   }).join('');
 
   // Extra films (from "show me more")
-  const extraHTML = extra.length > 0 ? '<div class="starter-genre-label">More films</div><div class="starter-grid">' +
-    extra.map(film => { const h = renderStarterCard(film, gridIdx, palColor); gridIdx++; return h; }).join('') + '</div>' : '';
+  let extraHTML = '';
+  if (extra.length > 0) {
+    let extraCards = '';
+    extra.forEach(film => {
+      extraCards += renderStarterCard(film, gridIdx, palColor);
+      gridIdx++;
+      if (starterExpandedId != null && film.tmdbId === starterExpandedId) {
+        extraCards += '<div class="starter-rate-inline" style="grid-column:1/-1">' + renderStarterRateCard(allFilms.find(f => f.tmdbId === starterExpandedId), palColor) + '</div>';
+      }
+    });
+    extraHTML = '<div class="starter-genre-label">More films</div><div class="starter-grid">' + extraCards + '</div>';
+  }
 
   card.innerHTML = `
     <div class="ob-starters-enter">
@@ -617,8 +632,6 @@ function renderStarterFilms() {
 
       ${gridsHTML}
       ${extraHTML}
-
-      ${starterExpandedId != null ? renderStarterRateCard(allFilms.find(f => f.tmdbId === starterExpandedId), palColor) : ''}
 
       ${!starterShowMore ? `
         <div style="text-align:center;margin-top:24px">
@@ -678,8 +691,6 @@ function renderStarterRateCard(film, palColor) {
   const overallVal = data ? Math.round(data.total) : 75;
   const scores = data?.scores || singleSliderToScores(75);
   const posterUrl = film.poster ? 'https://image.tmdb.org/t/p/w92' + film.poster : null;
-  const isMobile = window.innerWidth <= 768;
-
   // Fine-tune 8-slider grid (hidden by default)
   let fineTuneHTML = '';
   if (starterFineTune) {
@@ -696,7 +707,7 @@ function renderStarterRateCard(film, palColor) {
     fineTuneHTML = '<div class="starter-sliders-grid" style="margin-top:16px">' + sliders + '</div>';
   }
 
-  return '<div class="starter-rate-card' + (isMobile ? ' mobile-sheet' : '') + '" style="border-left:3px solid ' + palColor + '">' +
+  return '<div class="starter-rate-card" style="border-left:3px solid ' + palColor + '">' +
     '<div style="display:flex;gap:14px;margin-bottom:20px;align-items:center">' +
     (posterUrl ? '<img src="' + posterUrl + '" style="width:46px;flex-shrink:0">' : '') +
     '<div style="flex:1;min-width:0">' +
@@ -732,8 +743,8 @@ window.starterTapFilm = function(tmdbId) {
   }
   renderStarterFilms();
   setTimeout(() => {
-    const card = document.querySelector('.starter-rate-card');
-    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    const inline = document.querySelector('.starter-rate-inline');
+    if (inline) inline.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, 50);
 };
 
@@ -774,8 +785,8 @@ window.starterToggleFineTune = function() {
   starterFineTune = !starterFineTune;
   renderStarterFilms();
   setTimeout(function() {
-    var card = document.querySelector('.starter-rate-card');
-    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    var inline = document.querySelector('.starter-rate-inline');
+    if (inline) inline.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, 50);
 };
 
@@ -813,8 +824,12 @@ window.starterRateFilm = async function(tmdbId) {
       imgWrap.appendChild(stamp);
     }
   }
-  // Re-render after stamp animation plays
-  setTimeout(function() { renderStarterFilms(); }, 800);
+  // Re-render after stamp animation plays, then scroll to top
+  setTimeout(function() {
+    renderStarterFilms();
+    const overlay = document.getElementById('onboarding-overlay');
+    if (overlay) overlay.scrollTo({ top: 0, behavior: 'smooth' });
+  }, 800);
 
   // Lazy-load full TMDB metadata in background
   try {
