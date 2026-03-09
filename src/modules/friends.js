@@ -1220,13 +1220,13 @@ window.overlapPredictSearch = async function() {
       const year = m.release_date?.slice(0,4) || '';
       const poster = m.poster_path
         ? `<img src="https://image.tmdb.org/t/p/w92${m.poster_path}" style="width:24px;height:36px;object-fit:cover;flex-shrink:0">`
-        : `<div style="width:24px;height:36px;background:var(--rule);flex-shrink:0"></div>`;
+        : `<div style="width:24px;height:36px;background:rgba(255,255,255,0.1);flex-shrink:0"></div>`;
       const safeTitle = (m.title || '').replace(/'/g, "\\'");
-      return `<div onclick="overlapPredictSelect(${m.id},'${safeTitle}','${year}')" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--rule);cursor:pointer" onmouseover="this.style.background='var(--cream)'" onmouseout="this.style.background=''">
+      return `<div onclick="overlapPredictSelect(${m.id},'${safeTitle}','${year}')" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);cursor:pointer" onmouseover="this.style.background='rgba(255,255,255,0.06)'" onmouseout="this.style.background=''">
         ${poster}
         <div>
-          <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--ink)">${m.title}</div>
-          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">${year}</div>
+          <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--on-dark)">${m.title}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim)">${year}</div>
         </div>
       </div>`;
     }).join('');
@@ -1813,7 +1813,8 @@ function renderForYouTwoCards(results, _friend, color, gridEl) {
     const director = (r.film?.director || r.director || '').split(',')[0];
     const onWl = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(r.tmdbId));
 
-    return `<div style="display:flex;gap:14px;padding:14px;border:1px solid rgba(244,239,230,0.12);cursor:default">
+    const safeTmdbId = parseInt(r.tmdbId);
+    return `<div style="display:flex;gap:14px;padding:14px;border:1px solid rgba(244,239,230,0.12);cursor:pointer" onclick="openRecommendedDetail(${safeTmdbId})">
       ${posterHtml}
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:3px">
@@ -1823,7 +1824,7 @@ function renderForYouTwoCards(results, _friend, color, gridEl) {
         <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);margin-bottom:6px">${year}${director ? ' · ' + director : ''}</div>
         ${reasoning ? `<div style="font-family:'DM Sans',sans-serif;font-size:12px;color:var(--on-dark-dim);line-height:1.5">${reasoning}</div>` : ''}
         <div style="margin-top:8px">
-          <button onclick="forYouTwoWatchlist('${r.tmdbId}')" id="fy2-wl-${r.tmdbId}" style="font-family:'DM Mono',monospace;font-size:9px;padding:5px 10px;background:${onWl ? 'var(--green)' : 'none'};color:${onWl ? 'white' : 'var(--on-dark-dim)'};border:1px solid ${onWl ? 'var(--green)' : 'rgba(244,239,230,0.2)'};cursor:pointer;letter-spacing:0.5px">${onWl ? '✓ List' : '+ List'}</button>
+          <button onclick="event.stopPropagation();forYouTwoWatchlist('${r.tmdbId}')" id="fy2-wl-${r.tmdbId}" style="font-family:'DM Mono',monospace;font-size:9px;padding:5px 10px;background:${onWl ? 'var(--green)' : 'none'};color:${onWl ? 'white' : 'var(--on-dark-dim)'};border:1px solid ${onWl ? 'var(--green)' : 'rgba(244,239,230,0.2)'};cursor:pointer;letter-spacing:0.5px">${onWl ? '✓ List' : '+ List'}</button>
         </div>
       </div>
     </div>`;
