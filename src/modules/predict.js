@@ -1,5 +1,6 @@
 import { MOVIES, CATEGORIES, currentUser, setCurrentUser, scoreClass, getLabel, calcTotal, mergeSplitNames } from '../state.js';
 import { syncToSupabase, saveUserLocally } from './supabase.js';
+import { ARCHETYPES } from '../data/archetypes.js';
 
 const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
 const TMDB = 'https://api.themoviedb.org/3';
@@ -20,13 +21,19 @@ let dismissedTmdbIds = new Set(); // tracks films dismissed this session
 
 export function initPredict() {
   const MIN_FILMS = 10;
-  const predictInner = document.querySelector('#predict > div');
+
+  // Hide all For You sections while checking lock state
+  const heroSection = document.getElementById('foryou-hero-section');
+  const secondarySection = document.getElementById('foryou-secondary-section');
+  const manualSection = document.getElementById('foryou-manual');
 
   if (MOVIES.length < MIN_FILMS) {
     const needed = MIN_FILMS - MOVIES.length;
     const pct = Math.round((MOVIES.length / MIN_FILMS) * 100);
 
-    if (predictInner) predictInner.style.display = 'none';
+    if (heroSection) heroSection.style.display = 'none';
+    if (secondarySection) secondarySection.style.display = 'none';
+    if (manualSection) manualSection.style.display = 'none';
 
     let lockEl = document.getElementById('predict-lock-state');
     if (!lockEl) {
@@ -52,48 +59,185 @@ export function initPredict() {
   // Remove lock state if enough films now
   const lockEl = document.getElementById('predict-lock-state');
   if (lockEl) lockEl.remove();
-  if (predictInner) predictInner.style.display = '';
-  const wrap = document.getElementById('predict-search')?.parentElement;
-  if (wrap) wrap.style.display = '';
+  if (heroSection) heroSection.style.display = '';
+  if (secondarySection) secondarySection.style.display = '';
+  if (manualSection) manualSection.style.display = '';
 
-  document.getElementById('predict-search').value = '';
-  document.getElementById('predict-search-results').innerHTML = '';
+  // Reset manual predict section
+  const searchEl = document.getElementById('predict-search');
+  if (searchEl) searchEl.value = '';
+  const searchResults = document.getElementById('predict-search-results');
+  if (searchResults) searchResults.innerHTML = '';
   predictSelectedFilm = null;
-  setTimeout(() => document.getElementById('predict-search')?.focus(), 50);
 
-  // Render prediction history
-  const predictions = currentUser?.predictions || {};
-  const historyEntries = Object.values(predictions)
-    .filter(e => e?.film && e?.prediction && e?.predictedAt)
-    .sort((a, b) => new Date(b.predictedAt) - new Date(a.predictedAt));
+  // Set archetype palette color on pulsing dots
+  setForYouDotColor();
 
-  if (historyEntries.length) {
-    document.getElementById('predict-result').innerHTML = `
-      <div style="margin-top:32px">
-        <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--rule)">Prediction history · ${historyEntries.length}</div>
-        ${historyEntries.map(({ film, prediction, predictedAt }) => {
-          const total = calcPredictedTotal(prediction);
-          const poster = film.poster
-            ? `<img src="https://image.tmdb.org/t/p/w92${film.poster}" style="width:28px;height:42px;object-fit:cover;flex-shrink:0">`
-            : `<div style="width:28px;height:42px;background:var(--rule);flex-shrink:0"></div>`;
-          const date = new Date(predictedAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
-          const safeTitle = (film.title||'').replace(/'/g,"\\'");
-          return `<div onclick="predictSelectFilm(${film.tmdbId},'${safeTitle}','${film.year||''}')" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid var(--rule);cursor:pointer" onmouseover="this.style.background='var(--cream)'" onmouseout="this.style.background=''">
-            ${poster}
-            <div style="flex:1;min-width:0">
-              <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:15px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${film.title}</div>
-              <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);margin-top:2px">${film.year || ''}${film.director ? ' · ' + film.director.split(',')[0] : ''} · ${date}</div>
-            </div>
-            <div style="text-align:right;flex-shrink:0">
-              <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:20px;color:var(--blue);letter-spacing:-0.5px">${(Math.round(total*10)/10).toFixed(1)}</div>
-              <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--dim);margin-top:2px">${getLabel(Math.round(total))}</div>
-            </div>
-          </div>`;
-        }).join('')}
-      </div>`;
+  // Progress nudge
+  renderProgressNudge();
+
+  // Check if we should auto-load or render from cache
+  const lastAt = currentUser?.lastRecommendationAt;
+  const countAtLast = currentUser?.moviesCountAtLastRecommendation || 0;
+  const cached = currentUser?.cachedRecommendations;
+
+  if (!lastAt || MOVIES.length >= countAtLast + 5 || !cached?.length) {
+    loadForYouRecommendations();
   } else {
-    document.getElementById('predict-result').innerHTML = '';
+    renderForYouFromCache();
   }
+}
+
+function setForYouDotColor() {
+  const archetype = currentUser?.archetype;
+  const color = archetype && ARCHETYPES[archetype]
+    ? ARCHETYPES[archetype].palette
+    : null;
+  if (color) {
+    document.querySelectorAll('.foryou-dot').forEach(dot => {
+      dot.style.background = color;
+    });
+  }
+}
+
+function renderProgressNudge() {
+  const nudgeEl = document.getElementById('foryou-nudge');
+  if (!nudgeEl) return;
+  if (MOVIES.length >= 50) { nudgeEl.style.display = 'none'; return; }
+  const remaining = 50 - MOVIES.length;
+  const pct = Math.round((MOVIES.length / 50) * 100);
+  const paletteColor = (currentUser?.archetype && ARCHETYPES[currentUser.archetype])
+    ? ARCHETYPES[currentUser.archetype].palette : 'var(--blue)';
+  nudgeEl.style.display = '';
+  nudgeEl.className = 'foryou-nudge';
+  nudgeEl.innerHTML = `
+    <div class="foryou-nudge-text">${remaining} more film${remaining !== 1 ? 's' : ''} until your recommendations get significantly more accurate.</div>
+    <div class="foryou-nudge-bar-wrap"><div class="foryou-nudge-bar" style="width:${pct}%;background:${paletteColor}"></div></div>
+    <div class="foryou-nudge-count">${MOVIES.length} / 50</div>`;
+}
+
+function timeAgo(date) {
+  const diff = Math.floor((Date.now() - date.getTime()) / 86400000);
+  if (diff === 0) return 'Updated today';
+  if (diff === 1) return 'Updated yesterday';
+  return `Updated ${diff} days ago`;
+}
+
+function renderForYouEyebrow(updatedAt) {
+  const el = document.getElementById('foryou-eyebrow');
+  if (!el) return;
+  const archetype = currentUser?.archetype || '';
+  const paletteColor = (archetype && ARCHETYPES[archetype])
+    ? ARCHETYPES[archetype].palette : 'var(--blue)';
+  const ago = updatedAt ? timeAgo(new Date(updatedAt)) : '';
+  el.innerHTML = `
+    <span>Top pick for you</span>
+    <span class="foryou-eyebrow-archetype">
+      <span class="foryou-eyebrow-accent" style="background:${paletteColor}"></span>
+      <span style="color:${paletteColor}">${archetype}</span>
+    </span>
+    <span>${ago}</span>`;
+}
+
+function getSourceLabel(r) {
+  if (r.source === 'watchlist') return 'On your watch list';
+  if (r.source === 'director') return `Director match · ${(r.director || '').split(',')[0]}`;
+  if (r.source === 'discover') return 'For your taste';
+  return 'Recommended';
+}
+
+function renderHeroCard(result) {
+  const heroEl = document.getElementById('foryou-hero');
+  if (!heroEl || !result) return;
+  heroEl.style.display = '';
+
+  const posterHtml = result.poster
+    ? `<img class="foryou-hero-poster" src="https://image.tmdb.org/t/p/w185${result.poster}" alt="${result.title}">`
+    : `<div class="foryou-hero-poster" style="width:160px;min-height:240px;background:var(--surface-dark-2);display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim)">${result.title}</div>`;
+
+  const total = result.predTotal;
+  const totalDisplay = (Math.round(total * 10) / 10).toFixed(1);
+  const safeTmdbId = parseInt(result.tmdbId);
+  const safeTitle = (result.title || '').replace(/'/g, "\\'");
+  const safeYear = (result.year || '').replace(/'/g, "\\'");
+  const onWl = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(result.tmdbId));
+  const refreshNeeded = 5 - ((MOVIES.length - (currentUser?.moviesCountAtLastRecommendation || 0)) % 5);
+
+  heroEl.innerHTML = `
+    <button class="foryou-hero-dismiss" onclick="event.stopPropagation();forYouDismissHero()" title="Next pick">✕</button>
+    <div class="foryou-hero-inner" onclick="predictSelectFilm(${safeTmdbId},'${safeTitle}','${safeYear}');document.getElementById('predict-result').scrollIntoView({behavior:'smooth'})">
+      ${posterHtml}
+      <div class="foryou-hero-body">
+        <div class="foryou-hero-source">${getSourceLabel(result)}</div>
+        <div class="foryou-hero-title">${result.title}</div>
+        <div class="foryou-hero-meta">${result.year || ''}${result.director ? ' · ' + result.director.split(',')[0] : ''}</div>
+        <div class="foryou-hero-score">~${totalDisplay}</div>
+        <div class="foryou-hero-score-label">${getLabel(Math.round(total))}</div>
+        ${result.prediction?.reasoning ? `<div class="foryou-hero-reasoning">${result.prediction.reasoning}</div>` : ''}
+      </div>
+    </div>
+    <div class="foryou-hero-actions" onclick="event.stopPropagation()">
+      <button class="btn btn-primary" onclick="predictSelectFilm(${safeTmdbId},'${safeTitle}','${safeYear}');document.getElementById('predict-result').scrollIntoView({behavior:'smooth'})">See full prediction →</button>
+      <button class="btn btn-outline" id="foryou-hero-wl-btn" onclick="toggleRecommendWatchlist('${result.tmdbId}')" style="${onWl ? 'background:var(--green);color:white;border-color:var(--green)' : 'color:var(--on-dark);border-color:rgba(255,255,255,0.2)'}">${onWl ? '✓ Watch List' : '+ Watch List'}</button>
+    </div>
+    <div class="foryou-hero-footer">Based on ${MOVIES.length} films · refreshes after ${refreshNeeded} more rating${refreshNeeded !== 1 ? 's' : ''} · <a onclick="event.stopPropagation();loadForYouRecommendations()">Refresh now</a></div>`;
+}
+
+function renderSecondaryCards(results) {
+  const gridEl = document.getElementById('foryou-secondary-grid');
+  const sectionEl = document.getElementById('foryou-secondary-section');
+  if (!gridEl || !sectionEl) return;
+
+  if (!results || !results.length) {
+    sectionEl.style.display = 'none';
+    return;
+  }
+  sectionEl.style.display = '';
+
+  gridEl.innerHTML = results.map((r, i) => {
+    const poster = r.poster
+      ? `<img class="foryou-sec-poster" src="https://image.tmdb.org/t/p/w92${r.poster}" alt="${r.title}">`
+      : `<div class="foryou-sec-poster-none"></div>`;
+    const total = (Math.round(r.predTotal * 10) / 10).toFixed(1);
+    const safeTmdbId = parseInt(r.tmdbId);
+    const safeTitle = (r.title || '').replace(/'/g, "\\'");
+    const safeYear = (r.year || '').replace(/'/g, "\\'");
+    return `
+      <div class="foryou-sec-card" onclick="predictSelectFilm(${safeTmdbId},'${safeTitle}','${safeYear}');document.getElementById('predict-result').scrollIntoView({behavior:'smooth'})">
+        <button class="foryou-sec-dismiss" onclick="event.stopPropagation();forYouDismissSecondary(${i})" title="Dismiss">✕</button>
+        ${poster}
+        <div class="foryou-sec-body">
+          <div class="foryou-sec-source">${getSourceLabel(r)}</div>
+          <div class="foryou-sec-title">${r.title}</div>
+          <div class="foryou-sec-meta">${r.year || ''}${r.director ? ' · ' + r.director.split(',')[0] : ''}</div>
+          <div class="foryou-sec-score">~${total}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderForYouFromCache() {
+  const cached = currentUser?.cachedRecommendations;
+  if (!cached?.length) return;
+  renderForYouEyebrow(currentUser.lastRecommendationAt);
+  renderHeroCard(cached[0]);
+  renderSecondaryCards(cached.slice(1, 5));
+}
+
+function loadForYouRecommendations() {
+  const heroEl = document.getElementById('foryou-hero');
+  if (heroEl) {
+    heroEl.style.display = '';
+    heroEl.innerHTML = `
+      <div class="foryou-hero-loading">
+        <div class="foryou-hero-loading-title">Finding films for you…</div>
+        <div class="foryou-hero-loading-sub">Reading your taste · scouting candidates · ranking by fit</div>
+      </div>`;
+  }
+  const sectionEl = document.getElementById('foryou-secondary-section');
+  if (sectionEl) sectionEl.style.display = 'none';
+  renderForYouEyebrow(null);
+  findMeAFilm();
 }
 
 export function predictSearchDebounce() {
@@ -458,7 +602,7 @@ async function buildCandidatePool() {
   const discoverResults = (await Promise.all(discoverCalls)).flat();
   discoverResults.forEach(film => {
     if (isKnown(film.id, film.title) || !film.poster_path) return;
-    seen.add(id);
+    seen.add(String(film.id));
     candidates.push({
       tmdbId: film.id,
       title: film.title,
@@ -697,18 +841,6 @@ function renderPrediction(film, prediction, comps, predictedAt = null) {
 // ── FIND ME A FILM ──────────────────────────────────────────────────────────
 
 async function findMeAFilm() {
-  const resultEl = document.getElementById('predict-result');
-  if (!resultEl) return;
-
-  document.getElementById('predict-search').value = '';
-  document.getElementById('predict-search-results').innerHTML = '';
-
-  resultEl.innerHTML = `
-    <div class="predict-loading">
-      <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:20px;color:var(--dim)">Finding films for you…</div>
-      <div class="predict-loading-label">Reading your taste · scouting candidates · ranking by fit</div>
-    </div>`;
-
   recommendPage++;
 
   try {
@@ -740,14 +872,15 @@ async function findMeAFilm() {
       .sort((a, b) => b.compatScore - a.compatScore);
 
     if (!scored.length) {
-      resultEl.innerHTML = `<div class="tmdb-error">Not enough data to generate recommendations yet. Rate more films and try again.</div>`;
+      const heroEl = document.getElementById('foryou-hero');
+      if (heroEl) heroEl.innerHTML = `<div style="padding:40px 20px;text-align:center;font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">Not enough data to generate recommendations yet. Rate more films and try again.</div>`;
       return;
     }
 
-    // ── Phase 3: Run predictions — max 3 new Claude calls, cache-first ───────
-    const top5 = scored.slice(0, 5);
+    // ── Phase 3: Run predictions — max 5 new Claude calls, cache-first ───────
+    const top5 = scored.slice(0, 8);
     const toPredict = top5.filter(c => !currentUser?.predictions?.[String(c.tmdbId)]);
-    const toCall = toPredict.slice(0, 3);
+    const toCall = toPredict.slice(0, 5);
 
     await Promise.allSettled(toCall.map(async (c) => {
       const film = {
@@ -795,74 +928,73 @@ async function findMeAFilm() {
       })
       .filter(Boolean)
       .sort((a, b) => b.predTotal - a.predTotal)
-      .slice(0, 3);
+      .slice(0, 5);
 
     if (!results.length) {
-      resultEl.innerHTML = `<div class="tmdb-error">Couldn't generate predictions right now. Try again in a moment.</div>`;
+      const heroEl = document.getElementById('foryou-hero');
+      if (heroEl) heroEl.innerHTML = `<div style="padding:40px 20px;text-align:center;font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">Couldn't generate recommendations right now. <a style="color:var(--blue);cursor:pointer;text-decoration:underline" onclick="loadForYouRecommendations()">Try again</a></div>`;
       return;
     }
 
-    // ── Phase 5: Render results ───────────────────────────────────────────────
-    const sourceLabel = {
-      watchlist: 'On your list',
-      director: 'Director match',
-      discover: 'For your taste'
-    };
+    // ── Phase 5: Cache + render into For You layout ──────────────────────────
+    const now = new Date().toISOString();
+    setCurrentUser({
+      ...currentUser,
+      cachedRecommendations: results,
+      lastRecommendationAt: now,
+      moviesCountAtLastRecommendation: MOVIES.length
+    });
+    saveUserLocally();
+    syncToSupabase();
 
-    resultEl.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid var(--ink)">
-        <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--dim)">Recommended for you</div>
-        <button onclick="findMeAFilmRefresh()" style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--blue);background:none;border:none;cursor:pointer;padding:0">Refresh →</button>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:12px">
-        ${results.map(r => {
-          const confClass = { high: 'conf-high', medium: 'conf-medium', low: 'conf-low' }[r.prediction.confidence] || 'conf-medium';
-          const poster = r.poster
-            ? `<img src="https://image.tmdb.org/t/p/w92${r.poster}" style="width:44px;height:66px;object-fit:cover;flex-shrink:0;border-radius:2px">`
-            : `<div style="width:44px;height:66px;background:var(--rule);flex-shrink:0;border-radius:2px"></div>`;
-          const safeTmdbId = parseInt(r.tmdbId);
-          const safeTitle = (r.title || '').replace(/'/g, "\\'");
-          const safeYear = (r.year || '').replace(/'/g, "\\'");
-          return `
-            <div style="display:flex;gap:12px;padding:14px;background:var(--cream);border:1px solid var(--rule);border-radius:4px">
-              ${poster}
-              <div style="flex:1;min-width:0">
-                <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1.5px;color:var(--dim);text-transform:uppercase;margin-bottom:4px">${sourceLabel[r.source] || 'Recommended'}</div>
-                <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:16px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.title}</div>
-                <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);margin-top:2px">${r.year}${r.director ? ' · ' + r.director.split(',')[0] : ''}</div>
-                <div style="margin-top:6px;font-family:'DM Sans',sans-serif;font-size:12px;line-height:1.5;color:var(--dim);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${r.prediction.reasoning || ''}</div>
-                <div style="margin-top:8px;display:flex;align-items:center;gap:10px">
-                  <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:22px;color:var(--blue)">${(Math.round(r.predTotal * 10) / 10).toFixed(1)}</div>
-                  <span class="predict-confidence ${confClass}" style="font-size:9px">${r.prediction.confidence}</span>
-                  <div style="margin-left:auto;display:flex;gap:8px">
-                    <button onclick="predictSelectFilm(${safeTmdbId},'${safeTitle}','${safeYear}')" style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;background:none;border:1px solid var(--rule-dark);padding:5px 10px;cursor:pointer;color:var(--ink)">Full prediction →</button>
-                    <button onclick="findMeAFilmDismiss('${r.tmdbId}')" style="font-family:'DM Mono',monospace;font-size:9px;background:none;border:1px solid var(--rule);padding:5px 8px;cursor:pointer;color:var(--dim)" title="Not interested">✕</button>
-                  </div>
-                </div>
-              </div>
-            </div>`;
-        }).join('')}
-      </div>
-      <div style="margin-top:16px">
-        <button class="btn btn-outline" onclick="initPredict()">← Search a specific film</button>
-      </div>`;
+    renderForYouEyebrow(now);
+    renderHeroCard(results[0]);
+    renderSecondaryCards(results.slice(1, 5));
 
   } catch(e) {
-    resultEl.innerHTML = `<div class="tmdb-error">Something went wrong — ${e.message}. Try again.</div>`;
+    const heroEl = document.getElementById('foryou-hero');
+    if (heroEl) heroEl.innerHTML = `<div style="padding:40px 20px;text-align:center;font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">Something went wrong — ${e.message}. <a style="color:var(--blue);cursor:pointer;text-decoration:underline" onclick="loadForYouRecommendations()">Try again</a></div>`;
   }
 }
 
 // ── GLOBALS ─────────────────────────────────────────────────────────────────
 
 window.findMeAFilm = findMeAFilm;
+window.loadForYouRecommendations = loadForYouRecommendations;
 
 window.findMeAFilmRefresh = function() {
-  findMeAFilm();
+  loadForYouRecommendations();
 };
 
 window.findMeAFilmDismiss = function(tmdbId) {
   dismissedTmdbIds.add(String(tmdbId));
-  findMeAFilm();
+  loadForYouRecommendations();
+};
+
+window.forYouDismissHero = function() {
+  const cached = currentUser?.cachedRecommendations;
+  if (!cached?.length) return;
+  dismissedTmdbIds.add(String(cached[0].tmdbId));
+  cached.shift();
+  setCurrentUser({ ...currentUser, cachedRecommendations: cached });
+  saveUserLocally();
+  if (cached.length) {
+    renderHeroCard(cached[0]);
+    renderSecondaryCards(cached.slice(1, 5));
+  } else {
+    loadForYouRecommendations();
+  }
+};
+
+window.forYouDismissSecondary = function(index) {
+  const cached = currentUser?.cachedRecommendations;
+  if (!cached || index + 1 >= cached.length) return;
+  const actualIndex = index + 1; // +1 because hero is cached[0]
+  dismissedTmdbIds.add(String(cached[actualIndex].tmdbId));
+  cached.splice(actualIndex, 1);
+  setCurrentUser({ ...currentUser, cachedRecommendations: cached });
+  saveUserLocally();
+  renderSecondaryCards(cached.slice(1, 5));
 };
 
 window.loadFullRecommendation = function(tmdbId, title, year) {
@@ -881,13 +1013,13 @@ window.toggleRecommendWatchlist = async function(tmdbId) {
   } else {
     addToWatchlist({ tmdbId: film.tmdbId, title: film.title, year: film.year, poster: film.poster, director: film.director, overview: film.overview });
   }
-  const btn = document.getElementById(`rec-wl-${tmdbId}`);
+  const btn = document.getElementById('foryou-hero-wl-btn') || document.getElementById(`rec-wl-${tmdbId}`);
   if (btn) {
-    const now = !onWl;
-    btn.textContent = now ? '✓ Watch List' : '+ Watch List';
-    btn.style.background = now ? 'var(--green)' : 'transparent';
-    btn.style.color = now ? 'white' : 'var(--dim)';
-    btn.style.borderColor = now ? 'var(--green)' : 'var(--rule-dark)';
+    const nowOn = !onWl;
+    btn.textContent = nowOn ? '✓ Watch List' : '+ Watch List';
+    btn.style.background = nowOn ? 'var(--green)' : '';
+    btn.style.color = nowOn ? 'white' : 'var(--on-dark)';
+    btn.style.borderColor = nowOn ? 'var(--green)' : 'rgba(255,255,255,0.2)';
   }
 };
 

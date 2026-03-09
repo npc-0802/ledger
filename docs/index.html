@@ -25,8 +25,8 @@
 <meta name="description" content="Everyone has a palate. Rate the films you love, discover your taste archetype, and compare with friends.">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230c0b09'/%3E%3Crect x='0' y='28' width='32' height='4' fill='%23D4A84B'/%3E%3Ctext x='16' y='21' text-anchor='middle' font-family='Georgia,serif' font-style='italic' font-weight='900' font-size='14' fill='white'%3EPM%3C/text%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/index-DEODl1Rs.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-CpDFEn3j.css">
+  <script type="module" crossorigin src="/assets/index-DRwD_GnD.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-DEo_Ntcz.css">
 </head>
 <body>
 
@@ -159,7 +159,7 @@
 <div id="sticky-header">
   <div class="nav-strip">
     <button class="nav-btn active" onclick="showScreen('rankings')"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M4.5 1L3 5M8.5 1L10 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="6.5" cy="9" r="4" fill="currentColor"/></svg>Rankings</button>
-    <button class="nav-btn" onclick="showScreen('predict')"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v1.5M6.5 10.5V12M1 6.5h1.5M10.5 6.5H12M2.9 2.9l1.1 1.1M9 9l1.1 1.1M9.1 2.9L8 4M4 9l-1.1 1.1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="6.5" cy="6.5" r="2.2" fill="currentColor"/></svg>Predict</button>
+    <button class="nav-btn nav-btn-foryou" onclick="showScreen('predict')"><span class="foryou-dot"></span>For You</button>
     <button class="nav-btn" onclick="showScreen('analysis')"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="0" y="6" width="3" height="7" fill="currentColor"/><rect x="5" y="3" width="3" height="10" fill="currentColor"/><rect x="10" y="0" width="3" height="13" fill="currentColor"/></svg>Analysis</button>
     <button class="nav-btn" id="nav-friends" onclick="showScreen('friends')" style="position:relative"><svg width="14" height="13" viewBox="0 0 14 13" fill="none"><circle cx="4.5" cy="3.5" r="2.5" fill="currentColor"/><path d="M0 12c0-2.5 2-4.5 4.5-4.5S9 9.5 9 12" stroke="currentColor" stroke-width="1.4" fill="none"/><circle cx="11" cy="3.5" r="2" fill="currentColor" opacity="0.45"/><path d="M9.5 12c0-2 1-3.5 2.5-4.2" stroke="currentColor" stroke-width="1.2" fill="none" opacity="0.45" stroke-linecap="round"/></svg>Friends</button>
     <button class="nav-btn" onclick="showScreen('watchlist')"><svg width="11" height="14" viewBox="0 0 11 14" fill="none"><path d="M1 1h9a1 1 0 0 1 1 1v11l-5-3-5 3V2a1 1 0 0 1 1-1z" fill="currentColor"/></svg>Watch List</button>
@@ -176,6 +176,10 @@
     <button class="nav-mobile-btn active" onclick="showScreen('rankings')">
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M6 1L4 7M12 1L14 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="9" cy="13" r="5" fill="currentColor"/></svg>
       <span>Rankings</span>
+    </button>
+    <button class="nav-mobile-btn nav-btn-foryou" onclick="showScreen('predict')">
+      <span class="foryou-dot"></span>
+      <span>For You</span>
     </button>
     <button class="nav-mobile-btn" onclick="showScreen('analysis')">
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="0" y="8" width="4" height="10" fill="currentColor"/><rect x="7" y="4" width="4" height="14" fill="currentColor"/><rect x="14" y="0" width="4" height="18" fill="currentColor"/></svg>
@@ -344,23 +348,36 @@
   <div id="analysisContent"></div>
 </div>
 
-<!-- ══════════════ PREDICT ══════════════ -->
+<!-- ══════════════ FOR YOU ══════════════ -->
 <div id="predict" class="screen">
-  <div style="max-width:800px;margin:0 auto">
-    <div style="display:flex;align-items:baseline;gap:16px;margin-bottom:6px">
-      <h2 style="font-family:'Playfair Display',serif;font-style:italic;font-size:36px;font-weight:900;letter-spacing:-1px">Predict</h2>
-      <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1.5px">powered by AI</span>
+  <!-- Progress nudge -->
+  <div id="foryou-nudge" style="display:none"></div>
+
+  <!-- Section A: Hero recommendation -->
+  <div id="foryou-hero-section">
+    <div id="foryou-eyebrow" class="foryou-eyebrow"></div>
+    <div id="foryou-hero" class="foryou-hero" style="display:none"></div>
+  </div>
+
+  <!-- Section B: Secondary picks -->
+  <div id="foryou-secondary-section" style="display:none">
+    <div class="foryou-section-header">
+      <span class="foryou-section-label">More picks for you</span>
+      <button class="foryou-refresh-btn" onclick="findMeAFilmRefresh()">Refresh →</button>
     </div>
-    <p style="color:var(--dim);font-size:13px;margin-bottom:32px;line-height:1.7;max-width:560px">Search for a film you haven't rated yet. Based on your taste profile and rating history, Palate Map will predict how you'd score it — category by category.</p>
-    <div style="margin-bottom:8px">
-      <input class="field-input" id="predict-search" type="text" placeholder="Search for a film…" style="width:100%;box-sizing:border-box" oninput="predictSearchDebounce()">
+    <div id="foryou-secondary-grid" class="foryou-secondary-grid"></div>
+  </div>
+
+  <!-- Section C: Manual predict (demoted) -->
+  <div id="foryou-manual" class="foryou-manual">
+    <div class="foryou-manual-label">Or predict any film →</div>
+    <div style="max-width:800px">
+      <div style="margin-bottom:8px">
+        <input class="field-input" id="predict-search" type="text" placeholder="Search for a film…" style="width:100%;box-sizing:border-box" oninput="predictSearchDebounce()">
+      </div>
+      <div id="predict-search-results" style="margin-bottom:24px"></div>
+      <div id="predict-result"></div>
     </div>
-    <div style="margin-bottom:24px;display:flex;align-items:center;gap:10px">
-      <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--rule-dark)">or</span>
-      <button onclick="findMeAFilm()" style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--action);background:none;border:none;cursor:pointer;padding:0">Find me a film →</button>
-    </div>
-    <div id="predict-search-results" style="margin-bottom:24px"></div>
-    <div id="predict-result"></div>
   </div>
 </div>
 

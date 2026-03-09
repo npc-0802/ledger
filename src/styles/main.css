@@ -146,6 +146,22 @@ body {
 }
 .nav-btn.action-tab:hover { background: var(--action-dark); color: white; border-bottom-color: transparent; }
 .nav-btn.action-tab.active { background: var(--action-dark); color: white; border-bottom-color: transparent; }
+.nav-btn.nav-btn-foryou { color: var(--blue); }
+.nav-btn.nav-btn-foryou.active { color: var(--blue); border-bottom-color: var(--blue); }
+.nav-mobile-btn.nav-btn-foryou { color: var(--blue); }
+.nav-mobile-btn.nav-btn-foryou.active { color: var(--blue); }
+
+.foryou-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--blue);
+  animation: foryouPulse 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+@keyframes foryouPulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.4; transform:scale(0.7); } }
+
 .nav-btn.invite-tab { color: var(--dim); border-bottom-color: transparent; font-style: italic; margin-left: auto; }
 .nav-btn.invite-tab:hover { color: var(--ink); border-bottom-color: transparent; }
 #rankings.empty .rankings-header { display: none; }
