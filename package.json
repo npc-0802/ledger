@@ -6,9 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && echo palatemap.com > dist/CNAME",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "npx playwright test",
+    "test:headed": "npx playwright test --headed",
+    "test:ui": "npx playwright test --ui"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "vite": "^7.3.1"
   },
   "dependencies": {

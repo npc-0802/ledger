@@ -136,6 +136,13 @@ window.startFromLanding = function() {
   launchOnboarding();
 };
 
+// Test helper: skip auth and jump directly to quiz
+window._testSkipToQuiz = function(name) {
+  const el = document.getElementById('cold-landing');
+  if (el) el.style.display = 'none';
+  launchOnboarding({ skipToQuiz: true, name: name || 'Test User' });
+};
+
 window.landingGoogle = async function() {
   const { signInWithGoogle } = await import('./modules/supabase.js');
   signInWithGoogle();
