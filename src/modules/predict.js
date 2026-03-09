@@ -1220,20 +1220,26 @@ async function buildDiscoveryPool() {
     .map(([g, total]) => ({ name: g, id: GENRE_ID_MAP[g], avg: total / genreCounts[g] }))
     .sort((a, b) => b.avg - a.avg);
 
-  // Bottom half of genres the user has rated (or genres they haven't explored much)
+  // Bottom half of genres the user has rated
   const bottomHalf = rankedGenres.slice(Math.floor(rankedGenres.length / 2));
-  const discoveryGenres = bottomHalf.length >= 2 ? bottomHalf.slice(0, 2) : rankedGenres.slice(-2);
+  // Also include genres the user has never rated
+  const ratedGenreNames = new Set(rankedGenres.map(g => g.name));
+  const unseenGenres = Object.entries(GENRE_ID_MAP)
+    .filter(([name]) => !ratedGenreNames.has(name))
+    .map(([name, id]) => ({ name, id, avg: 0 }));
+  const discoveryGenres = [...bottomHalf.slice(0, 2), ...unseenGenres.slice(0, 2)].slice(0, 3);
 
-  // Fetch discover results — no era filter, broader pool
+  // Fetch discover results — no era filter, broader pool, more pages
   const candidates = [];
   const discoverCalls = discoveryGenres.map(async (genre) => {
+    const page = 1 + Math.floor(Math.random() * 5);
     const params = new URLSearchParams({
       api_key: TMDB_KEY,
       with_genres: genre.id,
       sort_by: 'vote_average.desc',
-      'vote_count.gte': 300,
-      'vote_average.gte': 7.0,
-      page: String(1 + Math.floor(Math.random() * 3)) // randomize page for variety
+      'vote_count.gte': 200,
+      'vote_average.gte': 6.8,
+      page: String(page)
     });
     try {
       const res = await fetch(`${TMDB}/discover/movie?${params}`);
@@ -1247,7 +1253,7 @@ async function buildDiscoveryPool() {
   // Fetch credits for each to check against known entities
   const potentials = discoverResults
     .filter(f => f.poster_path && !isKnown(f.id, f.title))
-    .slice(0, 15); // limit TMDB detail calls
+    .slice(0, 25);
 
   await Promise.allSettled(potentials.map(async (f) => {
     try {
@@ -1258,14 +1264,14 @@ async function buildDiscoveryPool() {
       const detail = await dRes.json();
       const credits = await crRes.json();
       const directors = (credits.crew || []).filter(x => x.job === 'Director').map(x => x.name);
-      const cast = (credits.cast || []).slice(0, 3).map(x => x.name);
-      const companies = (detail.production_companies || []).slice(0, 1).map(x => x.name);
+      const topCast = (credits.cast || []).slice(0, 3).map(x => x.name);
 
-      // Filter: skip if director, top-3 cast, or primary company is known
+      // Filter: skip if director OR top-3 cast is known
+      // (Company filter removed — major studios are too ubiquitous to be meaningful)
       const hasKnownDirector = directors.some(d => knownEntities.directors.has(d));
-      const hasKnownCast = cast.some(a => knownEntities.actors.has(a));
-      const hasKnownCompany = companies.some(c => knownEntities.companies.has(c));
-      if (hasKnownDirector || hasKnownCast || hasKnownCompany) return;
+      const hasKnownCast = topCast.some(a => knownEntities.actors.has(a));
+      // Track how "familiar" this is for soft filtering
+      const familiarityScore = (hasKnownDirector ? 2 : 0) + (hasKnownCast ? 1 : 0);
 
       if (seen.has(String(f.id))) return;
       seen.add(String(f.id));
@@ -1281,11 +1287,14 @@ async function buildDiscoveryPool() {
         genres: (detail.genres || []).map(g => g.name).join(', '),
         productionCompanies: (detail.production_companies || []).map(p => p.name).join(', '),
         overview: f.overview || detail.overview || '',
-        source: 'discovery'
+        source: 'discovery',
+        familiarityScore
       });
     } catch { /* skip */ }
   }));
 
+  // Prefer truly unfamiliar films, but allow partially familiar as fallback
+  candidates.sort((a, b) => a.familiarityScore - b.familiarityScore);
   return candidates;
 }
 
