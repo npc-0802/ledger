@@ -109,7 +109,6 @@ function watchlistRow(item, i) {
         <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);letter-spacing:0.5px">you'd give</span>
         <span style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:16px;color:var(--blue);letter-spacing:-0.5px">~${(Math.round(predTotal*10)/10).toFixed(1)}</span>
         <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);letter-spacing:0.5px">· ${getLabel(Math.round(predTotal))}</span>
-        ${discoveryBadge ? `<span style="margin-left:4px">${discoveryBadge}</span>` : ''}
       </div>`
     : isPending
       ? `<div class="wl-pred-pending">
@@ -121,7 +120,7 @@ function watchlistRow(item, i) {
     <div onclick="openWatchlistDetail(${i})" style="display:flex;align-items:center;gap:14px;padding:12px;border-bottom:1px solid var(--rule);cursor:pointer" onmouseover="this.style.background='var(--cream)'" onmouseout="this.style.background=''">
       ${poster}
       <div style="flex:1;min-width:0">
-        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:16px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.title}</div>
+        <div style="display:flex;align-items:center;gap:6px"><span style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:16px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.title}</span>${discoveryBadge}</div>
         <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-top:3px">${item.year || ''}${item.director ? ' · ' + item.director.split(',')[0] : ''}</div>
         ${predLine}
       </div>
