@@ -18,6 +18,10 @@ function calcWlPredictedTotal(prediction) {
   return wsum > 0 ? Math.round((sum / wsum) * 100) / 100 : 0;
 }
 
+export function getWatchlist() {
+  return currentUser?.watchlist || [];
+}
+
 export function renderWatchlist() {
   const content = document.getElementById('watchlistContent');
   if (!content) return;

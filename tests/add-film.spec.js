@@ -41,7 +41,7 @@ test.describe('Add Film flow', () => {
     await page.locator('#f-search').fill('Interstellar');
     await page.waitForTimeout(2000);
 
-    const results = page.locator('.tmdb-result');
+    const results = page.locator('.add-result');
     expect(await results.count()).toBeGreaterThan(0);
   });
 });

@@ -58,30 +58,52 @@ export function liveSearch(val) {
       const data = await res.json();
       document.getElementById('searchSpinner').style.display = 'none';
       if (!data.results || data.results.length === 0) {
-        resultsEl.innerHTML = '<div class="tmdb-loading">No results yet…</div>';
+        resultsEl.innerHTML = '<div class="tmdb-loading">No results found.</div>';
         return;
       }
       const top = data.results.slice(0, 6);
       resultsEl.innerHTML = top.map(m => {
         const year = m.release_date ? m.release_date.slice(0,4) : '?';
         const poster = m.poster_path
-          ? `<img class="tmdb-result-poster" src="https://image.tmdb.org/t/p/w92${m.poster_path}" alt="">`
-          : `<div class="tmdb-result-poster-placeholder">NO IMG</div>`;
-        const overview = (m.overview||'').slice(0,100) + ((m.overview||'').length > 100 ? '…' : '');
-        return `<div class="tmdb-result" onclick="tmdbSelect(${m.id}, '${m.title.replace(/'/g,"\\'").replace(/"/g,'\\"')}')">
-          ${poster}
-          <div class="tmdb-result-info">
-            <div class="tmdb-result-title">${m.title}</div>
-            <div class="tmdb-result-meta">${year}${m.vote_average ? ' · ' + m.vote_average.toFixed(1) + ' TMDB' : ''}</div>
-            <div class="tmdb-result-overview">${overview}</div>
-          </div>
-        </div>`;
+          ? '<img class="add-result-poster" src="https://image.tmdb.org/t/p/w92' + m.poster_path + '" alt="">'
+          : '<div class="add-result-poster-none"></div>';
+        const overview = (m.overview||'').slice(0,120) + ((m.overview||'').length > 120 ? '…' : '');
+        const safeTitle = m.title.replace(/'/g,"\\'").replace(/"/g,'\\"');
+        return '<div class="add-result" onclick="tmdbSelect(' + m.id + ', \'' + safeTitle + '\')">' +
+          poster +
+          '<div class="add-result-info">' +
+            '<div class="add-result-title">' + m.title + '</div>' +
+            '<div class="add-result-meta">' + year + (m.vote_average ? ' · ' + m.vote_average.toFixed(1) + ' TMDB' : '') + '</div>' +
+            (overview ? '<div class="add-result-overview">' + overview + '</div>' : '') +
+          '</div>' +
+          '<svg class="add-result-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+        '</div>';
       }).join('');
     } catch(e) {
       document.getElementById('searchSpinner').style.display = 'none';
       resultsEl.innerHTML = '<div class="tmdb-error">Search failed — check connection.</div>';
     }
   }, 280);
+}
+
+// Show watchlist films below search when step 1 is active
+export function renderWatchlistInSearch() {
+  const section = document.getElementById('add-watchlist-section');
+  const container = document.getElementById('add-watchlist-films');
+  if (!section || !container) return;
+  import('./watchlist.js').then(mod => {
+    const wl = mod.getWatchlist ? mod.getWatchlist() : [];
+    if (!wl || wl.length === 0) { section.style.display = 'none'; return; }
+    const films = wl.slice(0, 6);
+    section.style.display = '';
+    container.innerHTML = films.map(f => {
+      const poster = f.poster ? 'https://image.tmdb.org/t/p/w92' + f.poster : '';
+      return '<div class="add-recent-card" onclick="tmdbSelect(' + f.tmdbId + ', \'' + (f.title||'').replace(/'/g,"\\'") + '\')" title="Rate ' + (f.title||'') + '">' +
+        (poster ? '<img class="add-recent-poster" src="' + poster + '" alt="' + (f.title||'') + '">' : '<div class="add-recent-poster" style="background:var(--cream)"></div>') +
+        '<div class="add-recent-title">' + (f.title||'') + '</div>' +
+      '</div>';
+    }).join('');
+  }).catch(() => { section.style.display = 'none'; });
 }
 
 // ── STEP 1: FILM SELECTION + CONFIRMATION CARD ──
@@ -132,19 +154,49 @@ function renderConfirmationHero() {
   const posterSrc = newFilm._posterUrl
     ? newFilm._posterUrl.replace('/w185', '/w342')
     : '';
-  const directorStr = (newFilm._allDirectors || []).join(', ');
-  const overview = (detail.overview || '').slice(0, 200) + (detail.overview && detail.overview.length > 200 ? '…' : '');
+  const directors = newFilm._allDirectors || [];
+  const directorStr = directors.join(', ');
+  const overview = (detail.overview || '').slice(0, 240) + (detail.overview && detail.overview.length > 240 ? '…' : '');
+  const runtime = detail.runtime ? detail.runtime + ' min' : '';
+  const metaParts = [newFilm.year, runtime, directorStr].filter(Boolean);
 
+  // Hero: side-by-side poster + info
   document.getElementById('addfilm-hero').innerHTML = `
-    ${posterSrc ? `<img class="addfilm-hero-poster" src="${posterSrc}" alt="">` : ''}
-    <div class="addfilm-hero-title">${detail.title}</div>
-    <div class="addfilm-hero-meta">${newFilm.year || ''} · ${detail.runtime ? detail.runtime + ' min' : ''}${directorStr ? ' · ' + directorStr : ''}</div>
-    ${overview ? `<div class="addfilm-hero-overview">${overview}</div>` : ''}
-    <div class="addfilm-hero-cta">
-      <button class="btn btn-action" onclick="confirmTmdbData()">Rate this film →</button>
+    ${posterSrc ? `<img class="add-hero-poster" src="${posterSrc}" alt="">` : ''}
+    <div class="add-hero-body">
+      <div class="add-hero-title">${detail.title}</div>
+      <div class="add-hero-meta">${metaParts.join(' · ')}</div>
+      ${overview ? `<div class="add-hero-overview">${overview}</div>` : ''}
+      <div>
+        <button class="add-hero-cta" onclick="confirmTmdbData()">Rate this film →</button>
+        <button class="add-hero-secondary" onclick="resetToSearch()">Not this one</button>
+      </div>
     </div>
-    <div><button class="addfilm-hero-back" onclick="resetToSearch()">← Search again</button></div>
   `;
+
+  // Details: director, cast chips, studio chips
+  const selectedCast = Object.values(castChecked).filter(v => v.checked).map(v => v.actor.name).slice(0, 6);
+  const selectedCompanies = Object.values(companyChecked).filter(v => v.checked).map(v => v.company.name);
+  let detailsHtml = '';
+  if (directorStr) {
+    detailsHtml += `<div class="add-detail-row">
+      <span class="add-detail-label">Dir.</span>
+      <span class="add-detail-value">${directorStr}</span>
+    </div>`;
+  }
+  if (selectedCast.length) {
+    detailsHtml += `<div class="add-detail-row">
+      <span class="add-detail-label">Cast</span>
+      <div>${selectedCast.map(c => `<span class="add-detail-chip">${c}</span>`).join('')}</div>
+    </div>`;
+  }
+  if (selectedCompanies.length) {
+    detailsHtml += `<div class="add-detail-row">
+      <span class="add-detail-label">Studio</span>
+      <div>${selectedCompanies.map(c => `<span class="add-detail-chip">${c}</span>`).join('')}</div>
+    </div>`;
+  }
+  document.getElementById('addfilm-hero-details').innerHTML = detailsHtml;
 }
 
 function renderCastCuration(castList) {
@@ -206,10 +258,12 @@ export function toggleCompany(companyId) {
 
 export function resetToSearch() {
   prefillScores = null;
-  document.getElementById('tmdb-search-phase').style.display = 'block';
+  document.getElementById('tmdb-search-phase').style.display = '';
   document.getElementById('tmdb-curation-phase').style.display = 'none';
   document.getElementById('tmdb-results').innerHTML = '';
+  document.getElementById('f-search').value = '';
   hideAddFilmBanner();
+  renderWatchlistInSearch();
 }
 
 function showAddFilmBanner(title, year) {
@@ -817,7 +871,7 @@ export function saveFilm() {
 
   document.getElementById('f-search').value = '';
   document.getElementById('tmdb-results').innerHTML = '';
-  document.getElementById('tmdb-search-phase').style.display = 'block';
+  document.getElementById('tmdb-search-phase').style.display = '';
   document.getElementById('tmdb-curation-phase').style.display = 'none';
   document.getElementById('moreCastBtn').style.display = '';
   updateStepUI(1);
@@ -885,7 +939,7 @@ window.addFilmResumeNo = function() {
   castChecked = {}; companyChecked = {}; tmdbFullCast = []; prefillScores = null;
   document.getElementById('f-search').value = '';
   document.getElementById('tmdb-results').innerHTML = '';
-  document.getElementById('tmdb-search-phase').style.display = 'block';
+  document.getElementById('tmdb-search-phase').style.display = '';
   document.getElementById('tmdb-curation-phase').style.display = 'none';
   hideAddFilmBanner();
   updateStepUI(1);

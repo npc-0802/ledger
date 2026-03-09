@@ -242,7 +242,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <!-- ══════════════ ADD FILM ══════════════ -->
 <div id="add" class="screen">
 <div class="add-layout">
-  <h1 class="add-title">Rate a new film</h1>
+  <h1 class="add-title" style="display:none">Rate a new film</h1>
 
   <div class="addfilm-step-indicator" id="addfilm-step-indicator">Select a film</div>
 
@@ -260,22 +260,34 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
   <!-- STEP 1: TMDB Search + Film Confirmation -->
   <div class="step-panel active" id="step1">
-    <div id="tmdb-search-phase">
-      <div class="field-group">
-        <label class="field-label">Film Title — start typing to search</label>
-        <div style="position:relative;max-width:520px">
-          <input class="field-input" id="f-search" placeholder="e.g. The Substance"
-            type="text" autocomplete="off" oninput="liveSearch(this.value)"
-            style="width:100%;padding-right:36px">
-          <span id="searchSpinner" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:16px;color:var(--dim);display:none">⌛</span>
-        </div>
+    <div id="tmdb-search-phase" class="add-search-state">
+      <div class="add-headline">What did you watch?</div>
+      <div class="add-subline">Search any film. You score it — Palate Map learns from every rating.</div>
+
+      <div class="add-search-wrap">
+        <input class="add-search-input" id="f-search" type="text" placeholder="Search for a film…" autocomplete="off" oninput="liveSearch(this.value)">
+        <svg class="add-search-icon" width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <circle cx="7.5" cy="7.5" r="5.5" stroke="currentColor" stroke-width="1.8"/>
+          <line x1="11.5" y1="11.5" x2="16" y2="16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <span id="searchSpinner" style="position:absolute;right:48px;top:50%;transform:translateY(-50%);font-size:16px;color:var(--dim);display:none">⌛</span>
+        <div class="add-results" id="tmdb-results"></div>
       </div>
-      <div id="tmdb-results" style="max-width:520px"></div>
+
+      <div class="add-recent" id="add-watchlist-section" style="display:none">
+        <div class="add-recent-label">From your watch list</div>
+        <div class="add-recent-films" id="add-watchlist-films"></div>
+      </div>
     </div>
 
     <div id="tmdb-curation-phase" style="display:none">
-      <!-- Film confirmation hero card -->
-      <div id="addfilm-hero" class="addfilm-hero"></div>
+      <div style="margin-bottom:24px">
+        <button onclick="resetToSearch()" style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--dim);background:none;border:none;cursor:pointer;padding:0">← Search again</button>
+      </div>
+
+      <div class="add-hero-wrap" id="addfilm-hero"></div>
+
+      <div class="add-hero-details" id="addfilm-hero-details"></div>
 
       <!-- Collapsible cast/crew curation -->
       <div class="addfilm-curate" id="addfilm-curate">
