@@ -1062,6 +1062,29 @@ input[type="range"]::-webkit-slider-thumb:hover { background: var(--blue-dark); 
   color: var(--blue);
   letter-spacing: -0.5px;
 }
+.constrained-card-actions {
+  display: flex;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+.constrained-wl-btn {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 1px;
+  padding: 6px 10px;
+  background: none;
+  border: 1px solid var(--rule-dark);
+  color: var(--dim);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.12s;
+}
+.constrained-wl-btn:hover { border-color: var(--blue); color: var(--blue); }
+.constrained-wl-btn.on-list {
+  background: var(--green);
+  color: white;
+  border-color: var(--green);
+}
 .constrained-loading {
   padding: 40px 20px;
   text-align: center;

@@ -169,14 +169,12 @@ function renderHeroCard(result) {
   const total = result.predTotal;
   const totalDisplay = (Math.round(total * 10) / 10).toFixed(1);
   const safeTmdbId = parseInt(result.tmdbId);
-  const safeTitle = (result.title || '').replace(/'/g, "\\'");
-  const safeYear = (result.year || '').replace(/'/g, "\\'");
   const onWl = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(result.tmdbId));
   const refreshNeeded = 5 - ((MOVIES.length - (currentUser?.moviesCountAtLastRecommendation || 0)) % 5);
 
   heroEl.innerHTML = `
     <button class="foryou-hero-dismiss" onclick="event.stopPropagation();forYouDismissHero()" title="Next pick">✕</button>
-    <div class="foryou-hero-inner" onclick="predictSelectFilm(${safeTmdbId},'${safeTitle}','${safeYear}');document.getElementById('predict-result').scrollIntoView({behavior:'smooth'})">
+    <div class="foryou-hero-inner" onclick="openRecommendedDetail(${safeTmdbId})">
       ${posterHtml}
       <div class="foryou-hero-body">
         <div class="foryou-hero-source">${getSourceLabel(result)}</div>
@@ -188,7 +186,7 @@ function renderHeroCard(result) {
       </div>
     </div>
     <div class="foryou-hero-actions" onclick="event.stopPropagation()">
-      <button class="btn btn-primary" onclick="predictSelectFilm(${safeTmdbId},'${safeTitle}','${safeYear}');document.getElementById('predict-result').scrollIntoView({behavior:'smooth'})">See full prediction →</button>
+      <button class="btn btn-primary" onclick="openRecommendedDetail(${safeTmdbId})">See details →</button>
       <button class="btn btn-outline" id="foryou-hero-wl-btn" onclick="toggleRecommendWatchlist('${result.tmdbId}')" style="${onWl ? 'background:var(--green);color:white;border-color:var(--green)' : 'color:var(--on-dark);border-color:rgba(255,255,255,0.2)'}">${onWl ? '✓ Watch List' : '+ Watch List'}</button>
     </div>
     <div class="foryou-hero-footer">Based on ${MOVIES.length} films · refreshes after ${refreshNeeded} more rating${refreshNeeded !== 1 ? 's' : ''} · <a onclick="event.stopPropagation();loadForYouRecommendations()">Refresh now</a></div>`;
@@ -211,10 +209,8 @@ function renderSecondaryCards(results) {
       : `<div class="foryou-sec-poster-none"></div>`;
     const total = (Math.round(r.predTotal * 10) / 10).toFixed(1);
     const safeTmdbId = parseInt(r.tmdbId);
-    const safeTitle = (r.title || '').replace(/'/g, "\\'");
-    const safeYear = (r.year || '').replace(/'/g, "\\'");
     return `
-      <div class="foryou-sec-card" onclick="predictSelectFilm(${safeTmdbId},'${safeTitle}','${safeYear}');document.getElementById('predict-result').scrollIntoView({behavior:'smooth'})">
+      <div class="foryou-sec-card" onclick="openRecommendedDetail(${safeTmdbId})">
         <button class="foryou-sec-dismiss" onclick="event.stopPropagation();forYouDismissSecondary(${i})" title="Dismiss">✕</button>
         ${poster}
         <div class="foryou-sec-body">
@@ -1206,15 +1202,17 @@ function renderConstrainedResults(name, type, _tmdbId, results) {
       : `<div class="constrained-card-poster-none"></div>`;
     const total = (Math.round(r.predTotal * 10) / 10).toFixed(1);
     const safeTmdbId = parseInt(r.tmdbId);
-    const safeTitle = (r.title || '').replace(/'/g, "\\'");
-    const safeYear = (r.year || '').replace(/'/g, "\\'");
-    return `<div class="constrained-card" onclick="predictSelectFilm(${safeTmdbId},'${safeTitle}','${safeYear}');document.getElementById('predict-result').scrollIntoView({behavior:'smooth'})">
+    const onWl = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(r.tmdbId));
+    return `<div class="constrained-card" onclick="openRecommendedDetail(${safeTmdbId})">
       ${poster}
       <div class="constrained-card-body">
         <div class="constrained-card-source">${getConstrainedSourceLabel(type, name)}</div>
         <div class="constrained-card-title">${r.title}</div>
         <div class="constrained-card-meta">${r.year || ''}${r.director ? ' · ' + r.director.split(',')[0] : ''}</div>
         <div class="constrained-card-score">~${total}</div>
+      </div>
+      <div class="constrained-card-actions" onclick="event.stopPropagation()">
+        <button id="constrained-wl-${safeTmdbId}" class="constrained-wl-btn${onWl ? ' on-list' : ''}" onclick="toggleRecommendWatchlist('${r.tmdbId}');this.classList.toggle('on-list');this.textContent=this.classList.contains('on-list')?'✓ List':'+ List'">${onWl ? '✓ List' : '+ List'}</button>
       </div>
     </div>`;
   }).join('');
@@ -1225,6 +1223,116 @@ function renderConstrainedResults(name, type, _tmdbId, results) {
       <button class="constrained-clear-btn" onclick="constrainedClear()">× Clear</button>
     </div>
     <div class="constrained-results-grid">${cards}</div>`;
+}
+
+async function openRecommendedDetail(tmdbId) {
+  const cached = currentUser?.predictions?.[String(tmdbId)];
+  if (!cached?.film) return;
+  const film = cached.film;
+  const prediction = cached.prediction;
+  const predTotal = calcPredictedTotal(prediction);
+  const onWl = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(tmdbId));
+
+  const headerHtml = film.poster
+    ? `<div style="position:relative;display:flex;align-items:stretch;background:var(--surface-dark);margin:-40px -40px 28px;padding:28px 32px">
+         <button onclick="closeModal()" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--on-dark-dim);line-height:1;padding:4px 8px">×</button>
+         <img style="width:100px;height:150px;object-fit:cover;flex-shrink:0;display:block" src="https://image.tmdb.org/t/p/w342${film.poster}" alt="">
+         <div style="flex:1;padding:0 40px 0 20px;display:flex;flex-direction:column;justify-content:flex-end">
+           <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px">Recommendation</div>
+           <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(20px,3.5vw,30px);line-height:1.1;color:var(--on-dark);letter-spacing:-0.5px;margin-bottom:8px">${film.title}</div>
+           <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${film.year || ''}</div>
+         </div>
+       </div>`
+    : `<div style="position:relative;background:var(--surface-dark);margin:-40px -40px 28px;padding:32px 40px 28px">
+         <button onclick="closeModal()" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--on-dark-dim);line-height:1;padding:4px 8px">×</button>
+         <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px">Recommendation</div>
+         <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(20px,3.5vw,30px);line-height:1.1;color:var(--on-dark);letter-spacing:-0.5px;margin-bottom:8px">${film.title}</div>
+         <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${film.year || ''}</div>
+       </div>`;
+
+  const predHtml = `
+    <div style="border-top:1px solid var(--rule);padding-top:20px;margin-top:4px;margin-bottom:20px">
+      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:14px">— we think you'd give this —</div>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:16px">
+        <span style="font-family:'Playfair Display',serif;font-size:60px;font-weight:900;font-style:italic;color:var(--blue);letter-spacing:-3px;line-height:1">~${(Math.round(predTotal * 10) / 10).toFixed(1)}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:13px;color:var(--dim);letter-spacing:0.5px">${getLabel(Math.round(predTotal))}</span>
+      </div>
+      ${prediction.reasoning ? `
+        <div style="padding:16px 20px;background:var(--surface-dark);border-radius:6px;margin-bottom:16px">
+          <div style="font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-dark-dim);margin-bottom:8px">Here's our thinking</div>
+          <div style="font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.7;color:var(--on-dark)">${prediction.reasoning}</div>
+        </div>` : ''}
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:4px">
+        ${CATEGORIES.map(cat => {
+          const v = prediction.predicted_scores?.[cat.key];
+          return v != null ? `<div style="text-align:center;padding:10px 6px;background:var(--cream)">
+            <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:0.5px;color:var(--dim);margin-bottom:4px">${cat.label}</div>
+            <div style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:var(--ink)">${v}</div>
+          </div>` : '';
+        }).join('')}
+      </div>
+    </div>`;
+
+  document.getElementById('modalContent').innerHTML = `
+    ${headerHtml}
+    <div id="rec-detail-meta" style="margin-bottom:16px">
+      ${film.overview ? `<div class="modal-overview">${film.overview}</div>` : ''}
+    </div>
+    <div id="rec-detail-streaming" style="margin-bottom:4px"></div>
+    ${predHtml}
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button id="rec-detail-wl-btn" onclick="recDetailToggleWl('${tmdbId}')" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;${onWl ? 'background:var(--green);border:1px solid var(--green);color:white' : 'background:none;border:1px solid var(--rule);color:var(--dim)'};padding:10px 20px;cursor:pointer;flex:1">${onWl ? '✓ On Watch List' : '＋ Watchlist'}</button>
+      <button onclick="closeModal();predictSelectFilm(${parseInt(tmdbId)},'${(film.title||'').replace(/'/g,"\\'")}','${(film.year||'').replace(/'/g,"\\'")}');document.getElementById('predict-result').scrollIntoView({behavior:'smooth'})" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:10px 20px;cursor:pointer;flex:2">Full prediction →</button>
+    </div>
+  `;
+  document.getElementById('filmModal').classList.add('open');
+
+  // Load enriched TMDB details (cast, director, writer, companies, streaming)
+  _loadRecDetailTmdb(tmdbId, film);
+}
+
+async function _loadRecDetailTmdb(tmdbId, film) {
+  try {
+    const [detailRes, creditsRes] = await Promise.all([
+      fetch(`${TMDB}/movie/${tmdbId}?api_key=${TMDB_KEY}`),
+      fetch(`${TMDB}/movie/${tmdbId}/credits?api_key=${TMDB_KEY}`)
+    ]);
+    const detail = await detailRes.json();
+    const credits = await creditsRes.json();
+    const directorsFull = (credits.crew || []).filter(c => c.job === 'Director');
+    const writersFull = (credits.crew || []).filter(c => ['Screenplay', 'Writer', 'Story'].includes(c.job)).filter((v, i, a) => a.findIndex(x => x.name === v.name) === i).slice(0, 3);
+    const castFull = (credits.cast || []).slice(0, 8);
+    const companiesFull = (detail.production_companies || []);
+    const overview = detail.overview || film.overview || '';
+
+    const metaEl = document.getElementById('rec-detail-meta');
+    if (!metaEl) return;
+
+    const chip = (name, type, imgPath = null) => {
+      const isCompany = type === 'company';
+      const imgHtml = imgPath
+        ? (!isCompany
+            ? `<img src="https://image.tmdb.org/t/p/w45${imgPath}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;flex-shrink:0">`
+            : `<span style="display:inline-flex;width:18px;height:18px;background:white;border-radius:3px;flex-shrink:0;align-items:center;justify-content:center;overflow:hidden"><img src="https://image.tmdb.org/t/p/w45${imgPath}" style="width:14px;height:14px;object-fit:contain"></span>`)
+        : '';
+      return `<span class="modal-meta-chip"${imgPath ? ' style="display:inline-flex;align-items:center;gap:5px"' : ''} onclick="closeModal();exploreEntity('${type}','${name.replace(/'/g, "\\'")}')">${imgHtml}${name}</span>`;
+    };
+    const row = (label, people, type) => people.length ? `<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px">
+      <span style="font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);min-width:44px;flex-shrink:0;padding-top:5px">${label}</span>
+      <div style="display:flex;flex-wrap:wrap;gap:4px">${people.map(p => chip(p.name || p, type, p.profile_path || p.logo_path || null)).join('')}</div>
+    </div>` : '';
+
+    metaEl.innerHTML = `
+      ${overview ? `<div class="modal-overview">${overview}</div>` : ''}
+      ${row('Dir.', directorsFull, 'director')}
+      ${row('Wri.', writersFull, 'writer')}
+      ${row('Cast', castFull, 'actor')}
+      ${row('Prod.', companiesFull, 'company')}
+    `;
+
+    const { loadStreamingProviders } = await import('./modal.js');
+    loadStreamingProviders(tmdbId, film.title, film.year, 'rec-detail-streaming');
+  } catch { /* silent */ }
 }
 
 function constrainedClear() {
@@ -1243,6 +1351,18 @@ window.loadForYouRecommendations = loadForYouRecommendations;
 window.constrainedSearchDebounce = constrainedSearchDebounce;
 window.constrainedSelectEntity = constrainedSelectEntity;
 window.constrainedClear = constrainedClear;
+window.openRecommendedDetail = openRecommendedDetail;
+window.recDetailToggleWl = async function(tmdbId) {
+  await window.toggleRecommendWatchlist(tmdbId);
+  const btn = document.getElementById('rec-detail-wl-btn');
+  if (btn) {
+    const nowOn = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(tmdbId));
+    btn.textContent = nowOn ? '✓ On Watch List' : '＋ Watchlist';
+    btn.style.background = nowOn ? 'var(--green)' : 'none';
+    btn.style.color = nowOn ? 'white' : 'var(--dim)';
+    btn.style.borderColor = nowOn ? 'var(--green)' : 'var(--rule)';
+  }
+};
 
 window.findMeAFilmRefresh = function() {
   loadForYouRecommendations();
