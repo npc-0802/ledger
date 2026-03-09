@@ -822,16 +822,16 @@ function renderFriendProfile(el, friend) {
         ${shouldShowHint('overlap_compat', () => true)
           ? renderHint('overlap_compat', '<strong>' + compat.total + '%</strong> — that\'s how similar your taste formulas are. High compatibility means you weight the same categories. It doesn\'t mean you rate the same films the same way.')
           : ''}
-        <div style="padding-bottom:28px;margin-bottom:28px;border-bottom:1px solid var(--rule)">
-          <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:16px">Compatibility</div>
+        <div class="dark-grid" style="background:var(--surface-dark);padding:28px 32px;margin-bottom:28px">
+          <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--on-dark-dim);margin-bottom:16px">Compatibility</div>
           <div style="display:flex;align-items:center;gap:32px;flex-wrap:wrap">
             <div>
               <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:64px;line-height:1;color:${color};letter-spacing:-2px">${compat.total}</div>
-              <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim)">/100</div>
+              <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--on-dark-dim)">/100</div>
             </div>
-            <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);line-height:2">
-              <div>Weight alignment &nbsp;<strong style="color:var(--ink)">${compat.weightPct}%</strong></div>
-              ${compat.coRated.length > 0 ? `<div>Score agreement &nbsp;<strong style="color:var(--ink)">${compat.agreementPct}%</strong></div>` : ''}
+            <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim);line-height:2">
+              <div>Weight alignment &nbsp;<strong style="color:var(--on-dark)">${compat.weightPct}%</strong></div>
+              ${compat.coRated.length > 0 ? `<div>Score agreement &nbsp;<strong style="color:var(--on-dark)">${compat.agreementPct}%</strong></div>` : ''}
               <div>${compat.coRated.length} film${compat.coRated.length !== 1 ? 's' : ''} in common</div>
             </div>
           </div>

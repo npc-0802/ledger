@@ -95,14 +95,14 @@ function renderCalMatchup() {
   function filmCard(m, choice) {
     const poster = m.poster
       ? `<img style="width:100%;height:100%;object-fit:cover;display:block" src="https://image.tmdb.org/t/p/w342${m.poster}" alt="" loading="lazy">`
-      : `<div style="width:100%;height:100%;background:var(--deep-cream)"></div>`;
+      : `<div style="width:100%;height:100%;background:var(--surface-dark-2)"></div>`;
     return `
       <div class="cal-film-card" id="cal-card-${choice}" onclick="calChoose('${choice}')">
-        <div style="aspect-ratio:2/3;overflow:hidden;background:var(--cream);position:relative;margin-bottom:12px">
+        <div style="aspect-ratio:2/3;overflow:hidden;background:var(--surface-dark-2);position:relative;margin-bottom:12px">
           ${poster}
         </div>
-        <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:15px;font-weight:700;line-height:1.3;color:var(--ink);margin-bottom:4px">${m.title}</div>
-        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim)">${m.year || ''}</div>
+        <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:15px;font-weight:700;line-height:1.3;color:var(--on-dark);margin-bottom:4px">${m.title}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim)">${m.year || ''}</div>
       </div>`;
   }
 
@@ -119,18 +119,20 @@ function renderCalMatchup() {
   const promptQuestion = PROMPTS[catKey] || `Better ${catLabel.toLowerCase()}?`;
 
   document.getElementById('cal-matchup-card').innerHTML = `
-    <div style="text-align:center;margin-bottom:24px">
-      <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:8px">${catLabel}</div>
-      <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(28px,5vw,44px);color:var(--ink);letter-spacing:-1px;line-height:1.1">${promptQuestion}</div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 40px 1fr;gap:0;align-items:start">
-      ${filmCard(a, 'a')}
-      <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:16px;color:var(--dim);text-align:center;padding-top:35%">vs</div>
-      ${filmCard(b, 'b')}
-    </div>
-    <div style="text-align:center;margin-top:24px;display:flex;justify-content:center;align-items:center;gap:24px">
-      ${calMatchupIdx > 0 ? `<span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="undoCalChoice()">← Undo</span>` : ''}
-      <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);cursor:pointer;text-decoration:underline;text-underline-offset:2px;letter-spacing:0.5px" onclick="calChoose('skip')">Too close to call</span>
+    <div class="dark-grid" style="background:var(--surface-dark);padding:32px 28px;margin-bottom:20px">
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--on-dark-dim);margin-bottom:8px">${catLabel}</div>
+        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(28px,5vw,44px);color:var(--on-dark);letter-spacing:-1px;line-height:1.1">${promptQuestion}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 40px 1fr;gap:0;align-items:start">
+        ${filmCard(a, 'a')}
+        <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:16px;color:var(--on-dark-dim);text-align:center;padding-top:35%">vs</div>
+        ${filmCard(b, 'b')}
+      </div>
+      <div style="text-align:center;margin-top:24px;display:flex;justify-content:center;align-items:center;gap:24px">
+        ${calMatchupIdx > 0 ? `<span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim);cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="undoCalChoice()">← Undo</span>` : ''}
+        <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim);cursor:pointer;text-decoration:underline;text-underline-offset:2px;letter-spacing:0.5px" onclick="calChoose('skip')">Too close to call</span>
+      </div>
     </div>
   `;
 }

@@ -64,11 +64,13 @@ export function renderWatchlist() {
 
 function emptyState() {
   return `
-    <div style="padding:48px 0;text-align:center;max-width:400px;margin:0 auto">
-      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--dim);margin-bottom:12px">— nothing queued —</div>
-      <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:28px;color:var(--ink);letter-spacing:-0.5px;margin-bottom:10px">What's next?</div>
-      <div style="font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.7;color:var(--dim);margin-bottom:24px">Add films from anywhere in the app, or search below.</div>
-      <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim)">Or check <span style="color:var(--blue);cursor:pointer" onclick="showScreen('predict')">For You</span> for recommendations →</div>
+    <div style="padding:48px 0;text-align:center;display:flex;justify-content:center">
+      <div class="dark-grid" style="background:var(--surface-dark-3);max-width:480px;width:100%;padding:44px 36px;text-align:center">
+        <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--on-dark-dim);margin-bottom:20px">— nothing queued —</div>
+        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:28px;color:var(--on-dark);letter-spacing:-0.5px;margin-bottom:10px">What's next?</div>
+        <div style="font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.7;color:rgba(244,239,230,0.7);margin-bottom:24px">Add films from anywhere in the app, or search below.</div>
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim)">Or check <span style="color:var(--blue);cursor:pointer" onclick="showScreen('predict')">For You</span> for recommendations →</div>
+      </div>
     </div>`;
 }
 
