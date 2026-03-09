@@ -2,6 +2,7 @@ import { MOVIES, currentUser, setMovies, recalcAllTotals } from '../state.js';
 import { ARCHETYPES } from '../data/archetypes.js';
 import { saveToStorage } from './storage.js';
 import { syncToSupabase } from './supabase.js';
+import { updateDisplayName, updateUsername, exportFullData, exportFilmsCSV } from './account.js';
 
 let profileImportedMovies = null;
 
@@ -357,28 +358,132 @@ export function renderProfile() {
         </div>
       </div>
 
-      <!-- LETTERBOXD IMPORT -->
-      <div style="margin-bottom:40px;padding-bottom:32px;border-bottom:1px solid var(--rule);text-align:center">
-        <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:12px">Import from Letterboxd</div>
-        <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--dim);margin-bottom:18px;line-height:1.7">Merge your Letterboxd ratings into your collection. Your existing Palate Map scores always win on duplicates — only new films get added.</div>
-        <div id="profile-import-drop"
-          style="border:2px dashed var(--rule-dark);padding:28px 20px;text-align:center;cursor:pointer;transition:border-color 0.15s;margin-bottom:8px"
-          onclick="document.getElementById('profile-import-file').click()"
-          ondragover="event.preventDefault();this.style.borderColor='var(--blue)'"
-          ondragleave="this.style.borderColor='var(--rule-dark)'"
-          ondrop="profileHandleLetterboxdDrop(event)">
-          <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--dim);letter-spacing:1px;margin-bottom:5px">Drop ratings.csv here</div>
-          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--rule-dark)">Letterboxd → Settings → Import & Export → Export Your Data → unzip → ratings.csv</div>
-        </div>
-        <input type="file" id="profile-import-file" accept=".csv" style="display:none" onchange="profileHandleLetterboxdFile(this)">
-        <div id="profile-import-status" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);margin-top:8px;min-height:16px"></div>
-      </div>
+      <!-- ACCOUNT -->
+      <div style="margin-bottom:40px;padding-top:32px;border-top:2px solid var(--ink)">
+        <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:var(--dim);margin-bottom:24px">Account</div>
 
-      <!-- SIGN OUT -->
-      <div style="padding-top:20px;padding-bottom:40px;border-top:1px solid var(--rule);text-align:center">
-        <span onclick="logOutUser()" style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--dim);cursor:pointer;text-decoration:underline">Sign out</span>
+        <!-- Profile info -->
+        <div style="margin-bottom:28px">
+          <div id="acct-name-row" style="display:flex;align-items:center;gap:12px;margin-bottom:12px;min-height:32px">
+            <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);width:110px;flex-shrink:0">Display name</div>
+            <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--ink);flex:1" id="acct-name-value">${user.display_name || ''}</div>
+            <span onclick="editAccountName()" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);cursor:pointer;text-decoration:underline" id="acct-name-edit-btn">Edit →</span>
+          </div>
+          <div id="acct-username-row" style="display:flex;align-items:center;gap:12px;margin-bottom:12px;min-height:32px">
+            <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);width:110px;flex-shrink:0">Username</div>
+            <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--ink);flex:1" id="acct-username-value">${user.username || ''}</div>
+            <span onclick="editAccountUsername()" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);cursor:pointer;text-decoration:underline" id="acct-username-edit-btn">Edit →</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;min-height:32px">
+            <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);width:110px;flex-shrink:0">Email</div>
+            <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--ink);flex:1">${user.email || '—'}</div>
+            <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">${user.auth_id ? 'via Google' : 'via email'}</span>
+          </div>
+        </div>
+
+        <!-- Your Data -->
+        <div style="margin-bottom:28px;padding-top:20px;border-top:1px solid var(--rule)">
+          <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:14px">Your data</div>
+          <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px">
+            <button onclick="acctExportJSON()" class="btn btn-outline" style="font-size:11px;padding:10px 16px">Export all data (JSON) →</button>
+            <button onclick="acctExportCSV()" class="btn btn-outline" style="font-size:11px;padding:10px 16px">Export films (CSV) →</button>
+          </div>
+          <div style="margin-top:20px">
+            <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-bottom:10px">Import from Letterboxd</div>
+            <div id="profile-import-drop"
+              style="border:2px dashed var(--rule-dark);padding:20px 16px;text-align:center;cursor:pointer;transition:border-color 0.15s;margin-bottom:6px"
+              onclick="document.getElementById('profile-import-file').click()"
+              ondragover="event.preventDefault();this.style.borderColor='var(--blue)'"
+              ondragleave="this.style.borderColor='var(--rule-dark)'"
+              ondrop="profileHandleLetterboxdDrop(event)">
+              <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);letter-spacing:1px;margin-bottom:4px">Drop ratings.csv here</div>
+              <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--rule-dark)">Letterboxd → Settings → Import & Export → Export Your Data → unzip → ratings.csv</div>
+            </div>
+            <input type="file" id="profile-import-file" accept=".csv" style="display:none" onchange="profileHandleLetterboxdFile(this)">
+            <div id="profile-import-status" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);margin-top:6px;min-height:16px"></div>
+          </div>
+        </div>
+
+        <!-- Danger zone -->
+        <div style="margin-bottom:28px;padding-top:20px;border-top:1px solid var(--rule)">
+          <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:14px">Danger zone</div>
+          <span onclick="startAccountDeletion()" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--red);cursor:pointer;text-decoration:underline">Delete account →</span>
+          <div id="acct-delete-area"></div>
+        </div>
+
+        <!-- Sign out -->
+        <div style="padding-top:20px;border-top:1px solid var(--rule);text-align:center">
+          <span onclick="logOutUser()" style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--dim);cursor:pointer;text-decoration:underline">Sign out</span>
+          <div style="margin-top:8px">
+            <span onclick="logOutUserEverywhere()" style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);cursor:pointer;text-decoration:underline;opacity:0.6">Sign out everywhere</span>
+          </div>
+        </div>
       </div>
 
     </div>
   `;
 }
+
+// ── ACCOUNT INLINE EDITING ──
+
+window.editAccountName = function() {
+  const row = document.getElementById('acct-name-row');
+  if (!row) return;
+  const current = currentUser?.display_name || '';
+  row.innerHTML = `
+    <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);width:110px;flex-shrink:0">Display name</div>
+    <input id="acct-name-input" class="field-input" value="${current}" style="flex:1;font-family:'DM Mono',monospace;font-size:11px;padding:6px 10px;max-width:240px" maxlength="32">
+    <button onclick="saveAccountName()" class="btn btn-primary" style="font-size:10px;padding:6px 14px">Save</button>
+    <button onclick="renderProfile()" class="btn btn-outline" style="font-size:10px;padding:6px 14px">Cancel</button>
+  `;
+  document.getElementById('acct-name-input')?.focus();
+};
+
+window.saveAccountName = async function() {
+  const input = document.getElementById('acct-name-input');
+  if (!input) return;
+  await updateDisplayName(input.value);
+};
+
+window.editAccountUsername = function() {
+  const row = document.getElementById('acct-username-row');
+  if (!row) return;
+  const current = currentUser?.username || '';
+  row.innerHTML = `
+    <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);width:110px;flex-shrink:0">Username</div>
+    <input id="acct-username-input" class="field-input" value="${current}" style="flex:1;font-family:'DM Mono',monospace;font-size:11px;padding:6px 10px;max-width:240px" maxlength="24">
+    <button onclick="saveAccountUsername()" class="btn btn-primary" style="font-size:10px;padding:6px 14px">Save</button>
+    <button onclick="renderProfile()" class="btn btn-outline" style="font-size:10px;padding:6px 14px">Cancel</button>
+  `;
+  const inp = document.getElementById('acct-username-input');
+  if (inp) {
+    inp.focus();
+    inp.addEventListener('input', () => {
+      inp.value = inp.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+    });
+  }
+};
+
+window.saveAccountUsername = async function() {
+  const input = document.getElementById('acct-username-input');
+  if (!input) return;
+  await updateUsername(input.value);
+};
+
+window.acctExportJSON = function() { exportFullData(); };
+window.acctExportCSV = function() { exportFilmsCSV(); };
+
+window.logOutUserEverywhere = async function() {
+  const { sb } = await import('./supabase.js');
+  await sb.auth.signOut({ scope: 'global' });
+  const keysToRemove = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && (key.startsWith('palatemap_') || key.startsWith('palate_') ||
+        key === 'filmRankings_v1' || key === 'ledger_user' || key.startsWith('sb-'))) {
+      keysToRemove.push(key);
+    }
+  }
+  keysToRemove.forEach(k => localStorage.removeItem(k));
+  location.reload();
+};
