@@ -461,7 +461,26 @@ function deriveArchetype(answers) {
   if (answers[5] === 'C') { scores.Absolutist+=1; harmonySensitivity = 1.0; }
   if (answers[5] === 'B') { harmonySensitivity = 0.4; }
 
-  const sorted = Object.entries(scores).sort((a,b) => b[1]-a[1]);
+  // Build implied weight vector from quiz scores for cosine tiebreaker
+  const keys = ['plot','execution','acting','production','enjoyability','rewatchability','ending','uniqueness'];
+  const impliedWeights = {};
+  keys.forEach(k => {
+    impliedWeights[k] = Object.entries(scores)
+      .filter(([, s]) => s > 0)
+      .reduce((sum, [name, s]) => sum + (ARCHETYPES[name].weights[k] || 1) * s, 0);
+  });
+  const cosineToImplied = (name) => {
+    const aw = ARCHETYPES[name].weights;
+    const dot = keys.reduce((s, k) => s + (impliedWeights[k] || 0) * (aw[k] || 1), 0);
+    const magI = Math.sqrt(keys.reduce((s, k) => s + (impliedWeights[k] || 0) ** 2, 0));
+    const magA = Math.sqrt(keys.reduce((s, k) => s + (aw[k] || 1) ** 2, 0));
+    return magI > 0 && magA > 0 ? dot / (magI * magA) : 0;
+  };
+
+  const sorted = Object.entries(scores).sort((a, b) => {
+    if (b[1] !== a[1]) return b[1] - a[1];
+    return cosineToImplied(b[0]) - cosineToImplied(a[0]);
+  });
   return {
     primary: sorted[0][0],
     secondary: sorted[1][1] > 0 ? sorted[1][0] : null,

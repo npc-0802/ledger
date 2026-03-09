@@ -84,7 +84,12 @@ function detectArchetype(weights) {
     const archVec = norm(arch.weights);
     const sim = userVec.reduce((s, u, i) => s + u * archVec[i], 0);
     return { name, sim };
-  }).sort((a, b) => b.sim - a.sim);
+  }).sort((a, b) => {
+    if (b.sim !== a.sim) return b.sim - a.sim;
+    // Exact cosine tie: break by which archetype has a higher weight on the user's strongest category
+    const userMax = keys.reduce((best, k) => (weights[k] || 1) > (weights[best] || 1) ? k : best, keys[0]);
+    return (ARCHETYPES[b.name].weights[userMax] || 1) - (ARCHETYPES[a.name].weights[userMax] || 1);
+  });
   return { primary: scores[0].name, secondary: scores[1].name };
 }
 
