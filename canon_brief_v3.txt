@@ -1,5 +1,5 @@
 Palate Map
-Product Brief · Living Document · v3.23
+Product Brief · Living Document · v3.24
 Last updated: March 2026
 Confidential — do not distribute
 
@@ -62,7 +62,7 @@ Design Principles
 • Rankings nav icon is a medal (ribbon + circle), not a hamburger. Analysis uses bar chart. Icons are distinct across all 5 tabs.
 
 03  Current Architecture
-Status: Phase 1 complete, Phase 2 complete, Phase 3.1–3.8 complete, 3.11 complete, 3.13 complete, 3.15–3.23 complete. Vite multi-file vanilla JS.
+Status: Phase 1 complete, Phase 2 complete, Phase 3.1–3.8 complete, 3.11 complete, 3.13 complete, 3.15–3.24 complete. Vite multi-file vanilla JS.
 
 File Structure
 palatemap/
@@ -188,8 +188,8 @@ Score scale: 0–100 (not 0–10).
 
 9 Archetypes (internally) / Palate Types (brand voice)
 Visceralist · Formalist · Narrativist · Humanist · Completionist · Sensualist · Revisionist · Absolutist · Atmospherist
-Each has: weight distribution, description (2–3 sentences, 2nd person, observational), quote.
-Derived from 6-question onboarding quiz. Editable post-onboarding via weight editor (click username in masthead → Profile → "Edit weights →").
+Each has: weight distribution (1–4 scale), description (2–3 sentences, 2nd person, observational), quote.
+Derived from 6-question onboarding quiz. Quiz answers produce archetype scores; an implied weight vector is computed by blending all positively-scored archetypes' weights proportional to their scores, then normalized to a 1–4 scale. This means the user's weights reflect their actual answers, not just the winning archetype's preset. Editable post-onboarding via weight editor (click username in masthead → Profile → "Edit weights →").
 
 06  Screens & Features (Current)
 Cold Landing
@@ -199,7 +199,7 @@ Right column: dark surface card ("Your taste has a shape. Let's find it." + bran
 
 Onboarding (3 entry points)
 New user: cold landing → auth step (Google OAuth primary, or name + email → magic link) → 6-question quiz (dark surface intro block: "Six questions. Your taste, revealed.") → archetype reveal (dark surface: name + description + quote + secondary + username) → "See what your palate says →" → starter films → welcome modal → main app.
-Starter films: after archetype reveal, presents a curated grid of 10 films selected for the user's palate type (from starter-films.js, 9 archetypes × 10 films + 10 universal fallbacks). 4-column desktop grid, 2-column mobile. Each card shows poster (2:3 aspect ratio, object-fit cover). Tapping a card inserts an inline rate card immediately below the clicked poster (using grid-column: 1/-1 to span full width), preserving spatial continuity. 2-column slider layout with archetype-weighted defaults. After rating, auto-scrolls back to top of the overlay. Progress bar tracks rated count. "Show more" reveals additional films. Skip available at any point. Cross-fade animation between reveal and starters steps.
+Starter films: after archetype reveal, presents a curated grid of 10 films selected for the user's palate type (from starter-films.js, 9 archetypes × 10 films + 10 universal fallbacks). 4-column desktop grid, 2-column mobile. Films are genre-grouped ("Dramas & thrillers" / "Sci-fi, animation & more") — but if either group would have fewer than 2 films, all are shown under a single "Selected for you" label instead. Each card shows poster (2:3 aspect ratio, object-fit cover). Tapping a card inserts an inline rate card immediately below the clicked poster (using grid-column: 1/-1 to span full width), preserving spatial continuity. 2-column slider layout with quiz-derived weighted defaults. After rating, auto-scrolls back to top of the overlay. Progress bar tracks rated count. "Show more" reveals additional films. Skip available at any point. Cross-fade animation between reveal and starters steps.
 Returning user: "Log in →" link on auth step. Shows Google OAuth or email-only magic link (no name field). On click: redirects to Google or sends magic link. Supabase session auto-loads profile on return. Legacy profiles with no auth_id are auto-linked on first sign-in (auth session linked to localStorage user, auth_id + email written to Supabase row).
 Letterboxd import: drag-and-drop ratings.csv → parses star ratings (×20 = score) → loads films → proceeds to quiz. CTA on name step ("On Letterboxd? Import your ratings →").
 Quiz overlay: flex-column, flex-start, 48px top padding so content is scrollable and never clips. "← Start over" button renders below the card (outside it) when a pending auth session exists — plain border style, visually separated, hidden on all non-quiz steps.
@@ -343,7 +343,7 @@ Terms of Service (public/tos.html)
 Static standalone page at palatemap.com/tos.html. Same fonts/colors/masthead as app, no app JS. Max 760px centered. 13 sections: acceptance, description, accounts, data ownership, AI-generated content disclaimers, subscriptions/billing, acceptable use (no scraping/reverse engineering/competing model training), IP, disclaimers, limitation of liability, changes, governing law, contact. Linked from cold landing sign-up area ("By signing up you agree to our Terms of Service and Privacy Policy") and alongside existing privacy.html link.
 
 Archetype / Weight Editor Modal
-"Edit weights →" in Profile. Weight inputs capped at 5 (max). Save recalcs all totals, detects archetype shift via cosine similarity, shows toast if primary archetype changes ("OldArchetype → NewArchetype"), syncs to Supabase. Profile fingerprint/radar and all weight-derived UI rerender immediately on save — no page refresh required.
+"Edit weights →" in Profile. Weight inputs capped at 4 (max, 1–4 scale). Save recalcs all totals, detects archetype shift via cosine similarity, shows toast if primary archetype changes ("OldArchetype → NewArchetype"), syncs to Supabase. Profile fingerprint/radar and all weight-derived UI rerender immediately on save — no page refresh required.
 
 Masthead
 Wordmark ("palate map") is clickable — navigates to Rankings (home). Search bar spans the full eyebrow area below the wordmark: white background, full border, 11px DM Mono, opens global search overlay on click. All other meta items (cloud status, storage status, export, film count, display name) removed from visible UI; ghost elements remain in DOM for JS compatibility.
@@ -388,7 +388,7 @@ Phase 2 — Polish [COMPLETE]
 • 2.6 Migrate hosting to Netlify for auto-deploy. [deferred — netlify.toml committed and ready, DNS cutover remaining]
 • 2.7 Explore polish ✓ — TMDB portraits in rankings list (persons + company logos), Craft/Experience axis on entity pages, uncharted empty state.
 • 2.8 Letterboxd import ✓ — replaces JSON import in onboarding; also accessible from profile for existing users; dedup logic (Palate Map wins).
-• 2.9 Archetype auto-detection ✓ — cosine similarity on weight vectors; toast on shift; weight cap at 5.
+• 2.9 Archetype auto-detection ✓ — cosine similarity on weight vectors; toast on shift; weight cap at 4.
 • 2.10 Predict lock ✓ — screen locked with uncharted state until 10 films rated.
 
 Phase 3 — Growth Features [IN PROGRESS]
@@ -482,6 +482,15 @@ Phase 3 — Growth Features [IN PROGRESS]
   - Design principle codified: dark surfaces = identity moments, paper surfaces = daily utility — the seam between them should be designed, not hard-swapped.
   - New CSS classes: .add-search-state, .add-headline, .add-subline, .add-search-wrap, .add-search-input, .add-search-icon, .add-results, .add-result, .add-hero-wrap, .add-hero-poster, .add-hero-body, .add-hero-title, .add-hero-meta, .add-hero-overview, .add-hero-cta, .add-hero-secondary, .add-hero-details, .add-detail-row, .add-detail-chip, .add-recent, .add-recent-card, .profile-palate-row.
   - Hints system (src/modules/hints.js): shouldShowHint(key) / renderHint(key, config) with localStorage persistence for dismissable educational hints.
+
+• 3.24 Onboarding Weight Accuracy ✓ — quiz-derived weights replace archetype presets:
+  - Weight scale: 1–4 (was 1–5, too extreme at max). All archetype preset weights and weight editor cap updated.
+  - Quiz-derived weights: deriveArchetype() now computes an implied weight vector from the user's actual quiz answers — a score-weighted blend of all positively-scored archetype weights — then normalizes to 1–4. Users no longer get identical weights just because they share a primary archetype.
+  - Atmospherist weights decoupled: rewatchability 4→2, enjoyability 3→4, production 2→3. Atmospherist is about mood/atmosphere/feeling, not rewatch frequency. Revisionist remains the rewatch-focused archetype.
+  - Q5 strengthened: "great performance + messy script" now contributes Humanist+2/Visceralist+1 (A), Narrativist+1 (B), Absolutist+2/Formalist+1 (C), Atmospherist+1 (D) — was mostly harmony-only.
+  - Q3=B: "only if mood is right" now gives Atmospherist+1 (mood-conditional rewatching is an Atmospherist signal).
+  - Starter film genre grouping: groups with <2 films collapse to a single "Selected for you" label (fixes Atmospherist's 1-film "Dramas" section).
+  - Known quiz blind spots (future): production never independent of execution; enjoyability has no dedicated question; Sensualist hard to reach as primary.
 
 Phase 4 — Platform
 • 4.1 Universal entity search — global search surfacing any director/actor/writer/company (entity-level, not film-level — film search is covered by 3.8 Global Search). Entity page shows: TMDB data, user's own rankings (if any), community avg score (requires 4.2). Requires schema change: separate palatemap_ratings table (see below).
@@ -667,4 +676,4 @@ This migration should be planned alongside Phase 4.2 (community ratings) as they
 
 Engineering rule: until the palatemap_predictions table exists, every prediction call must store the full predicted_scores, archetype_at_time, and weights_at_time on the prediction entry in currentUser.predictions. This ensures the data needed for future cross-user learning is captured now and will be migratable when the schema is ready. Do not store only the predicted total — always store the full score breakdown.
 
-Palate Map · private product brief · v3.22 · do not distribute
+Palate Map · private product brief · v3.24 · do not distribute

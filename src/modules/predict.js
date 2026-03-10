@@ -32,6 +32,7 @@ let predictSelectedFilm = null;
 let lastPrediction = null;
 let recommendPage = 1;
 let dismissedTmdbIds = new Set(); // tracks films dismissed this session
+let previousRecommendationIds = new Set(); // tracks previous cycle's recommendation tmdbIds
 let constrainedDebounceTimer = null;
 
 export function initPredict() {
@@ -158,9 +159,9 @@ function renderProgressNudge() {
   nudgeEl.style.display = '';
   nudgeEl.className = 'foryou-nudge';
   nudgeEl.innerHTML = `
-    <div class="foryou-nudge-text">${remaining} more film${remaining !== 1 ? 's' : ''} until your recommendations get significantly more accurate.</div>
+    <div class="foryou-nudge-text">Every rating sharpens your picks. You're off to a strong start.</div>
     <div class="foryou-nudge-bar-wrap"><div class="foryou-nudge-bar" style="width:${pct}%;background:${paletteColor}"></div></div>
-    <div class="foryou-nudge-count">${MOVIES.length} / 50</div>`;
+    <div class="foryou-nudge-count">${MOVIES.length} films rated</div>`;
 }
 
 function timeAgo(date) {
@@ -228,7 +229,7 @@ function renderHeroCard(result) {
       </div>
     </div>
     <div class="foryou-hero-actions" onclick="event.stopPropagation()">
-      <button class="btn btn-primary" onclick="openRecommendedDetail(${safeTmdbId})">See details →</button>
+      <button class="btn btn-primary" onclick="openRecommendedDetail(${safeTmdbId})">Full prediction →</button>
       <button class="btn btn-outline" id="foryou-hero-wl-btn" onclick="toggleRecommendWatchlist('${result.tmdbId}')" style="${onWl ? 'background:var(--green);color:white;border-color:var(--green)' : 'color:var(--on-dark);border-color:rgba(255,255,255,0.2)'}">${onWl ? '✓ Watch List' : '+ Watch List'}</button>
     </div>
     <div class="foryou-hero-footer">Based on ${MOVIES.length} films · ${canRefreshRecommendations()
@@ -271,6 +272,7 @@ function renderSecondaryCards(results) {
         <div class="foryou-sec-body">
           <div class="foryou-sec-title">${r.title}</div>
           <div class="foryou-sec-meta">${r.year || ''}</div>
+          <button class="foryou-sec-seen-btn" onclick="event.stopPropagation();forYouSeenIt(${i}, '${r.title.replace(/'/g, "\\'")}', ${safeTmdbId})">Seen it →</button>
         </div>
       </div>`;
   }).join('');
@@ -1314,16 +1316,30 @@ async function findMeAFilm() {
 
     const results = top5
       .filter(c => !alreadyKnown(c))
+      .filter(c => !previousRecommendationIds.has(String(c.tmdbId)))
       .map(c => {
         const cached = currentUser?.predictions?.[String(c.tmdbId)];
         if (!cached?.prediction) return null;
         return { ...c, prediction: cached.prediction, predTotal: calcPredictedTotal(cached.prediction) };
       })
       .filter(Boolean)
-      .sort((a, b) => b.predTotal - a.predTotal)
-      .slice(0, 5);
+      .sort((a, b) => b.predTotal - a.predTotal);
 
-    if (!results.length) {
+    // Actor cap: max 1 film per lead actor (first credited cast member)
+    const actorSeen = new Set();
+    const actorCapped = [];
+    for (const r of results) {
+      const lead = (r.cast || '').split(',').map(s => s.trim()).filter(Boolean)[0];
+      if (lead && actorSeen.has(lead)) continue;
+      if (lead) actorSeen.add(lead);
+      actorCapped.push(r);
+    }
+    const finalResults = actorCapped.slice(0, 5);
+
+    // Update previousRecommendationIds for next refresh cycle
+    previousRecommendationIds = new Set(finalResults.map(r => String(r.tmdbId)));
+
+    if (!finalResults.length) {
       const heroEl = document.getElementById('foryou-hero');
       if (heroEl) heroEl.innerHTML = `<div style="padding:40px 20px;text-align:center;font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">Couldn't generate recommendations right now. <a style="color:var(--blue);cursor:pointer;text-decoration:underline" onclick="loadForYouRecommendations()">Try again</a></div>`;
       return;
@@ -1333,7 +1349,7 @@ async function findMeAFilm() {
     const now = new Date().toISOString();
     setCurrentUser({
       ...currentUser,
-      cachedRecommendations: results,
+      cachedRecommendations: finalResults,
       lastRecommendationAt: now,
       moviesCountAtLastRecommendation: MOVIES.length,
       recommendationFingerprint: libraryFingerprint()
@@ -1342,8 +1358,8 @@ async function findMeAFilm() {
     syncToSupabase();
 
     renderForYouEyebrow(now);
-    renderHeroCard(results[0]);
-    renderSecondaryCards(results.slice(1, 5));
+    renderHeroCard(finalResults[0]);
+    renderSecondaryCards(finalResults.slice(1, 5));
     updateRefreshButtonState();
 
     // Load discovery as part of the same refresh cycle
@@ -2185,6 +2201,35 @@ window.forYouDismissSecondary = function(index) {
   setCurrentUser({ ...currentUser, cachedRecommendations: cached });
   saveUserLocally();
   renderSecondaryCards(cached.slice(1, 5));
+  // If fewer than 6 items remain in cache, trigger background refresh
+  if (cached.length < 6) {
+    loadForYouRecommendations();
+  }
+};
+
+window.forYouSeenIt = function(index, title, tmdbId) {
+  // Dismiss from recommendations
+  const cached = currentUser?.cachedRecommendations;
+  if (cached && index + 1 < cached.length) {
+    const actualIndex = index + 1;
+    dismissedTmdbIds.add(String(cached[actualIndex].tmdbId));
+    cached.splice(actualIndex, 1);
+    setCurrentUser({ ...currentUser, cachedRecommendations: cached });
+    saveUserLocally();
+    renderSecondaryCards(cached.slice(1, 5));
+    if (cached.length < 6) {
+      loadForYouRecommendations();
+    }
+  }
+  // Navigate to Add Film with title pre-filled
+  window.showScreen('add');
+  setTimeout(() => {
+    const search = document.getElementById('f-search');
+    if (search) {
+      search.value = title;
+      import('./addfilm.js').then(m => m.liveSearch(title));
+    }
+  }, 100);
 };
 
 window.loadFullRecommendation = function(tmdbId, title, year) {

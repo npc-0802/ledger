@@ -19,7 +19,7 @@ async function skipToStarters(page) {
   // Wait for reveal, then proceed to starters
   await page.waitForSelector('.ob-reveal-card', { timeout: 5000 });
   await page.waitForTimeout(600);
-  await page.locator('button:has-text("See what your palate says")').click();
+  await page.locator('button:has-text("Show what your palate says")').click();
   await page.waitForTimeout(600);
   await page.waitForSelector('.starter-card-v2', { timeout: 5000 });
 }

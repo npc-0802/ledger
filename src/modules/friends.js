@@ -239,7 +239,7 @@ window.friendSearch = async function() {
     const hasRequestedMe = incomingIds.has(u.id);
     let action;
     if (isFriend) {
-      action = `<span onclick="openFriendProfile('${u.id}')" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);cursor:pointer;text-decoration:underline">View →</span>`;
+      action = `<span onclick="openFriendProfile('${u.id}')" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);cursor:pointer;text-decoration:underline">Open →</span>`;
     } else if (hasRequestedMe) {
       action = `<span onclick="scrollToIncomingRequests()" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--action);cursor:pointer;text-decoration:underline">Accept request →</span>`;
     } else {
@@ -333,7 +333,7 @@ window.openFriendFilmDetail = function(index) {
         <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:24px;color:var(--blue);letter-spacing:-0.5px">${myTotal}</div>
         <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">/100</div>
         <div style="flex:1"></div>
-        <button onclick="document.getElementById('friend-film-modal').remove();openModal(${myIdx})" style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;background:none;color:var(--blue);border:1px solid var(--blue);padding:6px 12px;cursor:pointer">View →</button>
+        <button onclick="document.getElementById('friend-film-modal').remove();openModal(${myIdx})" style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;background:none;color:var(--blue);border:1px solid var(--blue);padding:6px 12px;cursor:pointer">Open →</button>
       </div>`
     : `<div style="display:flex;gap:8px;padding:16px 0;border-bottom:1px solid var(--rule)">
         <button id="friend-wl-btn" onclick="friendFilmWatchlist(${index})" style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:0.5px;background:${onWatchlist ? 'var(--green)' : 'none'};color:${onWatchlist ? 'white' : 'var(--dim)'};border:1px solid ${onWatchlist ? 'var(--green)' : 'var(--rule-dark)'};padding:8px 14px;cursor:pointer;white-space:nowrap">${onWatchlist ? '✓ On Watch List' : '＋ Watchlist'}</button>
@@ -663,7 +663,7 @@ window.confirmInviteAdd = async function(requesterId) {
     friendsCache = null;
     window.showToast?.('Connected!', {
       type: 'success', duration: 6000,
-      action: { label: 'View profile →', fn: () => { window.showScreen?.('friends'); window.openFriendProfile?.(requesterId); } }
+      action: { label: 'Open profile →', fn: () => { window.showScreen?.('friends'); window.openFriendProfile?.(requesterId); } }
     });
   } else {
     window.showToast?.('Could not connect. Try again.', { type: 'error' });
@@ -723,7 +723,7 @@ function friendListHTML(friends, incoming = [], outgoing = []) {
           <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:17px;color:var(--ink)">${f.display_name}</div>
           <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-top:2px">${f.archetype}${f.archetype_secondary ? ' · ' + f.archetype_secondary : ''}</div>
         </div>
-        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim)">View →</div>
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim)">Open →</div>
       </div>`;
     }).join('');
 

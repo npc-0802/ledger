@@ -41,6 +41,16 @@ function renderObStep() {
   const signoutWrap = document.getElementById('ob-signout-wrap');
   if (signoutWrap) signoutWrap.style.display = 'none';
 
+  // Render topbar
+  const topbar = document.getElementById('ob-topbar');
+  if (topbar) {
+    const userLabel = currentUser?.display_name || currentUser?.email || obDisplayName || '';
+    topbar.innerHTML = `
+      <span class="ob-topbar-wordmark">palate map</span>
+      ${userLabel ? `<span class="ob-topbar-user">${userLabel}</span>` : ''}
+    `;
+  }
+
   if (obStep === 'name') {
     card.innerHTML = `
       <div class="ob-eyebrow">palate map · let's begin</div>
@@ -75,7 +85,7 @@ function renderObStep() {
     card.innerHTML = `
       <div class="ob-eyebrow">palate map · check your inbox</div>
       <div class="ob-title">Magic link sent.</div>
-      <div class="ob-sub">We sent a sign-in link to <strong>${obMagicLinkEmail}</strong>. Click it to continue — it'll bring you right back.</div>
+      <div class="ob-sub">We sent a sign-in link to <strong>${obMagicLinkEmail}</strong>. Open it to continue — it'll bring you right back.</div>
       <button class="ob-btn" id="ob-resend-btn" onclick="obResendMagicLink()" style="margin-bottom:16px">Resend link →</button>
       <div style="text-align:center">
         <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);letter-spacing:1px;cursor:pointer;text-decoration:underline" onclick="obBack()">← Back</span>
@@ -115,7 +125,7 @@ function renderObStep() {
       <div style="background:var(--cream);border:1px solid var(--rule);padding:14px 16px;margin-bottom:20px;font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);line-height:1.9">
         <strong style="color:var(--ink)">How to export from Letterboxd:</strong><br>
         1. letterboxd.com → Settings → <strong>Import & Export</strong><br>
-        2. Click <strong>Export Your Data</strong> → download the .zip<br>
+        2. Select <strong>Export Your Data</strong> → download the .zip<br>
         3. Unzip → upload <strong>ratings.csv</strong> below
       </div>
 
@@ -158,17 +168,19 @@ function renderObStep() {
     const questionHtml = `
       <div class="ob-progress">Question ${obStep + 1} of 6</div>
       <div class="ob-progress-bar"><div class="ob-progress-fill" style="width:${pct}%"></div></div>
-      <div class="ob-question">${q.q}</div>
+      <div class="ob-question" style="font-family:'DM Sans',sans-serif;font-size:17px;line-height:1.6;font-style:normal">${q.q}</div>
       ${q.options.map(o => `
-        <div class="ob-option ${obAnswers[obStep] === o.key ? 'selected' : ''}" onclick="obSelectAnswer(${obStep}, '${o.key}', this)">
+        <div class="ob-option ${obAnswers[obStep] === o.key ? 'selected' : ''}" role="radio" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="obSelectAnswer(${obStep}, '${o.key}', this)">
+          <div class="ob-option-radio"></div>
           <span class="ob-option-key">${o.key}</span>
           <span class="ob-option-text">${o.text}</span>
         </div>`).join('')}
       <div class="ob-nav">
-        ${obStep > 0 ? `<button class="ob-btn-secondary" onclick="obBack()">← Back</button>` : ''}
-        <button class="ob-btn-primary" id="ob-next-btn" onclick="obNext()" ${obAnswers[obStep] ? '' : 'disabled'}>
-          ${obStep === 5 ? 'See my archetype →' : 'Next →'}
+        ${obStep > 0 ? `<button class="ob-btn-secondary" style="color:var(--ink);border:1.5px solid var(--rule-dark)" onclick="obBack()">← Back</button>` : ''}
+        <button class="ob-btn-primary" id="ob-next-btn" onclick="obNextOrWarn()">
+          ${obStep === 5 ? 'Reveal your archetype →' : 'Next →'}
         </button>
+        <div id="ob-next-warning" style="display:none;font-family:'DM Mono',monospace;font-size:11px;color:var(--persimmon);text-align:center;margin-top:8px;width:100%;opacity:1;transition:opacity 0.4s ease"></div>
       </div>
     `;
     if (isFirstQuestion) {
@@ -220,7 +232,7 @@ function renderObStep() {
           Your username: <strong style="color:var(--ink)" id="ob-reveal-username">—</strong><br>
           <span style="font-size:10px">Save this to restore your profile on any device.</span>
         </div>
-        <button class="ob-btn" onclick="obFinishFromReveal()" style="opacity:0;animation:fadeIn 0.4s ease 0.6s both">See what your palate says →</button>
+        <button class="ob-btn" onclick="obFinishFromReveal()" style="opacity:0;animation:fadeIn 0.4s ease 0.6s both">Show what your palate says →</button>
       `;
       card.style.opacity = '1';
       setTimeout(() => {
@@ -476,6 +488,20 @@ window.obNext = function() {
   if (!obAnswers[obStep]) return;
   if (obStep < 5) { transitionQuizStep(obStep + 1); }
   else { obStep = 'reveal'; renderObStep(); }
+};
+
+window.obNextOrWarn = function() {
+  if (obAnswers[obStep]) {
+    obNext();
+    return;
+  }
+  const warn = document.getElementById('ob-next-warning');
+  if (!warn) return;
+  warn.textContent = 'Pick an answer to continue';
+  warn.style.display = 'block';
+  warn.style.opacity = '1';
+  setTimeout(() => { warn.style.opacity = '0'; }, 1600);
+  setTimeout(() => { warn.style.display = 'none'; }, 2000);
 };
 
 window.obFinishFromReveal = function() {

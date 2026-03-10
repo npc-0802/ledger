@@ -65,21 +65,21 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
           <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--blue);padding-top:3px;flex-shrink:0;user-select:none">01</div>
           <div>
             <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:18px;color:var(--ink);margin-bottom:6px">Your formula. Not an algorithm.</div>
-            <div style="font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.7;color:var(--dim)">A short quiz reveals how you weight what matters in film. Every rating sharpens it. The result is a scoring formula that's entirely yours — nobody else's looks the same.</div>
+            <div style="font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.7;color:var(--dim)">A short quiz reveals how you weigh what matters in film. Every rating sharpens it. The result is a scoring formula as unique as your taste.</div>
           </div>
         </div>
         <div style="display:flex;gap:22px;margin-bottom:32px">
           <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--blue);padding-top:3px;flex-shrink:0;user-select:none">02</div>
           <div>
             <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:18px;color:var(--ink);margin-bottom:6px">Know if you'll love it before you watch.</div>
-            <div style="font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.7;color:var(--dim)">The AI reads your formula and predicts how you'd score any film you haven't seen — with reasoning drawn from your actual ratings. Not generic recommendations. A prediction built from your taste.</div>
+            <div style="font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.7;color:var(--dim)">Pick any film. The AI reads your formula and predicts all 8 of your category scores, with reasoning drawn from your actual ratings.</div>
           </div>
         </div>
         <div style="display:flex;gap:22px;margin-bottom:32px">
           <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--blue);padding-top:3px;flex-shrink:0;user-select:none">03</div>
           <div>
-            <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:18px;color:var(--ink);margin-bottom:6px">Rate what you've seen. Discover what you are.</div>
-            <div style="font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.7;color:var(--dim)">Score films across eight dimensions. Over time, patterns surface — your palate type, your tendencies, the signatures that define how you experience cinema.</div>
+            <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:18px;color:var(--ink);margin-bottom:6px">Eight dimensions. One honest score.</div>
+            <div style="font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.7;color:var(--dim)">Score films across craft and experience — plot, execution, acting, production, enjoyability, rewatchability, ending, uniqueness. Over time, patterns emerge.</div>
           </div>
         </div>
         <div style="display:flex;gap:22px">
@@ -141,6 +141,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 <!-- ══════════════ ONBOARDING OVERLAY ══════════════ -->
 <div id="onboarding-overlay" style="display:none">
+  <div class="ob-topbar" id="ob-topbar"></div>
   <div class="ob-card" id="ob-card-content"></div>
   <div id="ob-signout-wrap" style="display:none;margin-top:16px;width:100%;max-width:600px">
     <button onclick="obSignOut()" style="width:100%;padding:14px;background:none;color:var(--dim);border:1px solid var(--rule-dark);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;transition:opacity 0.2s" onmouseover="this.style.opacity='0.6'" onmouseout="this.style.opacity='1'">← Start over</button>
@@ -173,7 +174,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <button class="nav-btn" id="nav-friends" onclick="showScreen('friends')" style="position:relative"><svg width="14" height="13" viewBox="0 0 14 13" fill="none"><circle cx="4.5" cy="3.5" r="2.5" fill="currentColor"/><path d="M0 12c0-2.5 2-4.5 4.5-4.5S9 9.5 9 12" stroke="currentColor" stroke-width="1.4" fill="none"/><circle cx="11" cy="3.5" r="2" fill="currentColor" opacity="0.45"/><path d="M9.5 12c0-2 1-3.5 2.5-4.2" stroke="currentColor" stroke-width="1.2" fill="none" opacity="0.45" stroke-linecap="round"/></svg>Friends</button>
     <button class="nav-btn" onclick="showScreen('watchlist')"><svg width="11" height="14" viewBox="0 0 11 14" fill="none"><path d="M1 1h9a1 1 0 0 1 1 1v11l-5-3-5 3V2a1 1 0 0 1 1-1z" fill="currentColor"/></svg>Watch List</button>
     <button class="nav-btn" id="nav-profile" onclick="showScreen('profile')"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="4" r="3" fill="currentColor"/><path d="M0.5 13c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" stroke-width="1.4" fill="none"/></svg>Profile</button>
-    <button class="nav-btn nav-btn-foryou" onclick="showScreen('predict')"><span class="foryou-dot"></span>For You</button>
+    <button class="nav-btn nav-btn-foryou" onclick="showScreen('predict')">For You</button>
     <button class="nav-btn invite-tab" onclick="openInviteModal()">Invite a friend →</button>
     <button class="nav-btn action-tab" onclick="showScreen('add')">+ Add Film</button>
   </div>
@@ -188,7 +189,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <span>Rankings</span>
     </button>
     <button class="nav-mobile-btn nav-btn-foryou" onclick="showScreen('predict')">
-      <span class="foryou-dot"></span>
       <span>For You</span>
     </button>
     <button class="nav-mobile-btn" onclick="showScreen('analysis')">
@@ -350,7 +350,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <div id="hthContainer"></div>
     <div class="btn-row">
       <button class="btn btn-outline" onclick="goToStep(2)">← Back</button>
-      <button class="btn btn-primary" onclick="goToStep4()">See Final Score →</button>
+      <button class="btn btn-primary" onclick="goToStep4()">GET FINAL SCORE →</button>
     </div>
   </div>
 
@@ -447,8 +447,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <div id="cal-setup">
       <div style="margin-bottom:32px;padding-bottom:20px;border-bottom:2px solid var(--ink)">
         <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:var(--dim);margin-bottom:10px">refine your scores</div>
-        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(32px,4vw,48px);line-height:1;color:var(--ink);letter-spacing:-1px;margin-bottom:10px">Recalibrate.</div>
-        <div style="font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.7;color:var(--dim);max-width:480px">Two films, one question. Your instincts sharpen your scores through head-to-head matchups — no math required.</div>
+        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(32px,4vw,48px);line-height:1;color:var(--ink);letter-spacing:-1px;margin-bottom:10px">Which film is better?</div>
+        <div style="font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.7;color:var(--dim);max-width:480px">We'll show you two films from your collection. Pick the one that's better in each category. This adjusts your scores so the rankings feel right.</div>
       </div>
 
       <div style="margin-bottom:28px">

@@ -495,6 +495,35 @@ async function gsSearch() {
     }).join('');
   }
 
+  // TMDB films
+  if (tmdbFilms.length) {
+    html += gsSecHeader('Films');
+    html += tmdbFilms.map(m => {
+      const title = m.title || '';
+      const year = m.release_date?.slice(0, 4) || '';
+      const poster = m.poster_path
+        ? `<img src="https://image.tmdb.org/t/p/w92${m.poster_path}" style="width:28px;height:42px;object-fit:cover;flex-shrink:0">`
+        : `<div style="width:28px;height:42px;background:var(--rule);flex-shrink:0"></div>`;
+      const onList = watchlistSet.has(title.toLowerCase());
+      const safeTitle = title.replace(/'/g, "\\'");
+      const safePoster = (m.poster_path || '').replace(/'/g, "\\'");
+      return `<div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--rule)">
+        ${poster}
+        <div style="flex:1;min-width:0">
+          <div style="font-family:'DM Sans',sans-serif;font-size:14px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${title}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">${year}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
+          ${onList
+            ? `<button onclick="event.stopPropagation();gsRemoveWatchlist('${safeTitle}')" style="font-family:'DM Mono',monospace;font-size:9px;background:var(--green);color:white;border:none;padding:6px 10px;cursor:pointer;white-space:nowrap">✓ On List</button>`
+            : `<button onclick="event.stopPropagation();gsAddWatchlist(${m.id},'${safeTitle}','${year}','${safePoster}')" style="font-family:'DM Mono',monospace;font-size:9px;background:none;border:1px solid var(--rule-dark);color:var(--dim);padding:6px 10px;cursor:pointer;white-space:nowrap">＋ List</button>`
+          }
+          <button onclick="event.stopPropagation();gsRate(${m.id},'${safeTitle}')" style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:6px 10px;cursor:pointer;white-space:nowrap">Rate →</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
   // Own entities
   if (ownEntities.length) {
     html += gsSecHeader('In your rankings');
@@ -546,35 +575,6 @@ async function gsSearch() {
     }).join('');
   }
 
-  // TMDB films
-  if (tmdbFilms.length) {
-    html += gsSecHeader('Films');
-    html += tmdbFilms.map(m => {
-      const title = m.title || '';
-      const year = m.release_date?.slice(0, 4) || '';
-      const poster = m.poster_path
-        ? `<img src="https://image.tmdb.org/t/p/w92${m.poster_path}" style="width:28px;height:42px;object-fit:cover;flex-shrink:0">`
-        : `<div style="width:28px;height:42px;background:var(--rule);flex-shrink:0"></div>`;
-      const onList = watchlistSet.has(title.toLowerCase());
-      const safeTitle = title.replace(/'/g, "\\'");
-      const safePoster = (m.poster_path || '').replace(/'/g, "\\'");
-      return `<div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--rule)">
-        ${poster}
-        <div style="flex:1;min-width:0">
-          <div style="font-family:'DM Sans',sans-serif;font-size:14px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${title}</div>
-          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">${year}</div>
-        </div>
-        <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
-          ${onList
-            ? `<button onclick="event.stopPropagation();gsRemoveWatchlist('${safeTitle}')" style="font-family:'DM Mono',monospace;font-size:9px;background:var(--green);color:white;border:none;padding:6px 10px;cursor:pointer;white-space:nowrap">✓ On List</button>`
-            : `<button onclick="event.stopPropagation();gsAddWatchlist(${m.id},'${safeTitle}','${year}','${safePoster}')" style="font-family:'DM Mono',monospace;font-size:9px;background:none;border:1px solid var(--rule-dark);color:var(--dim);padding:6px 10px;cursor:pointer;white-space:nowrap">＋ List</button>`
-          }
-          <button onclick="event.stopPropagation();gsRate('${safeTitle}')" style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:6px 10px;cursor:pointer;white-space:nowrap">Rate →</button>
-        </div>
-      </div>`;
-    }).join('');
-  }
-
   if (!html) {
     html = `<div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);padding:28px 16px;text-align:center">No results for "${q}"</div>`;
   }
@@ -593,11 +593,10 @@ window.gsRemoveWatchlist = function(title) {
   gsSearch();
 };
 
-window.gsRate = function(title) {
+window.gsRate = function(tmdbId, title) {
   closeGlobalSearch();
   window.showScreen('add');
   setTimeout(() => {
-    const inp = document.getElementById('f-search');
-    if (inp) { inp.value = title; window.liveSearch?.(title); }
-  }, 100);
+    window.tmdbSelect?.(tmdbId, title);
+  }, 150);
 };

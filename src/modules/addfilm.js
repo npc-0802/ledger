@@ -185,7 +185,7 @@ function renderConfirmationHero() {
       <div class="add-hero-meta">${metaParts.join(' · ')}</div>
       ${overview ? `<div class="add-hero-overview">${overview}</div>` : ''}
       <div>
-        <button class="add-hero-cta" onclick="confirmTmdbData()">Rate this film →</button>
+        <button class="add-hero-cta" onclick="confirmTmdbData()">RATE THIS FILM →</button>
         <button class="add-hero-secondary" onclick="resetToSearch()">Not this one</button>
       </div>
     </div>
@@ -422,7 +422,7 @@ function getAnchors(catKey) {
 function renderCalibration() {
   // Initialize scores
   CATEGORIES.forEach(cat => {
-    newFilm.scores[cat.key] = prefillScores?.[cat.key] ?? newFilm.scores[cat.key] ?? 50;
+    newFilm.scores[cat.key] = prefillScores?.[cat.key] ?? newFilm.scores[cat.key] ?? 72;
   });
 
   if (scoringMode === 'card') {
@@ -441,7 +441,7 @@ function renderAllAtOnce() {
   const container = document.getElementById('calibrationCategories');
   container.innerHTML = CATEGORIES.map(cat => {
     const anchors = getAnchors(cat.key);
-    const initVal = newFilm.scores[cat.key] ?? 50;
+    const initVal = newFilm.scores[cat.key] ?? 72;
     return `<div class="category-section" id="catSection_${cat.key}">
       <div class="cat-header">
         <div class="cat-name">${cat.label}</div>
@@ -449,7 +449,7 @@ function renderAllAtOnce() {
       </div>
       <div class="cat-question">${cat.question}</div>
       ${anchors.length > 0 ? `
-      <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Reference films — click to anchor your score:</div>
+      <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Reference films — select to anchor your score:</div>
       <div class="anchor-row">
         ${anchors.map(a => `
           <div class="anchor-film" onclick="selectAnchor('${cat.key}', ${a.scores[cat.key]}, this)">
@@ -486,7 +486,7 @@ function renderScoreCard() {
 
   const cat = CATEGORIES[currentCardIdx];
   const groupLabel = currentCardIdx < 4 ? 'Craft' : 'Experience';
-  const val = newFilm.scores[cat.key] ?? 50;
+  const val = newFilm.scores[cat.key] ?? 72;
   const anchors = getAnchors(cat.key);
   const tip = CATEGORY_TIPS[cat.key] || '';
 
@@ -694,7 +694,7 @@ function renderHthCard() {
   const container = document.getElementById('hthContainer');
   if (hthIdx >= hthComparisons.length) {
     container.innerHTML = `<div style="text-align:center;padding:40px;color:var(--dim);font-style:italic">
-      All comparisons complete. Click Continue.
+      All comparisons complete. Continue when ready.
     </div>`;
     return;
   }
@@ -783,8 +783,8 @@ function renderResult() {
       <div class="result-reveal-title">${newFilm.title}</div>
       <div class="result-reveal-meta">${newFilm.year || ''}${newFilm.director ? ' · ' + newFilm.director : ''}</div>
 
-      <div class="result-reveal-score" style="color:${getTierColor(total)}">${totalDisplay}</div>
-      <div class="result-reveal-label">${getLabel(total)}</div>
+      <div class="result-reveal-score" style="color:${getTierColor(total)};margin-bottom:4px">${totalDisplay}</div>
+      <div class="result-reveal-label" style="margin-bottom:16px">${getLabel(total)}</div>
 
       ${predictionComparison ? `<div class="result-reveal-prediction">
         <span>Predicted ${predictionComparison.predictedTotal}</span>
@@ -829,8 +829,9 @@ function renderResult() {
       </div>
 
       <div class="result-reveal-actions">
-        <button class="btn btn-outline" onclick="goToStep(2)" style="color:rgba(255,255,255,0.6);border-color:rgba(255,255,255,0.2)">← Adjust Scores</button>
-        <button class="btn btn-action" onclick="saveFilm()">Save to Rankings ✓</button>
+        <button class="btn btn-outline" onclick="goToStep(2)" style="color:rgba(255,255,255,0.6);border-color:rgba(255,255,255,0.2);text-transform:uppercase;letter-spacing:1.5px;font-family:'DM Mono',monospace">← ADJUST SCORES</button>
+        <button class="btn btn-action" onclick="saveFilm()" style="text-transform:uppercase;letter-spacing:1.5px;font-family:'DM Mono',monospace">SAVE TO RANKINGS ✓</button>
+        ${(MOVIES.length + 1 >= 7 && MOVIES.length + 1 <= 9) ? `<button class="btn btn-action" onclick="saveFilmAndRateAnother()" style="text-transform:uppercase;letter-spacing:1.5px;font-family:'DM Mono',monospace">RATE ANOTHER →</button>` : ''}
       </div>
     </div>
   `;
@@ -920,6 +921,83 @@ export function saveFilm() {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.nav-btn')[0].classList.add('active');
 }
+
+// ── RATE ANOTHER (saves + returns to search) ──
+
+window.saveFilmAndRateAnother = function() {
+  hideAddFilmBanner();
+  newFilm.total = calcTotal(newFilm.scores);
+  MOVIES.push({
+    title: newFilm.title, year: newFilm.year, total: newFilm.total,
+    director: newFilm.director, writer: newFilm.writer, cast: newFilm.cast,
+    productionCompanies: newFilm.productionCompanies || '',
+    poster: newFilm._tmdbDetail?.poster_path || null,
+    overview: newFilm._tmdbDetail?.overview || '',
+    tmdbId: newFilm._tmdbId || null,
+    scores: { ...newFilm.scores }
+  });
+  // Prediction reconciliation
+  const savedTmdbId = newFilm._tmdbId;
+  if (savedTmdbId && currentUser?.predictions?.[String(savedTmdbId)]) {
+    const entry = currentUser.predictions[String(savedTmdbId)];
+    const actualTotal = newFilm.total;
+    const predictedTotal = (() => {
+      let sum = 0, wsum = 0;
+      CATEGORIES.forEach(cat => {
+        const v = entry.prediction?.predicted_scores?.[cat.key];
+        const w = currentUser?.weights?.[cat.key] ?? cat.weight;
+        if (v != null) { sum += v * w; wsum += w; }
+      });
+      return wsum > 0 ? Math.round((sum / wsum) * 100) / 100 : 0;
+    })();
+    const delta = Math.round((actualTotal - predictedTotal) * 10) / 10;
+    const updatedPredictions = {
+      ...currentUser.predictions,
+      [String(savedTmdbId)]: {
+        ...entry,
+        actualTotal,
+        predictedTotal,
+        delta,
+        ratedAt: new Date().toISOString()
+      }
+    };
+    setCurrentUser({ ...currentUser, predictions: updatedPredictions });
+    saveUserLocally();
+  }
+  track('film_rated', {
+    tmdb_id: savedTmdbId || null,
+    title: MOVIES[MOVIES.length - 1].title,
+    total_score: MOVIES[MOVIES.length - 1].total,
+    films_rated_count: MOVIES.length,
+    source: prefillScores ? 'watchlist' : 'search',
+  });
+  if (savedTmdbId && currentUser?.predictions?.[String(savedTmdbId)]?.delta != null) {
+    const entry = currentUser.predictions[String(savedTmdbId)];
+    track('prediction_reconciled', {
+      tmdb_id: savedTmdbId,
+      predicted_total: entry.predictedTotal,
+      actual_total: entry.actualTotal,
+      delta: entry.delta,
+    });
+  }
+  saveToStorage();
+  if (savedTmdbId) {
+    const onWatchlist = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(savedTmdbId));
+    if (onWatchlist) removeFromWatchlist(savedTmdbId);
+  }
+  import('../ui-callbacks.js').then(({ updateStorageStatus }) => updateStorageStatus());
+
+  // Reset for next film but stay on Add Film screen
+  newFilm = { title:'', year:null, director:'', writer:'', cast:'', productionCompanies:'', scores:{} };
+  castChecked = {}; companyChecked = {}; tmdbFullCast = []; prefillScores = null;
+  document.getElementById('f-search').value = '';
+  document.getElementById('tmdb-results').innerHTML = '';
+  document.getElementById('tmdb-search-phase').style.display = '';
+  document.getElementById('tmdb-curation-phase').style.display = 'none';
+  document.getElementById('moreCastBtn').style.display = '';
+  updateStepUI(1);
+  renderWatchlistInSearch();
+};
 
 // ── RESUME PROMPT ──
 
