@@ -800,12 +800,80 @@ export function goToStep4() {
   updateStepUI(4);
 }
 
+function autoSaveFilm() {
+  newFilm.total = calcTotal(newFilm.scores);
+  MOVIES.push({
+    title: newFilm.title, year: newFilm.year, total: newFilm.total,
+    director: newFilm.director, writer: newFilm.writer, cast: newFilm.cast,
+    productionCompanies: newFilm.productionCompanies || '',
+    poster: newFilm._tmdbDetail?.poster_path || null,
+    overview: newFilm._tmdbDetail?.overview || '',
+    tmdbId: newFilm._tmdbId || null,
+    scores: { ...newFilm.scores }
+  });
+  const savedTmdbId = newFilm._tmdbId;
+  if (savedTmdbId && currentUser?.predictions?.[String(savedTmdbId)]) {
+    const entry = currentUser.predictions[String(savedTmdbId)];
+    const actualTotal = newFilm.total;
+    const predictedTotal = (() => {
+      let sum = 0, wsum = 0;
+      CATEGORIES.forEach(cat => {
+        const v = entry.prediction?.predicted_scores?.[cat.key];
+        const w = currentUser?.weights?.[cat.key] ?? cat.weight;
+        if (v != null) { sum += v * w; wsum += w; }
+      });
+      return wsum > 0 ? Math.round((sum / wsum) * 100) / 100 : 0;
+    })();
+    const delta = Math.round((actualTotal - predictedTotal) * 10) / 10;
+    const updatedPredictions = {
+      ...currentUser.predictions,
+      [String(savedTmdbId)]: {
+        ...entry,
+        actualTotal,
+        predictedTotal,
+        delta,
+        ratedAt: new Date().toISOString()
+      }
+    };
+    setCurrentUser({ ...currentUser, predictions: updatedPredictions });
+    saveUserLocally();
+  }
+  track('film_rated', {
+    tmdb_id: savedTmdbId || null,
+    title: MOVIES[MOVIES.length - 1].title,
+    total_score: MOVIES[MOVIES.length - 1].total,
+    films_rated_count: MOVIES.length,
+    source: prefillScores ? 'watchlist' : 'search',
+  });
+  if (savedTmdbId && currentUser?.predictions?.[String(savedTmdbId)]?.delta != null) {
+    const entry = currentUser.predictions[String(savedTmdbId)];
+    track('prediction_reconciled', {
+      tmdb_id: savedTmdbId,
+      predicted_total: entry.predictedTotal,
+      actual_total: entry.actualTotal,
+      delta: entry.delta,
+    });
+  }
+  saveToStorage();
+  if (savedTmdbId) {
+    const onWatchlist = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(savedTmdbId));
+    if (onWatchlist) removeFromWatchlist(savedTmdbId);
+  }
+  import('../ui-callbacks.js').then(({ updateStorageStatus }) => updateStorageStatus());
+  renderRankings();
+}
+
 function renderResult() {
   const total = calcTotal(newFilm.scores);
   newFilm.total = total;
-  const sorted = [...MOVIES, newFilm].sort((a,b) => b.total - a.total);
-  const rank = sorted.indexOf(newFilm) + 1;
-  const predictionComparison = getPredictionComparison(newFilm._tmdbId, total);
+
+  // Auto-save immediately on reaching result
+  autoSaveFilm();
+
+  const sorted = [...MOVIES].sort((a,b) => b.total - a.total);
+  const savedFilm = MOVIES[MOVIES.length - 1];
+  const rank = sorted.indexOf(savedFilm) + 1;
+  const predictionComparison = getPredictionComparison(savedFilm.tmdbId, total);
   const totalDisplay = (Math.round(total * 10) / 10).toFixed(1);
 
   const posterSrc = newFilm._posterUrl
@@ -813,7 +881,7 @@ function renderResult() {
     : (newFilm.poster ? `https://image.tmdb.org/t/p/w342${newFilm.poster}` : '');
 
   document.getElementById('resultCard').innerHTML = `
-    <div class="result-reveal" style="padding-top:32px">
+    <div class="result-reveal" style="padding-top:56px">
       <div class="result-reveal-eyebrow">Your verdict</div>
 
       ${posterSrc ? `<div style="display:flex;gap:20px;align-items:flex-start;margin-bottom:8px">
@@ -833,13 +901,13 @@ function renderResult() {
         <span style="color:${predictionComparison.color};font-weight:600">${predictionComparison.delta > 0 ? '+' : ''}${predictionComparison.delta} · ${predictionComparison.label}</span>
       </div>` : ''}
 
-      <div class="result-reveal-rank">Would rank #${rank} of ${MOVIES.length + 1}</div>
+      <div class="result-reveal-rank">Ranks #${rank} of ${MOVIES.length}</div>
 
       <div class="result-reveal-grid">
         ${CATEGORIES.map(cat => `
           <div class="result-cat">
             <div class="result-cat-name">${cat.label} ×${cat.weight}</div>
-            <div class="result-cat-val ${scoreClass(newFilm.scores[cat.key] || 0)}">${newFilm.scores[cat.key] || '—'}</div>
+            <div class="result-cat-val ${scoreClass(savedFilm.scores[cat.key] || 0)}">${savedFilm.scores[cat.key] || '—'}</div>
           </div>`).join('')}
       </div>
 
@@ -849,8 +917,8 @@ function renderResult() {
           const slotRank = rank + offset;
           if (slotRank < 1 || slotRank > sorted.length) return '';
           const film = sorted[slotRank - 1];
-          const isCurrent = film === newFilm;
-          const filmTotal = isCurrent ? total : film.total;
+          const isCurrent = film === savedFilm;
+          const filmTotal = film.total;
           const displayTotal = (Math.round(filmTotal * 10) / 10).toFixed(1);
           if (isCurrent) {
             return `<div style="display:flex;align-items:center;gap:12px;padding:9px 12px;background:rgba(255,255,255,0.08);margin:2px 0;border-radius:2px">
@@ -870,93 +938,26 @@ function renderResult() {
         }).join('')}
       </div>
 
+      <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.4);text-align:center;margin-top:24px;margin-bottom:16px">✓ Saved to rankings</div>
       <div class="result-reveal-actions">
-        <button class="btn btn-outline" onclick="goToStep(2)" style="color:rgba(255,255,255,0.6);border-color:rgba(255,255,255,0.2);text-transform:uppercase;letter-spacing:1.5px;font-family:'DM Mono',monospace">← ADJUST SCORES</button>
-        <button class="btn btn-action" onclick="saveFilm()" style="text-transform:uppercase;letter-spacing:1.5px;font-family:'DM Mono',monospace">SAVE TO RANKINGS ✓</button>
-        <button class="btn btn-action" onclick="saveFilmAndRateAnother()" style="text-transform:uppercase;letter-spacing:1.5px;font-family:'DM Mono',monospace">RATE ANOTHER →</button>
+        <button class="btn btn-action" onclick="rateAnotherFromResult()" style="text-transform:uppercase;letter-spacing:1.5px;font-family:'DM Mono',monospace;flex:1">RATE ANOTHER →</button>
       </div>
     </div>
   `;
 }
 
-// ── SAVE ──
+// ── SAVE (legacy — auto-save now happens in renderResult; this just navigates to rankings) ──
 
 export function saveFilm() {
   hideAddFilmBanner();
-  newFilm.total = calcTotal(newFilm.scores);
-  MOVIES.push({
-    title: newFilm.title, year: newFilm.year, total: newFilm.total,
-    director: newFilm.director, writer: newFilm.writer, cast: newFilm.cast,
-    productionCompanies: newFilm.productionCompanies || '',
-    poster: newFilm._tmdbDetail?.poster_path || null,
-    overview: newFilm._tmdbDetail?.overview || '',
-    tmdbId: newFilm._tmdbId || null,
-    scores: { ...newFilm.scores }
-  });
-  // Prediction reconciliation
-  const savedTmdbId = newFilm._tmdbId;
-  if (savedTmdbId && currentUser?.predictions?.[String(savedTmdbId)]) {
-    const entry = currentUser.predictions[String(savedTmdbId)];
-    const actualTotal = newFilm.total;
-    const predictedTotal = (() => {
-      let sum = 0, wsum = 0;
-      CATEGORIES.forEach(cat => {
-        const v = entry.prediction?.predicted_scores?.[cat.key];
-        const w = currentUser?.weights?.[cat.key] ?? cat.weight;
-        if (v != null) { sum += v * w; wsum += w; }
-      });
-      return wsum > 0 ? Math.round((sum / wsum) * 100) / 100 : 0;
-    })();
-    const delta = Math.round((actualTotal - predictedTotal) * 10) / 10;
-    const updatedPredictions = {
-      ...currentUser.predictions,
-      [String(savedTmdbId)]: {
-        ...entry,
-        actualTotal,
-        predictedTotal,
-        delta,
-        ratedAt: new Date().toISOString()
-      }
-    };
-    setCurrentUser({ ...currentUser, predictions: updatedPredictions });
-    saveUserLocally();
-  }
-  // Analytics
-  track('film_rated', {
-    tmdb_id: savedTmdbId || null,
-    title: MOVIES[MOVIES.length - 1].title,
-    total_score: MOVIES[MOVIES.length - 1].total,
-    films_rated_count: MOVIES.length,
-    source: prefillScores ? 'watchlist' : 'search',
-  });
-  if (savedTmdbId && currentUser?.predictions?.[String(savedTmdbId)]?.delta != null) {
-    const entry = currentUser.predictions[String(savedTmdbId)];
-    track('prediction_reconciled', {
-      tmdb_id: savedTmdbId,
-      predicted_total: entry.predictedTotal,
-      actual_total: entry.actualTotal,
-      delta: entry.delta,
-    });
-  }
-
-  saveToStorage();
-  // Auto-remove from watch list
-  if (savedTmdbId) {
-    const onWatchlist = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(savedTmdbId));
-    if (onWatchlist) removeFromWatchlist(savedTmdbId);
-  }
-  import('../ui-callbacks.js').then(({ updateStorageStatus }) => updateStorageStatus());
-
   newFilm = { title:'', year:null, director:'', writer:'', cast:'', productionCompanies:'', scores:{} };
   castChecked = {}; companyChecked = {}; tmdbFullCast = []; prefillScores = null;
-
   document.getElementById('f-search').value = '';
   document.getElementById('tmdb-results').innerHTML = '';
   document.getElementById('tmdb-search-phase').style.display = '';
   document.getElementById('tmdb-curation-phase').style.display = 'none';
   document.getElementById('moreCastBtn').style.display = '';
   updateStepUI(1);
-  renderRankings();
 
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('rankings').classList.add('active');
@@ -964,72 +965,10 @@ export function saveFilm() {
   document.querySelectorAll('.nav-btn')[0].classList.add('active');
 }
 
-// ── RATE ANOTHER (saves + returns to search) ──
+// ── RATE ANOTHER (resets form, stays on Add Film) ──
 
-window.saveFilmAndRateAnother = function() {
+window.rateAnotherFromResult = function() {
   hideAddFilmBanner();
-  newFilm.total = calcTotal(newFilm.scores);
-  MOVIES.push({
-    title: newFilm.title, year: newFilm.year, total: newFilm.total,
-    director: newFilm.director, writer: newFilm.writer, cast: newFilm.cast,
-    productionCompanies: newFilm.productionCompanies || '',
-    poster: newFilm._tmdbDetail?.poster_path || null,
-    overview: newFilm._tmdbDetail?.overview || '',
-    tmdbId: newFilm._tmdbId || null,
-    scores: { ...newFilm.scores }
-  });
-  // Prediction reconciliation
-  const savedTmdbId = newFilm._tmdbId;
-  if (savedTmdbId && currentUser?.predictions?.[String(savedTmdbId)]) {
-    const entry = currentUser.predictions[String(savedTmdbId)];
-    const actualTotal = newFilm.total;
-    const predictedTotal = (() => {
-      let sum = 0, wsum = 0;
-      CATEGORIES.forEach(cat => {
-        const v = entry.prediction?.predicted_scores?.[cat.key];
-        const w = currentUser?.weights?.[cat.key] ?? cat.weight;
-        if (v != null) { sum += v * w; wsum += w; }
-      });
-      return wsum > 0 ? Math.round((sum / wsum) * 100) / 100 : 0;
-    })();
-    const delta = Math.round((actualTotal - predictedTotal) * 10) / 10;
-    const updatedPredictions = {
-      ...currentUser.predictions,
-      [String(savedTmdbId)]: {
-        ...entry,
-        actualTotal,
-        predictedTotal,
-        delta,
-        ratedAt: new Date().toISOString()
-      }
-    };
-    setCurrentUser({ ...currentUser, predictions: updatedPredictions });
-    saveUserLocally();
-  }
-  track('film_rated', {
-    tmdb_id: savedTmdbId || null,
-    title: MOVIES[MOVIES.length - 1].title,
-    total_score: MOVIES[MOVIES.length - 1].total,
-    films_rated_count: MOVIES.length,
-    source: prefillScores ? 'watchlist' : 'search',
-  });
-  if (savedTmdbId && currentUser?.predictions?.[String(savedTmdbId)]?.delta != null) {
-    const entry = currentUser.predictions[String(savedTmdbId)];
-    track('prediction_reconciled', {
-      tmdb_id: savedTmdbId,
-      predicted_total: entry.predictedTotal,
-      actual_total: entry.actualTotal,
-      delta: entry.delta,
-    });
-  }
-  saveToStorage();
-  if (savedTmdbId) {
-    const onWatchlist = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(savedTmdbId));
-    if (onWatchlist) removeFromWatchlist(savedTmdbId);
-  }
-  import('../ui-callbacks.js').then(({ updateStorageStatus }) => updateStorageStatus());
-
-  // Reset for next film but stay on Add Film screen
   newFilm = { title:'', year:null, director:'', writer:'', cast:'', productionCompanies:'', scores:{} };
   castChecked = {}; companyChecked = {}; tmdbFullCast = []; prefillScores = null;
   document.getElementById('f-search').value = '';
