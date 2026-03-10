@@ -448,7 +448,7 @@ async function gsRenderSuggestions() {
           <div style="font-family:'DM Sans',sans-serif;font-size:14px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.title}</div>
           <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">${item.year || ''}${item.director ? ' · ' + item.director.split(',')[0] : ''}</div>
         </div>
-        <button onclick="event.stopPropagation();gsRate(${item.tmdbId},'${safeTitle}')" style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:6px 10px;cursor:pointer;white-space:nowrap;flex-shrink:0">Rate →</button>
+        <button onclick="event.stopPropagation();gsRate(${item.tmdbId},'${safeTitle}')" class="gs-rate-btn" style="flex-shrink:0">Rate →</button>
       </div>`;
     }).join('');
   }
@@ -475,8 +475,8 @@ async function gsRenderSuggestions() {
             <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">${year}</div>
           </div>
           <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
-            <button onclick="event.stopPropagation();gsAddWatchlist(${m.id},'${safeTitle}','${year}','${safePoster}')" style="font-family:'DM Mono',monospace;font-size:9px;background:none;border:1px solid var(--rule-dark);color:var(--dim);padding:6px 10px;cursor:pointer;white-space:nowrap">＋ List</button>
-            <button onclick="event.stopPropagation();gsRate(${m.id},'${safeTitle}')" style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:6px 10px;cursor:pointer;white-space:nowrap">Rate →</button>
+            <button onclick="event.stopPropagation();gsAddWatchlist(${m.id},'${safeTitle}','${year}','${safePoster}')" class="gs-list-btn">＋ List</button>
+            <button onclick="event.stopPropagation();gsRate(${m.id},'${safeTitle}')" class="gs-rate-btn">Rate →</button>
           </div>
         </div>`;
       }).join('');
@@ -577,10 +577,10 @@ async function gsSearch() {
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
           ${onList
-            ? `<button onclick="event.stopPropagation();gsRemoveWatchlist('${safeTitle}')" style="font-family:'DM Mono',monospace;font-size:9px;background:var(--green);color:white;border:none;padding:6px 10px;cursor:pointer;white-space:nowrap">✓ On List</button>`
-            : `<button onclick="event.stopPropagation();gsAddWatchlist(${m.id},'${safeTitle}','${year}','${safePoster}')" style="font-family:'DM Mono',monospace;font-size:9px;background:none;border:1px solid var(--rule-dark);color:var(--dim);padding:6px 10px;cursor:pointer;white-space:nowrap">＋ List</button>`
+            ? `<button onclick="event.stopPropagation();gsRemoveWatchlist('${safeTitle}')" class="gs-list-btn on-list">✓ On List</button>`
+            : `<button onclick="event.stopPropagation();gsAddWatchlist(${m.id},'${safeTitle}','${year}','${safePoster}')" class="gs-list-btn">＋ List</button>`
           }
-          <button onclick="event.stopPropagation();gsRate(${m.id},'${safeTitle}')" style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:6px 10px;cursor:pointer;white-space:nowrap">Rate →</button>
+          <button onclick="event.stopPropagation();gsRate(${m.id},'${safeTitle}')" class="gs-rate-btn">Rate →</button>
         </div>
       </div>`;
     }).join('');

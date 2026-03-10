@@ -2,6 +2,44 @@
    Palate Map · Component Styles
 ═══════════════════════════════════════════════ */
 
+/* ── GLOBAL SEARCH ROW BUTTONS ── */
+.gs-rate-btn {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  background: var(--action);
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.gs-rate-btn:hover { background: #c45a30; transform: translateY(-1px); }
+.gs-rate-btn:active { transform: translateY(0); }
+
+.gs-list-btn {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  background: none;
+  border: 1px solid var(--rule-dark);
+  color: var(--dim);
+  padding: 6px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.gs-list-btn:hover { background: var(--ink); color: white; border-color: var(--ink); transform: translateY(-1px); }
+.gs-list-btn:active { transform: translateY(0); }
+
+.gs-list-btn.on-list {
+  background: var(--green);
+  color: white;
+  border: none;
+}
+.gs-list-btn.on-list:hover { background: #2a8a4a; }
+
 /* ── INLINE HINTS ── */
 .inline-hint {
   display: flex;
@@ -1101,6 +1139,7 @@ input[type="range"]::-webkit-slider-thumb:hover { background: var(--blue-dark); 
 .conf-high { background: #e8f5ee; color: var(--green); }
 .conf-medium { background: #fdf6e3; color: #7a6020; }
 .conf-low { background: #fdf0f0; color: var(--red); }
+.conf-exploratory { background: #f0e8d8; color: #8a7750; }
 .predict-dark-block .predict-confidence { background: rgba(255,255,255,0.08); margin-left: 0; }
 .profile-palate-block::after {
   content: '';
