@@ -555,7 +555,7 @@ function renderScoreCard() {
       <div style="font-family:'DM Sans',sans-serif;font-size:14px;color:var(--dim);font-style:italic;margin-bottom:28px">"${cat.question}"</div>
       ${anchors.length > 0 ? `
         <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Reference</div>
-        <div class="anchor-row" style="display:grid;grid-template-columns:repeat(${Math.min(anchors.length, 3)}, 1fr);gap:8px;max-width:400px;margin:0 auto 20px">
+        <div class="anchor-row" style="display:grid;grid-template-columns:repeat(${Math.min(anchors.length, 3)}, 1fr);gap:8px;max-width:480px;margin:0 auto 20px">
           ${anchors.slice(0, 3).map(a => `
             <div class="anchor-film" data-score="${a.scores[cat.key]}" onclick="selectAnchorCard('${cat.key}', ${a.scores[cat.key]}, this)">
               ${a.poster ? `<img class="anchor-film-poster" src="https://image.tmdb.org/t/p/w92${a.poster}" alt="">` : ''}
