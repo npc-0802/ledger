@@ -505,7 +505,7 @@ function renderAllAtOnce() {
             oninput="updateSlider('${cat.key}', this.value)" onpointerdown="this.parentElement.classList.add('touched')">
         </div>
         <div class="score-scale-labels">
-          <span>Stopped watching</span><span>Poor</span><span>Solid</span><span>Great</span><span>Exceptional</span>
+          <span class="scale-label-poor">Poor</span><span class="scale-label-solid">Solid</span><span class="scale-label-exceptional">Exceptional</span>
         </div>
       </div>
     </div>`;
@@ -574,7 +574,7 @@ function renderScoreCard() {
             oninput="updateScoreCard(this.value)" onpointerdown="this.parentElement.classList.add('touched')">
         </div>
         <div class="score-scale-labels">
-          <span>Stopped watching</span><span>Poor</span><span>Solid</span><span>Great</span><span>Exceptional</span>
+          <span class="scale-label-poor">Poor</span><span class="scale-label-solid">Solid</span><span class="scale-label-exceptional">Exceptional</span>
         </div>
       </div>
     </div>
@@ -1042,8 +1042,8 @@ function showResumePrompt() {
       </div>
       <div class="addfilm-resume-msg">You were in the middle of rating this film. Pick up where you left off?</div>
       <div class="addfilm-resume-actions">
-        <button class="btn btn-outline" onclick="addFilmResumeNo()">Start fresh</button>
-        <button class="btn btn-primary" onclick="addFilmResumeYes()">Continue →</button>
+        <button class="btn btn-outline" onclick="addFilmResumeNo()">No</button>
+        <button class="btn btn-primary" onclick="addFilmResumeYes()">Yes</button>
       </div>
     </div>
   `;
@@ -1060,15 +1060,6 @@ window.addFilmResumeYes = function() {
 window.addFilmResumeNo = function() {
   const overlay = document.getElementById('addfilm-resume-overlay');
   if (overlay) overlay.remove();
-  // Reset everything
-  newFilm = { title:'', year:null, director:'', writer:'', cast:'', productionCompanies:'', scores:{} };
-  castChecked = {}; companyChecked = {}; tmdbFullCast = []; prefillScores = null;
-  document.getElementById('f-search').value = '';
-  document.getElementById('tmdb-results').innerHTML = '';
-  document.getElementById('tmdb-search-phase').style.display = '';
-  document.getElementById('tmdb-curation-phase').style.display = 'none';
-  hideAddFilmBanner();
-  updateStepUI(1);
 };
 
 window.openAddFilmPosterPicker = async function() {
