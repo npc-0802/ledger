@@ -1,6 +1,6 @@
 import { currentUser, setCurrentUser, MOVIES, CATEGORIES, getLabel } from '../state.js';
 import { syncToSupabase, saveUserLocally } from './supabase.js';
-import { isNewTerritory, DISCOVERY_ICON_SVG } from './predict.js';
+import { isNewTerritory, DISCOVERY_ICON_SVG, getPredictionTier, formatPredictedScore } from './predict.js';
 import { shouldShowHint, renderHint } from './hints.js';
 
 const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
@@ -44,7 +44,7 @@ export function renderWatchlist() {
     </div>`;
 
   // Schedule background predictions for items that don't have one yet
-  if (MOVIES.length >= 10) {
+  if (getPredictionTier().canPredict) {
     const unpredicted = list.filter(item => item.tmdbId && !currentUser?.predictions?.[String(item.tmdbId)]);
     unpredicted.forEach((item, i) => {
       setTimeout(async () => {
@@ -116,7 +116,7 @@ function listHTML(list) {
 function watchlistCard(item, i) {
   const prediction = item.tmdbId ? currentUser?.predictions?.[String(item.tmdbId)] : null;
   const predTotal = prediction ? calcWlPredictedTotal(prediction.prediction) : null;
-  const isPending = predTotal == null && item.tmdbId && MOVIES.length >= 10;
+  const isPending = predTotal == null && item.tmdbId && getPredictionTier().canPredict;
   const filmData = prediction?.film || item;
   const newTerr = isNewTerritory(filmData);
 
@@ -124,8 +124,9 @@ function watchlistCard(item, i) {
     ? `<img class="wl-card-poster" src="https://image.tmdb.org/t/p/w342${item.poster}" alt="${item.title}" loading="lazy">`
     : `<div class="wl-card-poster" style="background:var(--rule);display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">${item.title}</div>`;
 
+  const wlTier = getPredictionTier();
   const scoreBadge = predTotal != null
-    ? `<div class="wl-card-score">~${Math.round(predTotal)}</div>`
+    ? `<div class="wl-card-score">${wlTier.rangeWidth > 0 ? formatPredictedScore(predTotal, MOVIES.length) : '~' + Math.round(predTotal)}</div>`
     : isPending
       ? `<div class="wl-card-score pending">est…</div>`
       : '';
@@ -165,7 +166,7 @@ export function addToWatchlist(item) {
   import('../ui-callbacks.js').then(({ showToast }) => showToast(`${item.title} added to watch list.`));
 
   // Auto-predict after 30s if still on list
-  if (item.tmdbId && MOVIES.length >= 10) {
+  if (item.tmdbId && getPredictionTier().canPredict) {
     clearTimeout(autoPredictTimers[item.tmdbId]);
     autoPredictTimers[item.tmdbId] = setTimeout(async () => {
       const stillOn = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(item.tmdbId));
@@ -304,7 +305,7 @@ window.openWatchlistDetail = function(index) {
     <div style="border-top:1px solid var(--rule);padding-top:20px;margin-top:4px;margin-bottom:20px">
       <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:14px">— we think you'd give this —</div>
       <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:28px">
-        <span style="font-family:'Playfair Display',serif;font-size:60px;font-weight:900;font-style:italic;color:var(--blue);letter-spacing:-3px;line-height:1">~${(Math.round(predTotal*10)/10).toFixed(1)}</span>
+        <span style="font-family:'Playfair Display',serif;font-size:60px;font-weight:900;font-style:italic;color:var(--blue);letter-spacing:-3px;line-height:1">${formatPredictedScore(predTotal, MOVIES.length)}</span>
         <span style="font-family:'DM Mono',monospace;font-size:13px;color:var(--dim);letter-spacing:0.5px">${getLabel(Math.round(predTotal))}</span>
       </div>
       <div style="font-family:'DM Sans',sans-serif;font-size:12px;color:var(--dim);margin-bottom:16px">based on your palate</div>

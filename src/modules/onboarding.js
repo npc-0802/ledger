@@ -585,11 +585,10 @@ function getStarterFilms() {
 
 function getNudgeMessage() {
   const n = starterRated.length;
-  if (n >= 10) return 'Predict is unlocked. You\'re ready.';
-  if (n >= 8) return 'Two more and Predict unlocks.';
-  if (n >= 5) return 'Halfway to unlocking predictions. Keep going?';
-  if (n >= 3) return 'Your taste is starting to take shape.';
-  if (n >= 1) return 'Nice. That tells us something already.';
+  if (n >= 10) return 'Full precision unlocked. Your taste is mapped.';
+  if (n >= 5) return 'Score predictions are live. Keep going for full precision.';
+  if (n >= 3) return 'Early recommendations unlocked. Nice.';
+  if (n >= 1) return 'That tells us something already.';
   return '';
 }
 

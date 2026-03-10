@@ -35,26 +35,69 @@ let dismissedTmdbIds = new Set(); // tracks films dismissed this session
 let previousRecommendationIds = new Set(); // tracks previous cycle's recommendation tmdbIds
 let constrainedDebounceTimer = null;
 
-export function initPredict() {
-  const MIN_FILMS = 10;
+// ── PROGRESSIVE UNLOCK TIERS ────────────────────────────────────────────────
 
-  // Hide all For You sections while checking lock state
+export function getScoreRangeWidth(filmCount) {
+  if (filmCount >= 10) return 0;
+  if (filmCount >= 9) return 2;
+  if (filmCount >= 7) return 4;
+  return 6;
+}
+
+export function formatPredictedScore(total, filmCount) {
+  const range = getScoreRangeWidth(filmCount);
+  if (range === 0) return `~${(Math.round(total * 10) / 10).toFixed(1)}`;
+  const lo = Math.max(1, Math.round(total - range));
+  const hi = Math.min(100, Math.round(total + range));
+  return `~${lo}\u2013${hi}`;
+}
+
+export function getPredictionTier() {
+  const n = MOVIES.length;
+  if (n < 3)  return { tier: 'locked',      label: 'Locked',      canRecommend: false, canPredict: false, canDiscover: false, canConstrain: false, showScores: false, rangeWidth: 0, filmCount: n };
+  if (n < 5)  return { tier: 'early',        label: 'Early Picks', canRecommend: true,  canPredict: false, canDiscover: false, canConstrain: false, showScores: false, rangeWidth: 0, filmCount: n };
+  if (n < 10) return { tier: 'exploratory',  label: 'Exploratory', canRecommend: true,  canPredict: true,  canDiscover: false, canConstrain: true,  showScores: true,  rangeWidth: getScoreRangeWidth(n), filmCount: n };
+  return             { tier: 'full',          label: 'Full',        canRecommend: true,  canPredict: true,  canDiscover: true,  canConstrain: true,  showScores: true,  rangeWidth: 0, filmCount: n };
+}
+
+// ── 10-FILM MILESTONE INTERSTITIAL ──────────────────────────────────────────
+
+function showTenFilmMilestone() {
+  const overlay = document.createElement('div');
+  overlay.id = 'milestone-interstitial';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(12,11,9,0.7);z-index:10000;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.3s ease';
+  overlay.innerHTML = `
+    <div class="dark-grid" style="background:var(--surface-dark-3);padding:48px 40px;text-align:center;max-width:420px">
+      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--on-dark-dim);margin-bottom:20px">milestone</div>
+      <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:28px;color:var(--on-dark);letter-spacing:-1px;margin-bottom:12px">Your taste is mapped.</div>
+      <div style="font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.7;color:rgba(244,239,230,0.7);margin-bottom:28px">Predictions are now at full precision.<br>Discovery mode is unlocked.</div>
+      <button onclick="document.getElementById('milestone-interstitial')?.remove()" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:14px 32px;cursor:pointer">Show me what's next →</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.style.opacity = '1');
+  setTimeout(() => {
+    const el = document.getElementById('milestone-interstitial');
+    if (el) { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }
+  }, 3000);
+}
+
+export function initPredict() {
+  const tier = getPredictionTier();
+
   const heroSection = document.getElementById('foryou-hero-section');
   const secondarySection = document.getElementById('foryou-secondary-section');
   const manualSection = document.getElementById('foryou-manual');
   const constrainedSection = document.getElementById('foryou-constrained');
+  const picksRow = document.getElementById('foryou-picks-row');
+  const orDivider = document.querySelector('.foryou-vs-divider');
 
-  if (MOVIES.length < MIN_FILMS) {
-    const needed = MIN_FILMS - MOVIES.length;
-    const pct = Math.round((MOVIES.length / MIN_FILMS) * 100);
-
+  // ── Tier 0: Locked — warm invitation ──────────────────────────────────────
+  if (!tier.canRecommend) {
     if (heroSection) heroSection.style.display = 'none';
     if (secondarySection) secondarySection.style.display = 'none';
     if (manualSection) manualSection.style.display = 'none';
     if (constrainedSection) constrainedSection.style.display = 'none';
-    const picksRow = document.getElementById('foryou-picks-row');
     if (picksRow) picksRow.style.display = 'none';
-    const orDivider = document.querySelector('.foryou-vs-divider');
     if (orDivider) orDivider.style.display = 'none';
 
     let lockEl = document.getElementById('predict-lock-state');
@@ -64,31 +107,40 @@ export function initPredict() {
       const screen = document.getElementById('predict');
       if (screen) screen.insertBefore(lockEl, screen.firstChild);
     }
+    const needed = 3 - MOVIES.length;
     lockEl.style.cssText = 'padding:80px 24px;text-align:center;max-width:440px;margin:0 auto';
     lockEl.innerHTML = `
-      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--dim);margin-bottom:16px">— uncharted —</div>
-      <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:32px;color:var(--ink);letter-spacing:-1px;margin-bottom:12px">Not enough data yet.</div>
-      <div style="font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.7;color:var(--dim);font-weight:300;margin-bottom:28px">Add <strong style="color:var(--ink)">${needed} more film${needed !== 1 ? 's' : ''}</strong> to your rankings before Palate Map can predict your taste. The more you've rated, the more accurate the prediction.</div>
-      <div style="height:2px;background:var(--rule);border-radius:1px;margin-bottom:28px">
-        <div style="height:2px;width:${pct}%;background:var(--blue);border-radius:1px"></div>
+      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--dim);margin-bottom:16px">for you</div>
+      <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:28px;color:var(--ink);letter-spacing:-1px;margin-bottom:12px">This gets personal.</div>
+      <div style="font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.7;color:var(--dim);font-weight:300;max-width:400px;margin:0 auto 28px">After a few more ratings, Palate Map starts predicting your scores and recommending films chosen by your taste — not by popularity.</div>
+      <div style="display:flex;justify-content:center;gap:6px;margin-bottom:16px">
+        ${Array.from({length: 3}, (_, i) => `<div style="width:10px;height:10px;border-radius:50%;background:${i < MOVIES.length ? 'var(--blue)' : 'var(--rule)'}"></div>`).join('')}
       </div>
-      <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-bottom:24px">${MOVIES.length} of ${MIN_FILMS} films</div>
-      <button onclick="document.querySelector('.nav-btn.action-tab').click()" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:14px 32px;cursor:pointer">Rate films →</button>
+      <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-bottom:24px">${needed} more rating${needed !== 1 ? 's' : ''} to unlock early recommendations</div>
+      <button onclick="document.querySelector('.nav-btn.action-tab').click()" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:14px 32px;cursor:pointer">Rate a film →</button>
     `;
     return;
   }
 
-  // Remove lock state if enough films now
+  // ── 10-film milestone interstitial ────────────────────────────────────────
+  if (tier.tier === 'full' && !localStorage.getItem('pm_milestone_10')) {
+    localStorage.setItem('pm_milestone_10', '1');
+    showTenFilmMilestone();
+  }
+
+  // ── Remove lock state, show sections per tier ─────────────────────────────
   const lockEl = document.getElementById('predict-lock-state');
   if (lockEl) lockEl.remove();
   if (heroSection) heroSection.style.display = '';
   if (secondarySection) secondarySection.style.display = '';
-  if (manualSection) manualSection.style.display = '';
-  if (constrainedSection) constrainedSection.style.display = '';
-  const picksRow = document.getElementById('foryou-picks-row');
   if (picksRow) picksRow.style.display = '';
-  const orDivider = document.querySelector('.foryou-vs-divider');
-  if (orDivider) orDivider.style.display = '';
+
+  // Manual predict + entity search: Tier 2+ only
+  if (manualSection) manualSection.style.display = tier.canPredict ? '' : 'none';
+  if (constrainedSection) constrainedSection.style.display = tier.canConstrain ? '' : 'none';
+
+  // OR divider: only show when manual section is visible
+  if (orDivider) orDivider.style.display = tier.canPredict ? '' : 'none';
 
   // For You intro hint
   const hintSlot = document.getElementById('foryou-hint-slot');
@@ -218,31 +270,56 @@ function renderHeroCard(result) {
     : `<div class="foryou-hero-poster" style="width:160px;min-height:240px;background:var(--surface-dark-2);display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim)">${result.title}</div>`;
 
   const total = result.predTotal;
-  const totalDisplay = (Math.round(total * 10) / 10).toFixed(1);
   const safeTmdbId = parseInt(result.tmdbId);
   const onWl = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(result.tmdbId));
-  const refreshNeeded = 5 - ((MOVIES.length - (currentUser?.moviesCountAtLastRecommendation || 0)) % 5);
+  const tier = getPredictionTier();
+
+  let scoreHtml;
+  if (!tier.showScores) {
+    // Tier 1: qualitative label
+    const sourceNote = result.source === 'director' ? `You rated ${(result.director || '').split(',')[0]}'s work highly — this shares their signature style.` : '';
+    scoreHtml = `
+      <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:28px;color:var(--blue);line-height:1.1">Likely a match</div>
+      <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim);margin-top:4px">Based on your first ${MOVIES.length} ratings</div>
+      ${sourceNote ? `<div class="foryou-hero-reasoning">${sourceNote}</div>` : ''}`;
+  } else if (tier.rangeWidth > 0) {
+    // Tier 2: range score
+    scoreHtml = `
+      <div class="foryou-hero-score">${formatPredictedScore(total, MOVIES.length)}</div>
+      <span class="predict-confidence conf-exploratory">Exploratory</span>
+      <div class="foryou-hero-score-label">${getLabel(Math.round(total))}</div>
+      ${result.prediction?.reasoning ? `<div class="foryou-hero-reasoning">${result.prediction.reasoning}</div>` : ''}`;
+  } else {
+    // Tier 3: exact score
+    const totalDisplay = (Math.round(total * 10) / 10).toFixed(1);
+    scoreHtml = `
+      <div class="foryou-hero-score">~${totalDisplay}</div>
+      <div class="foryou-hero-score-label">${getLabel(Math.round(total))}</div>
+      ${result.prediction?.reasoning ? `<div class="foryou-hero-reasoning">${result.prediction.reasoning}</div>` : ''}`;
+  }
+
+  const footerText = tier.tier === 'early'
+    ? `Based on ${MOVIES.length} films · rate ${5 - MOVIES.length} more to unlock score predictions`
+    : `Based on ${MOVIES.length} films · ${canRefreshRecommendations()
+        ? `<a onclick="event.stopPropagation();loadForYouRecommendations()">Refresh now</a>`
+        : `<span style="color:var(--on-dark-dim);opacity:0.5">rate or add a film to refresh</span>`}`;
 
   heroEl.innerHTML = `
     <button class="foryou-hero-dismiss" onclick="event.stopPropagation();forYouDismissHero()" title="Next pick">✕</button>
     <div class="foryou-hero-inner" onclick="openRecommendedDetail(${safeTmdbId})">
       ${posterHtml}
       <div class="foryou-hero-body">
-        <div class="foryou-hero-source">${getSourceLabel(result)}</div>
+        <div class="foryou-hero-source">${tier.tier === 'early' ? 'EARLY PICK · ' : ''}${getSourceLabel(result)}</div>
         <div class="foryou-hero-title">${result.title}</div>
         <div class="foryou-hero-meta">${result.year || ''}${result.director ? ' · ' + result.director.split(',')[0] : ''}</div>
-        <div class="foryou-hero-score">~${totalDisplay}</div>
-        <div class="foryou-hero-score-label">${getLabel(Math.round(total))}</div>
-        ${result.prediction?.reasoning ? `<div class="foryou-hero-reasoning">${result.prediction.reasoning}</div>` : ''}
+        ${scoreHtml}
       </div>
     </div>
     <div class="foryou-hero-actions" onclick="event.stopPropagation()">
-      <button class="btn btn-primary" onclick="openRecommendedDetail(${safeTmdbId})">Full prediction →</button>
+      ${tier.canPredict ? `<button class="btn btn-primary" onclick="openRecommendedDetail(${safeTmdbId})">Full prediction →</button>` : ''}
       <button class="btn btn-outline" id="foryou-hero-wl-btn" onclick="toggleRecommendWatchlist('${result.tmdbId}')" style="${onWl ? 'background:var(--green);color:white;border-color:var(--green)' : 'color:var(--on-dark);border-color:rgba(255,255,255,0.2)'}">${onWl ? '✓ Watch List' : '+ Watch List'}</button>
     </div>
-    <div class="foryou-hero-footer">Based on ${MOVIES.length} films · ${canRefreshRecommendations()
-      ? `<a onclick="event.stopPropagation();loadForYouRecommendations()">Refresh now</a>`
-      : `<span style="color:var(--on-dark-dim);opacity:0.5">rate or add a film to refresh</span>`}</div>`;
+    <div class="foryou-hero-footer">${footerText}</div>`;
 }
 
 function updateRefreshButtonState() {
@@ -264,18 +341,29 @@ function renderSecondaryCards(results) {
     return;
   }
 
+  const tier = getPredictionTier();
+
   gridEl.innerHTML = results.map((r, i) => {
     const posterImg = r.poster
       ? `<img class="foryou-sec-poster" src="https://image.tmdb.org/t/p/w342${r.poster}" alt="${r.title}" loading="lazy">`
       : `<div class="foryou-sec-poster" style="width:100%;height:100%;background:var(--rule);display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">${r.title}</div>`;
-    const total = Math.round(r.predTotal);
     const safeTmdbId = parseInt(r.tmdbId);
+
+    let scoreBadge;
+    if (!tier.showScores) {
+      scoreBadge = `<div class="foryou-sec-score-badge" style="font-size:8px;letter-spacing:0.5px">${getSourceLabel(r)}</div>`;
+    } else if (tier.rangeWidth > 0) {
+      scoreBadge = `<div class="foryou-sec-score-badge">${formatPredictedScore(r.predTotal, MOVIES.length)}</div>`;
+    } else {
+      scoreBadge = `<div class="foryou-sec-score-badge">~${Math.round(r.predTotal)}</div>`;
+    }
+
     return `
       <div class="foryou-sec-card" onclick="openRecommendedDetail(${safeTmdbId})" style="opacity:0;animation:heroReveal 0.3s ease ${i * 80}ms both">
         <button class="foryou-sec-dismiss" onclick="event.stopPropagation();forYouDismissSecondary(${i})" title="Dismiss">✕</button>
         <div class="foryou-sec-poster-wrap">
           ${posterImg}
-          <div class="foryou-sec-score-badge">~${total}</div>
+          ${scoreBadge}
         </div>
         <div class="foryou-sec-body">
           <div class="foryou-sec-title">${r.title}</div>
@@ -747,8 +835,9 @@ async function buildCandidatePool() {
       directorMap[d].count++;
     });
   });
+  const tier = getPredictionTier();
   const topDirectors = Object.entries(directorMap)
-    .filter(([, v]) => v.count >= 2)
+    .filter(([, v]) => v.count >= (tier.tier === 'early' ? 1 : 2))
     .map(([name, v]) => ({ name, avg: v.total / v.count }))
     .sort((a, b) => b.avg - a.avg)
     .slice(0, 3);
@@ -790,109 +879,113 @@ async function buildCandidatePool() {
     } catch { /* stream failure is acceptable */ }
   }));
 
-  // ── Stream B: Actor affinity ──────────────────────────────────────────────
-  const actorMap = {};
-  MOVIES.forEach(m => {
-    mergeSplitNames((m.cast || '').split(',').map(s => s.trim()).filter(Boolean)).forEach(a => {
-      if (!actorMap[a]) actorMap[a] = { total: 0, count: 0 };
-      actorMap[a].total += m.total;
-      actorMap[a].count++;
-    });
-  });
-  const topActors = Object.entries(actorMap)
-    .filter(([, v]) => v.count >= 2)
-    .map(([name, v]) => ({ name, avg: v.total / v.count }))
-    .sort((a, b) => b.avg - a.avg)
-    .slice(0, 3);
-
-  await Promise.allSettled(topActors.map(async ({ name }) => {
-    try {
-      const searchRes = await fetch(
-        `${TMDB}/search/person?api_key=${TMDB_KEY}&query=${encodeURIComponent(name)}&language=en-US`
-      );
-      const searchData = await searchRes.json();
-      const person = (searchData.results || [])[0];
-      if (!person) return;
-
-      const credRes = await fetch(
-        `${TMDB}/person/${person.id}/movie_credits?api_key=${TMDB_KEY}`
-      );
-      const credData = await credRes.json();
-      const acted = (credData.cast || [])
-        .filter(c => c.vote_count > 100 && c.poster_path)
-        .filter(c => !isKnown(c.id, c.title))
-        .sort((a, b) => b.vote_average - a.vote_average)
-        .slice(0, 3);
-
-      acted.forEach(film => {
-        if (isKnown(film.id, film.title)) return;
-        seen.add(String(film.id));
-        candidates.push({
-          tmdbId: film.id,
-          title: film.title,
-          year: (film.release_date || '').slice(0, 4),
-          poster: film.poster_path,
-          director: '',
-          cast: name,
-          genres: '',
-          overview: film.overview || '',
-          source: 'actor',
-          sourceName: name
-        });
+  // ── Stream B: Actor affinity (skip at Tier 1) ───────────────────────────
+  if (tier.tier !== 'early') {
+    const actorMap = {};
+    MOVIES.forEach(m => {
+      mergeSplitNames((m.cast || '').split(',').map(s => s.trim()).filter(Boolean)).forEach(a => {
+        if (!actorMap[a]) actorMap[a] = { total: 0, count: 0 };
+        actorMap[a].total += m.total;
+        actorMap[a].count++;
       });
-    } catch { /* stream failure is acceptable */ }
-  }));
-
-  // ── Stream C: Company affinity ──────────────────────────────────────────────
-  const companyMap = {};
-  MOVIES.forEach(m => {
-    mergeSplitNames((m.productionCompanies || '').split(',').map(s => s.trim()).filter(Boolean)).forEach(c => {
-      if (!companyMap[c]) companyMap[c] = { total: 0, count: 0 };
-      companyMap[c].total += m.total;
-      companyMap[c].count++;
     });
-  });
-  const topCompanies = Object.entries(companyMap)
-    .filter(([, v]) => v.count >= 2)
-    .map(([name, v]) => ({ name, avg: v.total / v.count }))
-    .sort((a, b) => b.avg - a.avg)
-    .slice(0, 2);
+    const topActors = Object.entries(actorMap)
+      .filter(([, v]) => v.count >= 2)
+      .map(([name, v]) => ({ name, avg: v.total / v.count }))
+      .sort((a, b) => b.avg - a.avg)
+      .slice(0, 3);
 
-  await Promise.allSettled(topCompanies.map(async ({ name }) => {
-    try {
-      const searchRes = await fetch(
-        `${TMDB}/search/company?api_key=${TMDB_KEY}&query=${encodeURIComponent(name)}`
-      );
-      const searchData = await searchRes.json();
-      const company = (searchData.results || [])[0];
-      if (!company) return;
+    await Promise.allSettled(topActors.map(async ({ name }) => {
+      try {
+        const searchRes = await fetch(
+          `${TMDB}/search/person?api_key=${TMDB_KEY}&query=${encodeURIComponent(name)}&language=en-US`
+        );
+        const searchData = await searchRes.json();
+        const person = (searchData.results || [])[0];
+        if (!person) return;
 
-      const discRes = await fetch(
-        `${TMDB}/discover/movie?api_key=${TMDB_KEY}&with_companies=${company.id}&sort_by=vote_average.desc&vote_count.gte=100&page=1`
-      );
-      const discData = await discRes.json();
-      const films = (discData.results || [])
-        .filter(f => f.poster_path && !isKnown(f.id, f.title))
-        .slice(0, 3);
+        const credRes = await fetch(
+          `${TMDB}/person/${person.id}/movie_credits?api_key=${TMDB_KEY}`
+        );
+        const credData = await credRes.json();
+        const acted = (credData.cast || [])
+          .filter(c => c.vote_count > 100 && c.poster_path)
+          .filter(c => !isKnown(c.id, c.title))
+          .sort((a, b) => b.vote_average - a.vote_average)
+          .slice(0, 3);
 
-      films.forEach(film => {
-        if (isKnown(film.id, film.title)) return;
-        seen.add(String(film.id));
-        candidates.push({
-          tmdbId: film.id,
-          title: film.title,
-          year: (film.release_date || '').slice(0, 4),
-          poster: film.poster_path,
-          director: '',
-          cast: '',
-          genres: '',
-          overview: film.overview || '',
-          source: 'company',
-          sourceName: name
+        acted.forEach(film => {
+          if (isKnown(film.id, film.title)) return;
+          seen.add(String(film.id));
+          candidates.push({
+            tmdbId: film.id,
+            title: film.title,
+            year: (film.release_date || '').slice(0, 4),
+            poster: film.poster_path,
+            director: '',
+            cast: name,
+            genres: '',
+            overview: film.overview || '',
+            source: 'actor',
+            sourceName: name
+          });
         });
+      } catch { /* stream failure is acceptable */ }
+    }));
+  }
+
+  // ── Stream C: Company affinity (skip at Tier 1) ─────────────────────────
+  if (tier.tier !== 'early') {
+    const companyMap = {};
+    MOVIES.forEach(m => {
+      mergeSplitNames((m.productionCompanies || '').split(',').map(s => s.trim()).filter(Boolean)).forEach(c => {
+        if (!companyMap[c]) companyMap[c] = { total: 0, count: 0 };
+        companyMap[c].total += m.total;
+        companyMap[c].count++;
       });
-    } catch { /* stream failure is acceptable */ }
-  }));
+    });
+    const topCompanies = Object.entries(companyMap)
+      .filter(([, v]) => v.count >= 2)
+      .map(([name, v]) => ({ name, avg: v.total / v.count }))
+      .sort((a, b) => b.avg - a.avg)
+      .slice(0, 2);
+
+    await Promise.allSettled(topCompanies.map(async ({ name }) => {
+      try {
+        const searchRes = await fetch(
+          `${TMDB}/search/company?api_key=${TMDB_KEY}&query=${encodeURIComponent(name)}`
+        );
+        const searchData = await searchRes.json();
+        const company = (searchData.results || [])[0];
+        if (!company) return;
+
+        const discRes = await fetch(
+          `${TMDB}/discover/movie?api_key=${TMDB_KEY}&with_companies=${company.id}&sort_by=vote_average.desc&vote_count.gte=100&page=1`
+        );
+        const discData = await discRes.json();
+        const films = (discData.results || [])
+          .filter(f => f.poster_path && !isKnown(f.id, f.title))
+          .slice(0, 3);
+
+        films.forEach(film => {
+          if (isKnown(film.id, film.title)) return;
+          seen.add(String(film.id));
+          candidates.push({
+            tmdbId: film.id,
+            title: film.title,
+            year: (film.release_date || '').slice(0, 4),
+            poster: film.poster_path,
+            director: '',
+            cast: '',
+            genres: '',
+            overview: film.overview || '',
+            source: 'company',
+            sourceName: name
+          });
+        });
+      } catch { /* stream failure is acceptable */ }
+    }));
+  }
 
   // ── Stream D: TMDB discover (genre + era weighted) ──────────────────────────
   const genreScores = {};
@@ -1001,7 +1094,11 @@ async function callClaudeForPrediction(film, entityConstraint = null) {
         }).join('\n')
     : null;
 
-  const systemPrompt = `You are a precise film taste prediction engine. Your job is to predict how a specific user would score an unrated film, based on their detailed rating history and taste profile. When a prediction track record is provided, use it to calibrate your predictions — correct for any systematic bias in your past estimates. You must respond ONLY with valid JSON — no preamble, no markdown, no explanation outside the JSON.`;
+  const tier = getPredictionTier();
+  const hedgePreamble = tier.tier === 'exploratory'
+    ? `\n\nNote: This user has only rated ${profile.totalFilms} films. Your predictions should be directionally accurate but acknowledge limited data. Widen your confidence intervals. In your reasoning, be transparent: "Based on your ${profile.totalFilms} ratings so far..." rather than speaking with full certainty.`
+    : '';
+  const systemPrompt = `You are a precise film taste prediction engine. Your job is to predict how a specific user would score an unrated film, based on their detailed rating history and taste profile. When a prediction track record is provided, use it to calibrate your predictions — correct for any systematic bias in your past estimates. You must respond ONLY with valid JSON — no preamble, no markdown, no explanation outside the JSON.${hedgePreamble}`;
 
   const userPrompt = `USER TASTE PROFILE:
 Archetype: ${profile.archetype || 'unknown'} (secondary: ${profile.archetypeSecondary || 'none'})
@@ -1127,7 +1224,7 @@ function calcPredictedTotal(prediction) {
 }
 
 export async function runAutoPredict(item) {
-  if (!currentUser || MOVIES.length < 10) return;
+  if (!currentUser || !getPredictionTier().canPredict) return;
   if (currentUser.predictions?.[String(item.tmdbId)]) return;
   let detail = {}, credits = {};
   try {
@@ -1158,8 +1255,11 @@ function renderPrediction(film, prediction, comps, predictedAt = null) {
     ? `<img class="predict-poster" src="https://image.tmdb.org/t/p/w185${film.poster}" alt="${film.title}">`
     : `<div class="predict-poster-placeholder">${film.title}</div>`;
 
-  const confClass = { high: 'conf-high', medium: 'conf-medium', low: 'conf-low' }[prediction.confidence] || 'conf-medium';
-  const confLabel = { high: 'High confidence', medium: 'Medium confidence', low: 'Low confidence' }[prediction.confidence] || '';
+  const rpTier = getPredictionTier();
+  const confClass = rpTier.tier === 'exploratory' ? 'conf-exploratory'
+    : ({ high: 'conf-high', medium: 'conf-medium', low: 'conf-low' }[prediction.confidence] || 'conf-medium');
+  const confLabel = rpTier.tier === 'exploratory' ? 'Exploratory'
+    : ({ high: 'High confidence', medium: 'Medium confidence', low: 'Low confidence' }[prediction.confidence] || '');
 
   const cachedLabel = predictedAt
     ? `<div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);letter-spacing:1px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
@@ -1180,7 +1280,7 @@ function renderPrediction(film, prediction, comps, predictedAt = null) {
           <div style="font-family:'Playfair Display',serif;font-size:26px;font-weight:900;letter-spacing:-0.5px;margin-bottom:2px;color:var(--on-dark)">${film.title}</div>
           <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim);margin-bottom:16px">${film.year}${film.director ? ' · ' + film.director : ''}</div>
           <div style="display:flex;align-items:baseline;gap:8px">
-            <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:48px;color:var(--blue);letter-spacing:-2px;line-height:1">${predictedTotal}</div>
+            <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:48px;color:var(--blue);letter-spacing:-2px;line-height:1">${rpTier.rangeWidth > 0 ? formatPredictedScore(predictedTotal, MOVIES.length) : predictedTotal}</div>
             <div>
               <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--on-dark-dim)">${getLabel(predictedTotal)}</div>
               <span class="predict-confidence ${confClass}" style="color:var(--on-dark-dim)">${confLabel}</span>
@@ -1281,33 +1381,38 @@ async function findMeAFilm() {
     }
 
     // ── Phase 3: Run predictions — max 5 new Claude calls, cache-first ───────
+    const fmTier = getPredictionTier();
     const top5 = scored.slice(0, 8);
-    const toPredict = top5.filter(c => !currentUser?.predictions?.[String(c.tmdbId)]);
-    const toCall = toPredict.slice(0, 5);
 
-    await Promise.allSettled(toCall.map(async (c) => {
-      const film = {
-        tmdbId: c.tmdbId, title: c.title, year: c.year,
-        director: c.director || '', writer: '',
-        cast: c.cast || '', genres: c.genres || '',
-        overview: c.overview || '', poster: c.poster || null
-      };
-      try {
-        const { prediction } = await callClaudeForPrediction(film);
-        const predictedAt = new Date().toISOString();
-        const newPredictions = {
-          ...(currentUser?.predictions || {}),
-          [String(film.tmdbId)]: {
-            film, prediction, predictedAt,
-            archetype_at_time: currentUser?.archetype || null,
-            weights_at_time: currentUser?.weights ? { ...currentUser.weights } : null
-          }
+    // At Tier 1, skip Claude calls entirely — use compatScore as predTotal
+    if (fmTier.canPredict) {
+      const toPredict = top5.filter(c => !currentUser?.predictions?.[String(c.tmdbId)]);
+      const toCall = toPredict.slice(0, 5);
+
+      await Promise.allSettled(toCall.map(async (c) => {
+        const film = {
+          tmdbId: c.tmdbId, title: c.title, year: c.year,
+          director: c.director || '', writer: '',
+          cast: c.cast || '', genres: c.genres || '',
+          overview: c.overview || '', poster: c.poster || null
         };
-        setCurrentUser({ ...currentUser, predictions: trimPredictions(newPredictions) });
-        saveUserLocally();
-        syncToSupabase();
-      } catch { /* prediction failure — candidate excluded from results */ }
-    }));
+        try {
+          const { prediction } = await callClaudeForPrediction(film);
+          const predictedAt = new Date().toISOString();
+          const newPredictions = {
+            ...(currentUser?.predictions || {}),
+            [String(film.tmdbId)]: {
+              film, prediction, predictedAt,
+              archetype_at_time: currentUser?.archetype || null,
+              weights_at_time: currentUser?.weights ? { ...currentUser.weights } : null
+            }
+          };
+          setCurrentUser({ ...currentUser, predictions: trimPredictions(newPredictions) });
+          saveUserLocally();
+          syncToSupabase();
+        } catch { /* prediction failure — candidate excluded from results */ }
+      }));
+    }
 
     // ── Phase 4: Collect results and render top 3 ────────────────────────────
     // Final safety filter: never surface anything already rated or watchlisted,
@@ -1322,16 +1427,26 @@ async function findMeAFilm() {
       wlIdsCheck.has(String(c.tmdbId)) ||
       wlTitlesCheck.has(normTitle(c.title));
 
-    const results = top5
-      .filter(c => !alreadyKnown(c))
-      .filter(c => !previousRecommendationIds.has(String(c.tmdbId)))
-      .map(c => {
-        const cached = currentUser?.predictions?.[String(c.tmdbId)];
-        if (!cached?.prediction) return null;
-        return { ...c, prediction: cached.prediction, predTotal: calcPredictedTotal(cached.prediction) };
-      })
-      .filter(Boolean)
-      .sort((a, b) => b.predTotal - a.predTotal);
+    let results;
+    if (fmTier.canPredict) {
+      results = top5
+        .filter(c => !alreadyKnown(c))
+        .filter(c => !previousRecommendationIds.has(String(c.tmdbId)))
+        .map(c => {
+          const cached = currentUser?.predictions?.[String(c.tmdbId)];
+          if (!cached?.prediction) return null;
+          return { ...c, prediction: cached.prediction, predTotal: calcPredictedTotal(cached.prediction) };
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.predTotal - a.predTotal);
+    } else {
+      // Tier 1: no Claude predictions — use compatScore as predTotal
+      results = top5
+        .filter(c => !alreadyKnown(c))
+        .filter(c => !previousRecommendationIds.has(String(c.tmdbId)))
+        .map(c => ({ ...c, predTotal: c.compatScore, prediction: null }))
+        .sort((a, b) => b.predTotal - a.predTotal);
+    }
 
     // Actor cap: max 1 film per lead actor (first credited cast member)
     const actorSeen = new Set();
@@ -1371,7 +1486,7 @@ async function findMeAFilm() {
     updateRefreshButtonState();
 
     // Load discovery as part of the same refresh cycle
-    if (MOVIES.length >= 10) {
+    if (getPredictionTier().canDiscover) {
       loadDiscoveryRecommendations();
     }
 
@@ -1408,7 +1523,7 @@ function calcFamiliarityScore(directors, topCast, knownEntities) {
 }
 
 export function isNewTerritory(film) {
-  if (!film || MOVIES.length < 10) return false;
+  if (!film || !getPredictionTier().canDiscover) return false;
   const known = buildKnownEntities();
   const directors = mergeSplitNames((film.director || '').split(',').map(s => s.trim()).filter(Boolean));
   const cast = mergeSplitNames((film.cast || '').split(',').map(s => s.trim()).filter(Boolean)).slice(0, 5);
@@ -1533,8 +1648,8 @@ async function loadDiscoveryRecommendations() {
   const gridEl = document.getElementById('foryou-discovery-grid');
   if (!sectionEl || !gridEl) return;
 
-  // Need 10+ films
-  if (MOVIES.length < 10) { gridEl.innerHTML = ''; return; }
+  // Need Tier 3 (10+ films) for discovery
+  if (!getPredictionTier().canDiscover) { gridEl.innerHTML = ''; return; }
 
   gridEl.innerHTML = `<div class="discovery-loading">Scouting new territory…</div>`;
 
@@ -1622,7 +1737,7 @@ function renderDiscoveryCards(results) {
         <div class="discovery-card-source">${DISCOVERY_ICON_SVG} New territory</div>
         <div class="discovery-card-title">${r.title}</div>
         <div class="discovery-card-meta">${r.year || ''}${r.director ? ' · ' + r.director.split(',')[0] : ''}</div>
-        <div class="discovery-card-score">~${total}</div>
+        <div class="discovery-card-score">${formatPredictedScore(r.predTotal, MOVIES.length)}</div>
       </div>
       <div class="discovery-card-actions" onclick="event.stopPropagation()">
         <button class="discovery-wl-btn${onWl ? ' on-list' : ''}" onclick="toggleRecommendWatchlist('${r.tmdbId}');this.classList.toggle('on-list');this.textContent=this.classList.contains('on-list')?'✓ List':'+ List'">${onWl ? '✓ List' : '+ List'}</button>
@@ -1992,7 +2107,7 @@ function renderConstrainedResults(name, type, _tmdbId, results) {
         <div class="constrained-card-source">${getConstrainedSourceLabel(type, name)}</div>
         <div class="constrained-card-title">${r.title}</div>
         <div class="constrained-card-meta">${r.year || ''}${r.director ? ' · ' + r.director.split(',')[0] : ''}</div>
-        <div class="constrained-card-score">~${total}</div>
+        <div class="constrained-card-score">${formatPredictedScore(r.predTotal, MOVIES.length)}</div>
       </div>
       <div class="constrained-card-actions" onclick="event.stopPropagation()">
         <button id="constrained-wl-${safeTmdbId}" class="constrained-wl-btn${onWl ? ' on-list' : ''}" onclick="toggleRecommendWatchlist('${r.tmdbId}');this.classList.toggle('on-list');this.textContent=this.classList.contains('on-list')?'✓ List':'+ List'">${onWl ? '✓ List' : '+ List'}</button>
@@ -2048,7 +2163,7 @@ async function openRecommendedDetail(tmdbId) {
     <div style="border-top:1px solid var(--rule);padding-top:20px;margin-top:4px;margin-bottom:20px">
       <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:14px">— we think you'd give this —</div>
       <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:16px">
-        <span style="font-family:'Playfair Display',serif;font-size:60px;font-weight:900;font-style:italic;color:var(--blue);letter-spacing:-3px;line-height:1">~${(Math.round(predTotal * 10) / 10).toFixed(1)}</span>
+        <span style="font-family:'Playfair Display',serif;font-size:60px;font-weight:900;font-style:italic;color:var(--blue);letter-spacing:-3px;line-height:1">${formatPredictedScore(predTotal, MOVIES.length)}</span>
         <span style="font-family:'DM Mono',monospace;font-size:13px;color:var(--dim);letter-spacing:0.5px">${getLabel(Math.round(predTotal))}</span>
       </div>
       ${prediction.reasoning ? `

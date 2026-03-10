@@ -1,4 +1,5 @@
 import { MOVIES, CATEGORIES, scoreClass } from '../state.js';
+import { getPredictionTier } from './predict.js';
 import { shouldShowHint, renderHint } from './hints.js';
 
 let currentSort = { key: 'total', dir: 'desc' };
@@ -39,22 +40,36 @@ function getSorted() {
 export function updateTasteBanner() {
   const banner = document.getElementById('global-taste-banner');
   if (!banner) return;
-  const MIN = 10;
-  if (MOVIES.length > 0 && MOVIES.length < MIN) {
-    const remaining = MIN - MOVIES.length;
-    const pct = Math.round((MOVIES.length / MIN) * 100);
+  const tier = getPredictionTier();
+  const n = MOVIES.length;
+  if (n > 0 && tier.tier !== 'full') {
+    let msg, target;
+    if (tier.tier === 'locked') {
+      const needed = 3 - n;
+      msg = `Rate <strong>${needed} more film${needed !== 1 ? 's' : ''}</strong> to unlock early recommendations.`;
+      target = 3;
+    } else if (tier.tier === 'early') {
+      const needed = 5 - n;
+      msg = `${n} films rated. <strong>${needed} more</strong> to unlock score predictions.`;
+      target = 5;
+    } else {
+      const needed = 10 - n;
+      msg = `Predictions are exploratory. <strong>${needed} more film${needed !== 1 ? 's' : ''}</strong> for full precision.`;
+      target = 10;
+    }
+    const pct = Math.round((n / target) * 100);
     banner.innerHTML = `
       <div style="background:#FDF1EC;border-bottom:1px solid rgba(232,98,58,0.25);padding:9px 56px">
         <div style="display:flex;align-items:center;gap:14px;margin-bottom:7px">
-          <span style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--action);white-space:nowrap">${MOVIES.length} of ${MIN}</span>
-          <span style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--ink)">Rate <strong>${remaining} more film${remaining !== 1 ? 's' : ''}</strong> to unlock Predict and full taste insights.</span>
+          <span style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--action);white-space:nowrap">${n} of ${target}</span>
+          <span style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--ink)">${msg}</span>
         </div>
         <div style="height:2px;background:rgba(232,98,58,0.18);border-radius:1px">
           <div style="height:2px;width:${pct}%;background:var(--action);border-radius:1px;transition:width 0.4s ease"></div>
         </div>
       </div>`;
-  } else if (MOVIES.length >= MIN) {
-    const threshold = Math.floor(MOVIES.length / MIN) * MIN;
+  } else if (tier.tier === 'full') {
+    const threshold = Math.floor(n / 10) * 10;
     const lastThreshold = parseInt(localStorage.getItem('palatemap_calibrate_last_threshold') || '0');
     if (threshold > lastThreshold) {
       banner.innerHTML = `
