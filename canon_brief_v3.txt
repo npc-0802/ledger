@@ -1,5 +1,5 @@
 Palate Map
-Product Brief · Living Document · v3.24
+Product Brief · Living Document · v3.25
 Last updated: March 2026
 Confidential — do not distribute
 
@@ -62,7 +62,7 @@ Design Principles
 • Rankings nav icon is a medal (ribbon + circle), not a hamburger. Analysis uses bar chart. Icons are distinct across all 5 tabs.
 
 03  Current Architecture
-Status: Phase 1 complete, Phase 2 complete, Phase 3.1–3.8 complete, 3.11 complete, 3.13 complete, 3.15–3.24 complete. Vite multi-file vanilla JS.
+Status: Phase 1 complete, Phase 2 complete, Phase 3.1–3.8 complete, 3.11 complete, 3.13 complete, 3.15–3.25 complete. Vite multi-file vanilla JS.
 
 File Structure
 palatemap/
@@ -226,10 +226,12 @@ Entity page: avg score, rank among peers, film count, TMDB portrait in dark head
 Empty state: "Terra incognita." dashed-border uncharted treatment.
 
 Predict / For You
+Progressive unlock system (replaces the old 10-film hard gate): getPredictionTier() returns a tier object based on MOVIES.length. Tier 1 "early" (3–4 films): can recommend (Find Me a Film uses local compatScore, no Claude), no score predictions, no discovery, no entity search. Tier 2 "exploratory" (5–9 films): can predict (scores shown as ranges, e.g. ~78–86, narrowing as more films are rated — ±6 at 5 films, ±4 at 7, ±2 at 9), can recommend via Claude, no discovery, no entity search. Tier 3 "full" (10+ films): all features, exact scores, full precision. Rankings banner updates per tier ("Rate N more to unlock early recs" → "N more to unlock score predictions" → "N more for full precision"). Onboarding nudges celebrate tier unlocks.
+
 Editorial header: DM Mono eyebrow ("FOR YOU · BASED ON N FILMS"), Playfair italic headline (contextual: "What to watch tonight." / "Getting to know your taste." at <50 films), archetype color accent bar, metadata line with last-updated timestamp + archetype name.
-Section order (top to bottom): (1) editorial header, (2) hero recommendation (dark surface, full-width), (3) "I'm in the mood for…" entity search (promoted, Playfair headline, warm inviting input), (4) secondary picks as poster strip (4-column grid, poster-dominant cards with score badge overlay, matching Watch List card pattern), (5) "New Territory" discovery cards, (6) "Predict a specific film ▸" collapsed toggle (power-user escape hatch).
-Manual predict search: collapsed by default, expands on click.
-Prediction engine: search unrated films. Builds taste fingerprint. Finds comparables by shared director/cast. Calls Claude via Cloudflare proxy. Returns predicted score per category, confidence, 2nd-person reasoning anchored to user's specific films. Results cached in currentUser.predictions (keyed by tmdbId) and synced to Supabase — subsequent opens show cached result instantly with "Re-predict →" available. ＋ Watchlist and Rate now → actions on result.
+Section order (top to bottom): (1) editorial header, (2) hero recommendation (dark surface, full-width), (3) "I'm in the mood for…" entity search (promoted, Playfair headline, warm inviting input, centered search bar), (4) secondary picks as poster strip (4-column grid, poster-dominant cards with score badge overlay, matching Watch List card pattern), (5) "New Territory" discovery cards, (6) "Predict a specific film ▸" collapsed toggle (power-user escape hatch). Entity search and discovery gated behind Tier 3.
+Manual predict search: collapsed by default, expands on click. Gated behind Tier 2+.
+Prediction engine: search unrated films. Builds taste fingerprint. Finds comparables by shared director/cast. Calls Claude via Cloudflare proxy. Returns predicted score per category, confidence, 2nd-person reasoning anchored to user's specific films. Results cached in currentUser.predictions (keyed by tmdbId) and synced to Supabase — subsequent opens show cached result instantly with "Re-predict →" available. ＋ Watchlist and Rate now → actions on result. At Tier 2, predictions include a hedge preamble and scores display as ranges via formatPredictedScore().
 "Find me a film →": personalized recommendation engine. Builds a candidate pool from TMDB popular + genre-seeded discover pages, filtered against rated + watchlisted films + the user's watch list. Pre-scores candidates locally using director/cast overlap with user's top-rated films. Top 6 go to Claude for full prediction. Shows top 3 as recommendation cards (poster, title, predicted total, confidence, truncated reasoning, "+ Watch List" / "Full prediction →"). "Refresh →" advances page offset. Sequel filtering: candidates in a TMDB collection are excluded if the user hasn't rated all preceding films in the collection (uses belongs_to_collection + collection parts sorted by release date; first films in a series are allowed). Collection data cached per session.
 "New Territory →": discovery mode surfaced below For You recommendations. Finds films outside the user's comfort zone — underrepresented genres, eras, and origins in their rated library. Builds discovery pool from TMDB discover API with explicit genre/year/region filters targeting gaps. Same sequel filtering and prediction pipeline as For You. Cards labeled "new territory" with distinct header styling.
 
@@ -245,11 +247,11 @@ Add Film
 
 Step 1 — Search + Confirmation: centered search state (flexbox, vertically centered headline "What did you watch?" + subline + search input with icon). Results render as rich rows (.add-result: poster thumbnail, title, year/director meta, truncated overview, arrow indicator). Below the search input, a "From your watch list" section shows watchlist film thumbnails as quick-add shortcuts. After selecting a film, a side-by-side confirmation hero appears (large w342 poster left + body right: Playfair title, meta line with year · runtime · director, overview, persimmon "Rate this film →" CTA, "Not this one" secondary). Below the hero, detail chips show director, top cast (up to 6), and studio as labeled rows. Cast/crew curation collapses behind "Adjust cast & crew ▸" toggle (default collapsed — top 8 cast pre-checked is correct 90% of the time). Poster correction ("Wrong poster?") lives inside the collapsed section.
 
-Step 2 — Card-Based Scoring: always defaults to one-at-a-time card mode (localStorage preference ignored). "Show all categories →" toggle available for power users. Scoring intro hint: dismissable explainer on first use introducing the 8-category system (Craft: Plot, Execution, Acting, Production — how the film was made; Experience: Enjoyability, Rewatchability, Ending, Uniqueness — how it made you feel) with a score guide (90+ masterful, 80s excellent, 70s solid, 60s mixed, <60 weak). Uses hints.js shouldShowHint/renderHint system with localStorage persistence. Card mode: 8 progress dots at top (color-coded by score tier as each is completed), Craft/Experience grouping visible in eyebrow ("CRAFT · CATEGORY 3 OF 8"), large 64px score number (Playfair italic, tier-colored, updates live), reference anchor films (up to 3, with data-score attribute — anchor deselects back to white when user manually moves slider off that score), full-width slider, Back/Next navigation. Interstitial between categories 4→5: "Now for how it made you feel." (separates analytical Craft from emotional Experience). Category-specific tips rotate at bottom. All-at-once mode: same as legacy 8-slider vertical layout.
+Step 2 — Card-Based Scoring: always defaults to one-at-a-time card mode (localStorage preference ignored). "Show all categories →" toggle available for power users. Scoring intro hint: dismissable one-liner ("8 categories, 1–100 each. Craft and experience. Your weights determine the final score.") persists through all score cards until user dismisses with ×. Uses hints.js shouldShowHint/renderHint system with localStorage persistence. (?) tooltip trigger next to "Your score" label — toggles a dark-surface tooltip with scoring philosophy ("Scores run 1–100. Most films you like will land between 60 and 90…"). Card mode: 8 progress dots at top (color-coded by score tier as each is completed), Craft/Experience grouping visible in eyebrow ("CRAFT · CATEGORY 3 OF 8"), large 64px score number (Playfair italic, tier-colored, updates live), reference anchor films (up to 3 in a 480px grid, with data-score attribute — anchor deselects back to white when user manually moves slider off that score), full-width slider with clean single-color track (.score-slider), animated chevron arrow hints flanking the thumb (fade on first interaction via .touched class), 3 positioned scale labels below (Poor at 15%, Solid at 50%, Exceptional at 85% — absolutely positioned to match actual scale locations), Back/Next navigation. Craft intro interstitial before first card (first time only, localStorage gated): introduces the 4 craft categories. Experience interstitial between categories 4→5: "Now for how it made you feel." with "Switch to full view →" toggle link. Category-specific tips rotate at bottom. All-at-once mode: same as legacy 8-slider vertical layout with same scale labels and tooltip. Resume modal: if a rating is in progress, shows film poster + "Pick up where you left off?" with Yes/No (No just closes the modal).
 
 Step 3 — Head-to-Head: same core interaction (pick a winner for close-scoring films). Added: poster thumbnails (40×60px) on both cards, fade-in transitions between matchups. Auto-advance with 1.5s delay when no close comparisons exist ("Your scores are clearly differentiated. No adjustments needed.").
 
-Step 4 — Result Reveal: dark surface (var(--surface-dark)) fills the panel. 7-phase staged animation: eyebrow "YOUR VERDICT" → title slide up (300ms) → score scale-in at 80px (600ms) → label → prediction comparison if applicable (750ms) → rank context (900ms) → category grid 4×2 (1200ms) → nearby films leaderboard (1500ms) → action buttons (1800ms). All text styled for dark surface. Prediction comparison: "Predicted 82.1 → Actual 78.4 / −3.7 · Close."
+Step 4 — Result Reveal: auto-saves the film to rankings on reaching this step (no manual save button). Dark surface (var(--surface-dark)) fills the panel. Page scrolls to top on step transition. 7-phase staged animation: eyebrow "YOUR VERDICT" → title slide up (300ms) → score scale-in at 80px (600ms) → label → prediction comparison if applicable (750ms) → rank context (900ms) → category grid 4×2 (1200ms) → nearby films leaderboard (1500ms) → action buttons (1800ms). All text styled for dark surface. Shows "✓ Saved to rankings" status line. Single CTA: "Rate Another →" (standalone, no save button). Prediction comparison: "Predicted 82.1 → Actual 78.4 / −3.7 · Close."
 
 Predicted vs actual: if the film was previously predicted, the result reveal shows predicted total vs actual total with delta and accuracy label ("Nailed it" ≤3, "Close" ≤8, "Off the mark" >8). Delta stored in prediction cache entry (predictedTotal, actualTotal, delta, ratedAt).
 
@@ -271,7 +273,7 @@ Full-screen dark overlay, autofocused input, placeholder "Search films, director
 1. Your rankings — own films matching query → opens film modal.
 2. In your rankings — directors/writers/actors/companies extracted from MOVIES matching query; shows type label, film count, avg score → exploreEntity (navigates to Analysis entity page).
 3. People & companies — TMDB persons (with profile photo) + companies not yet in user's data → openEntityStub modal.
-4. Films — unrated TMDB film results → ＋ List / Rate → actions.
+4. Films — unrated TMDB film results → ＋ List / Rate → actions (styled with .gs-rate-btn and .gs-list-btn classes, hover transitions on both).
 All TMDB queries run in parallel (movie + person + company). Own entity deduplication prevents showing the same name in both sections. Dismiss by clicking outside or ×.
 
 Friends (Phase 3.2 — Complete)
@@ -492,6 +494,20 @@ Phase 3 — Growth Features [IN PROGRESS]
   - Starter film genre grouping: groups with <2 films collapse to a single "Selected for you" label (fixes Atmospherist's 1-film "Dramas" section).
   - Known quiz blind spots (future): production never independent of execution; enjoyability has no dedicated question; Sensualist hard to reach as primary.
 
+• 3.25 Scoring & Prediction UX Pass ✓ — coordinated refinements across scoring flow and prediction system:
+  - Progressive unlock: tiered predictions replace the 10-film hard gate. getPredictionTier() returns tier objects (early at 3 films → exploratory at 5 → full at 10). Early tier uses local compatScore for recommendations (no Claude). Exploratory tier shows score ranges (±6→±2) that narrow with each film rated. Rankings banner and onboarding nudges update per tier.
+  - Craft intro interstitial: first-time-only intro screen before first score card ("Let's start with craft"), localStorage-gated (pm_seen_craft_intro). Experience interstitial updated with "Switch to full view →" toggle.
+  - Auto-save on result: film saves to rankings automatically on reaching Step 4. No "Save to Rankings" button — shows "✓ Saved to rankings" status. Single "Rate Another →" CTA.
+  - Score scale labels: 3 absolutely-positioned labels (Poor at 15%, Solid at 50%, Exceptional at 85%) replacing 5 evenly-spaced labels. Same pattern on onboarding starter sliders (dark variant).
+  - Slider redesign: clean single-color track (.score-slider) replacing red-to-green gradient. Animated chevron arrow hints flank the thumb, fading on first interaction (.score-slider-wrap with ::before/::after pseudo-elements).
+  - Score tooltip: (?) trigger next to "Your score" label toggles a dark-surface tooltip with scoring philosophy. Outside-click dismissal.
+  - Scoring info hint: concise one-liner replacing the 19-tier wall, persists through all score cards until dismissed.
+  - Resume modal: "Yes" / "No" buttons (No just closes the modal, doesn't reset).
+  - Global search hover states: .gs-rate-btn and .gs-list-btn with hover transitions.
+  - Entity search centering: "I'm in the mood for…" search bar centered with margin: 0 auto.
+  - Reference card grid widened from 400px to 480px max-width.
+  - Page scrolls to top on all step transitions (window.scrollTo in updateStepUI).
+
 Phase 4 — Platform
 • 4.1 Universal entity search — global search surfacing any director/actor/writer/company (entity-level, not film-level — film search is covered by 3.8 Global Search). Entity page shows: TMDB data, user's own rankings (if any), community avg score (requires 4.2). Requires schema change: separate palatemap_ratings table (see below).
 • 4.2 Community ratings layer — requires migrating films from per-user JSON blob to a normalized palatemap_ratings table (user_id, tmdb_id, scores jsonb, total, metadata). Migration strategy: dual-write first (sync to both blob and table), validate counts match, then switch reads. See technical audit roadmap Section 1 for full schema + migration plan. Enables: community avg score on any film or entity, "popular with users like you" discovery, per-rating sync (eliminates row-size limits and full-row overwrite).
@@ -676,4 +692,4 @@ This migration should be planned alongside Phase 4.2 (community ratings) as they
 
 Engineering rule: until the palatemap_predictions table exists, every prediction call must store the full predicted_scores, archetype_at_time, and weights_at_time on the prediction entry in currentUser.predictions. This ensures the data needed for future cross-user learning is captured now and will be migratable when the schema is ready. Do not store only the predicted total — always store the full score breakdown.
 
-Palate Map · private product brief · v3.24 · do not distribute
+Palate Map · private product brief · v3.25 · do not distribute
