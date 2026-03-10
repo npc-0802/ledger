@@ -431,10 +431,32 @@ function renderCalibration() {
   if (scoringMode === 'card') {
     currentCardIdx = 0;
     showingInterstitial = false;
-    renderScoreCard();
+    // Show craft intro for first-time scorers
+    if (!localStorage.getItem('pm_seen_craft_intro')) {
+      renderCraftIntro();
+    } else {
+      renderScoreCard();
+    }
   } else {
     renderAllAtOnce();
   }
+}
+
+function renderCraftIntro() {
+  showingInterstitial = true;
+  const container = document.getElementById('scoreCardContainer');
+  container.style.display = '';
+  document.getElementById('calibrationAllAtOnce').style.display = 'none';
+  container.innerHTML = `
+    <div class="score-interstitial">
+      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--dim);margin-bottom:20px">how scoring works</div>
+      <div class="score-interstitial-title">Let's start with craft.</div>
+      <div class="score-interstitial-sub">You'll rate this film across 8 categories. The first four measure <strong>craft</strong> — plot, execution, acting, and production. How well was this film made?</div>
+      <div style="margin-top:32px">
+        <button class="btn btn-primary" onclick="dismissCraftIntro()">Let's go →</button>
+      </div>
+    </div>
+  `;
 }
 
 function renderAllAtOnce() {
@@ -564,12 +586,19 @@ function renderInterstitial() {
     <div class="score-interstitial">
       <div class="score-interstitial-title">Now for how it made you feel.</div>
       <div class="score-interstitial-sub">The first four categories measured craft — how well the film was made. The next four measure experience — how the film landed for you personally.</div>
-      <div style="margin-top:32px">
+      <div style="margin-top:24px;font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);line-height:1.6">Prefer to see all 8 categories at once?<br><span onclick="dismissInterstitial();toggleScoringMode()" style="color:var(--blue);cursor:pointer;text-decoration:underline">Switch to full view →</span></div>
+      <div style="margin-top:24px">
         <button class="btn btn-primary" onclick="dismissInterstitial()">Continue →</button>
       </div>
     </div>
   `;
 }
+
+window.dismissCraftIntro = function() {
+  localStorage.setItem('pm_seen_craft_intro', '1');
+  showingInterstitial = false;
+  renderScoreCard();
+};
 
 window.dismissInterstitial = function() {
   showingInterstitial = false;
