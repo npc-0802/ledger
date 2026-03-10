@@ -63,6 +63,47 @@
 }
 
 /* ── Score Slider (clean track) ── */
+.score-slider-wrap {
+  position: relative;
+}
+.score-slider-wrap::before,
+.score-slider-wrap::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-style: solid;
+  border-color: var(--dim);
+  opacity: 0.5;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.score-slider-wrap::before {
+  left: -16px;
+  border-width: 0 0 1.5px 1.5px;
+  transform: translateY(-50%) rotate(45deg);
+  animation: sliderHintLeft 1.2s ease-in-out infinite;
+}
+.score-slider-wrap::after {
+  right: -16px;
+  border-width: 1.5px 1.5px 0 0;
+  transform: translateY(-50%) rotate(45deg);
+  animation: sliderHintRight 1.2s ease-in-out infinite;
+}
+.score-slider-wrap.touched::before,
+.score-slider-wrap.touched::after {
+  opacity: 0;
+}
+@keyframes sliderHintLeft {
+  0%, 100% { transform: translateY(-50%) translateX(0) rotate(45deg); }
+  50% { transform: translateY(-50%) translateX(-3px) rotate(45deg); }
+}
+@keyframes sliderHintRight {
+  0%, 100% { transform: translateY(-50%) translateX(0) rotate(45deg); }
+  50% { transform: translateY(-50%) translateX(3px) rotate(45deg); }
+}
+
 .score-slider {
   -webkit-appearance: none;
   appearance: none;

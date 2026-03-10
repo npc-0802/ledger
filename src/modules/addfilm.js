@@ -499,9 +499,11 @@ function renderAllAtOnce() {
             <span class="slider-desc" id="sliderDesc_${cat.key}" style="margin-left:8px">${getLabel(initVal)}</span>
           </div>
         </div>
-        <input type="range" min="1" max="100" value="${initVal}" id="slider_${cat.key}"
-          class="score-slider"
-          oninput="updateSlider('${cat.key}', this.value)">
+        <div class="score-slider-wrap">
+          <input type="range" min="1" max="100" value="${initVal}" id="slider_${cat.key}"
+            class="score-slider"
+            oninput="updateSlider('${cat.key}', this.value)" onpointerdown="this.parentElement.classList.add('touched')">
+        </div>
         <div class="score-scale-labels">
           <span>Stopped watching</span><span>Poor</span><span>Solid</span><span>Great</span><span>Exceptional</span>
         </div>
@@ -565,10 +567,12 @@ function renderScoreCard() {
         </div>` : ''}
       <div class="score-card-value" id="scoreCardValue" style="color:${getTierColor(val)}">${val}</div>
       <div class="score-card-label" id="scoreCardLabel">${getLabel(val)}</div>
-      <div style="max-width:400px;margin:20px auto 0">
-        <input type="range" min="1" max="100" value="${val}" id="scoreCardSlider"
-          class="score-slider"
-          oninput="updateScoreCard(this.value)">
+      <div style="max-width:400px;margin:20px auto 0;padding:0 20px">
+        <div class="score-slider-wrap">
+          <input type="range" min="1" max="100" value="${val}" id="scoreCardSlider"
+            class="score-slider"
+            oninput="updateScoreCard(this.value)" onpointerdown="this.parentElement.classList.add('touched')">
+        </div>
         <div class="score-scale-labels">
           <span>Stopped watching</span><span>Poor</span><span>Solid</span><span>Great</span><span>Exceptional</span>
         </div>
