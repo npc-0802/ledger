@@ -528,15 +528,17 @@ function renderScoreCard() {
   const indicator = document.getElementById('addfilm-step-indicator');
   if (indicator) indicator.textContent = `Score · ${cat.label}`;
 
-  // Intro hint — first time a user sees the scoring flow
-  const introHint = currentCardIdx === 0 && shouldShowHint('scoring_intro', () => true)
+  // Scoring guide — persists through all cards until dismissed
+  const introHint = shouldShowHint('scoring_intro', () => true)
     ? renderHint('scoring_intro',
-        '<strong>How scoring works.</strong> You\'ll rate this film across 8 categories — ' +
-        'four measure <strong>craft</strong> (plot, execution, acting, production) and four measure ' +
-        '<strong>experience</strong> (enjoyability, rewatchability, ending, uniqueness). ' +
-        'Your palate weights each one differently to produce a final score that reflects how <em>you</em> evaluate film. ' +
-        '<span style="display:block;margin-top:8px;font-family:\'DM Mono\',monospace;font-size:10px;color:var(--dim)">' +
-        '90+ all-time great · 80+ excellent · 70+ great · 60+ a cut above · 50 solid · below 50 sub-par</span>')
+        '<strong>How scoring works.</strong> ' +
+        'Your palate weights each category differently to produce a final score that reflects how <em>you</em> evaluate film.' +
+        '<span style="display:block;margin-top:10px;font-family:\'DM Mono\',monospace;font-size:10px;line-height:2;color:var(--dim)">' +
+        '100 no better exists · 90+ an all-time favorite · 85+ really quite exceptional · 80+ excellent · ' +
+        '75+ well above average · 70+ great · 65+ very good · 60+ a cut above · 55+ good · 50 solid · ' +
+        '45+ not bad · 40+ sub-par · 35+ multiple flaws · 30+ poor · 25+ bad · ' +
+        '20+ wouldn\'t watch by choice · 15+ so bad I stopped watching · 10+ disgusting · ' +
+        '2+ insulting · 1 no worse exists</span>')
     : '';
 
   container.innerHTML = `
