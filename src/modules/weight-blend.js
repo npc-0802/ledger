@@ -9,6 +9,27 @@ import { classifyArchetype } from './quiz-engine.js';
 const DECAY_RATE = 0.15;
 const MAX_SNAPSHOTS = 500;
 
+// ── Skew-adjusted decay ──
+// When a user's rated films cluster at one end of the spectrum (all loved
+// or all hated), variance-based rating weights become unreliable because
+// the sample doesn't represent the user's full range of discrimination.
+// We measure how skewed the pool is and slow the decay (retain more quiz
+// influence) proportionally.
+const NEUTRAL_MIDPOINT = 55;  // expected mean for a balanced sample
+const MAX_SKEW_DISTANCE = 35; // distance at which skew correction is maximal
+const MAX_SKEW_BOOST = 3.0;   // at full skew, decay acts as if 3× fewer films rated
+
+/**
+ * Compute a skew coefficient in [0, 1] from the mean total score.
+ * 0 = balanced sample (mean ≈ midpoint), 1 = extreme skew.
+ */
+function computeSkewCoefficient() {
+  if (MOVIES.length < 3) return 0;
+  const meanTotal = MOVIES.reduce((s, m) => s + (m.total || 0), 0) / MOVIES.length;
+  const distance = Math.abs(meanTotal - NEUTRAL_MIDPOINT);
+  return Math.min(distance / MAX_SKEW_DISTANCE, 1.0);
+}
+
 /**
  * Record a weight distribution snapshot for historical tracking.
  * Triggers: 'onboarding' (quiz finish), 'rating' (film rated/calibrated),
@@ -52,9 +73,13 @@ export function recordWeightSnapshot(trigger, opts = {}) {
     }
   }
 
-  // For rating triggers, capture the decay factor and rating-derived weights
+  // For rating triggers, capture the decay factor, skew, and rating-derived weights
   if (trigger === 'rating' && currentUser.rating_weights) {
-    snapshot.decay = Math.round((1.0 / (1.0 + MOVIES.length * DECAY_RATE)) * 1000) / 1000;
+    const skew = computeSkewCoefficient();
+    const skewMul = 1.0 + skew * (MAX_SKEW_BOOST - 1.0);
+    const effFilms = MOVIES.length / skewMul;
+    snapshot.decay = Math.round((1.0 / (1.0 + effFilms * DECAY_RATE)) * 1000) / 1000;
+    snapshot.skew = Math.round(skew * 1000) / 1000;
     snapshot.rw = {};
     for (const cat of CATEGORIES) {
       snapshot.rw[cat.key] = Math.round((currentUser.rating_weights[cat.key] || 0) * 1000) / 1000;
@@ -122,7 +147,14 @@ export function updateEffectiveWeights() {
   if (!quizWeights) return;
 
   const ratingWeights = computeRatingWeights();
-  const decay = 1.0 / (1.0 + filmsRated * DECAY_RATE);
+
+  // Skew-adjusted decay: when the rating pool is biased (all loved or all
+  // hated), variance is compressed and rating weights are less trustworthy.
+  // Boost the decay to retain more quiz influence proportionally.
+  const skew = computeSkewCoefficient();
+  const skewMultiplier = 1.0 + skew * (MAX_SKEW_BOOST - 1.0); // 1.0–3.0
+  const effectiveFilms = filmsRated / skewMultiplier;           // acts as if fewer films rated
+  const decay = 1.0 / (1.0 + effectiveFilms * DECAY_RATE);
 
   let effective;
   if (!ratingWeights) {
