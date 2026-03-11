@@ -843,8 +843,8 @@ function renderStarterRateCard(film, palColor) {
         '<div style="font-family:\'DM Mono\',monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--on-dark-dim);margin-bottom:6px">' + groupLabel + '</div>' +
         '<div style="font-family:\'Playfair Display\',serif;font-style:italic;font-weight:900;font-size:28px;color:' + palColor + '" id="starter-sv-' + film.tmdbId + '-' + cat.key + '">' + val + '</div>' +
         '<div style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--on-dark-dim);margin-bottom:8px" id="starter-sl-' + film.tmdbId + '-' + cat.key + '">' + getScoreLabel(val) + '</div>' +
-        '<div style="width:100%;padding:0 8px">' +
-          '<input type="range" min="1" max="100" value="' + val + '" class="starter-slider" oninput="starterSliderChange(' + film.tmdbId + ',\'' + cat.key + '\',this.value)">' +
+        '<div class="score-slider-wrap" style="width:100%;padding:0 8px">' +
+          '<input type="range" min="1" max="100" value="' + val + '" class="score-slider starter-slider" oninput="starterSliderChange(' + film.tmdbId + ',\'' + cat.key + '\',this.value)" onpointerdown="this.parentElement.classList.add(\'touched\')">' +
           '<div class="score-scale-labels score-scale-labels-dark" style="margin-top:2px"><span class="scale-label-poor">Poor</span><span class="scale-label-solid">Solid</span><span class="scale-label-exceptional">Exceptional</span></div>' +
         '</div>' +
       '</div>' +
@@ -852,7 +852,7 @@ function renderStarterRateCard(film, palColor) {
   }).join('');
 
   return '<div class="starter-rate-card" style="border-left:3px solid ' + palColor + '">' +
-    '<div style="display:flex;gap:14px;margin-bottom:20px;align-items:center">' +
+    '<div class="starter-rate-sticky-header" style="position:sticky;top:0;z-index:10;background:var(--surface-dark);display:flex;gap:14px;padding:12px 0 12px;margin-bottom:8px;align-items:center;border-bottom:1px solid rgba(255,255,255,0.06)">' +
     (posterUrl ? '<img src="' + posterUrl + '" style="width:46px;flex-shrink:0">' : '') +
     '<div style="flex:1;min-width:0">' +
     '<div style="font-family:\'Playfair Display\',serif;font-style:italic;font-size:16px;color:var(--on-dark)">' + film.title + '</div>' +

@@ -213,7 +213,7 @@ function shareCard(user, movies, archInfo) {
         <div>
           <div style="font-family:'DM Sans',sans-serif;font-size:11px;line-height:1.65;color:var(--dim);margin-bottom:12px">${archInfo.description}</div>
           <div style="border-top:1px solid var(--rule);padding-top:12px;margin-bottom:4px">
-            ${top3.map(m => `<div style="font-family:'DM Sans',sans-serif;font-size:11px;color:var(--ink);margin-bottom:5px;display:flex;justify-content:space-between"><span>${m.title}</span><span style="color:var(--dim);font-family:'DM Mono',monospace;font-size:10px">${m.total}</span></div>`).join('')}
+            ${top3.map(m => `<div style="font-family:'DM Sans',sans-serif;font-size:11px;color:var(--ink);margin-bottom:5px;display:flex;justify-content:space-between;gap:8px"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">${m.title}</span><span style="color:var(--dim);font-family:'DM Mono',monospace;font-size:10px;flex-shrink:0">${m.total}</span></div>`).join('')}
           </div>
         </div>
         <div style="padding-top:10px;border-top:1px solid var(--rule);font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);display:flex;justify-content:space-between">

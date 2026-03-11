@@ -439,7 +439,7 @@ function renderAllAtOnce() {
         <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);margin-bottom:6px">${groupLabel}</div>
         <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:28px;color:var(--ink)" id="sliderVal_${cat.key}">${initVal}</div>
         <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);margin-bottom:8px" id="sliderDesc_${cat.key}">${getLabel(initVal)}</div>
-        <div style="width:100%;padding:0 8px">
+        <div class="score-slider-wrap" style="width:100%;padding:0 8px">
           <input type="range" min="1" max="100" value="${initVal}" id="slider_${cat.key}"
             class="score-slider"
             oninput="updateSlider('${cat.key}', this.value)" onpointerdown="this.parentElement.classList.add('touched')">
@@ -562,7 +562,7 @@ function renderHthCard() {
   container.innerHTML = `
     <div class="hth-card-transition">
       <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;text-align:center">
-        Comparison ${hthIdx+1} of ${hthComparisons.length} &nbsp;·&nbsp; ${cat.label} (×${cat.weight})
+        Comparison ${hthIdx+1} of ${hthComparisons.length} &nbsp;·&nbsp; ${cat.label} (×${+cat.weight.toFixed(1)})
       </div>
       <div class="hth-prompt">Which has the better <em>${cat.label.toLowerCase()}</em>?</div>
       <div class="hth-row">
@@ -725,7 +725,7 @@ function renderResult() {
       <div class="result-reveal-grid">
         ${CATEGORIES.map(cat => `
           <div class="result-cat">
-            <div class="result-cat-name">${cat.label} ×${cat.weight}</div>
+            <div class="result-cat-name">${cat.label} ×${+cat.weight.toFixed(1)}</div>
             <div class="result-cat-val ${scoreClass(savedFilm.scores[cat.key] || 0)}">${savedFilm.scores[cat.key] || '—'}</div>
           </div>`).join('')}
       </div>
@@ -914,6 +914,17 @@ window.addFilmResumeYes = function() {
 window.addFilmResumeNo = function() {
   const overlay = document.getElementById('addfilm-resume-overlay');
   if (overlay) overlay.remove();
+  // Reset to search screen
+  newFilm = { title:'', year:null, director:'', writer:'', cast:'', productionCompanies:'', scores:{} };
+  currentStep = 1;
+  prefillScores = null;
+  hideAddFilmBanner();
+  document.getElementById('f-search').value = '';
+  document.getElementById('tmdb-results').innerHTML = '';
+  document.getElementById('tmdb-search-phase').style.display = '';
+  document.getElementById('tmdb-curation-phase').style.display = 'none';
+  updateStepUI(1);
+  renderWatchlistInSearch();
 };
 
 window.openAddFilmPosterPicker = async function() {

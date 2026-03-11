@@ -92,6 +92,10 @@ body {
   color: var(--ink);
   display: block;
   user-select: none;
+  transition: opacity 0.15s ease;
+}
+.masthead-wordmark:hover {
+  opacity: 0.6;
 }
 .masthead-rules {
   margin-top: 14px;

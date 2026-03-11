@@ -110,7 +110,10 @@ function listHTML(list) {
       ${sortPill('score', 'Score ↓')}
     </div>
     ${wlHint}
-    <div id="wl-list" class="wl-grid">${sorted.map(({ item, originalIndex }) => watchlistCard(item, originalIndex)).join('')}</div>`;
+    <div id="wl-list" class="wl-grid">${sorted.map(({ item, originalIndex }) => watchlistCard(item, originalIndex)).join('')}</div>
+    <div style="text-align:center;margin-top:24px;padding-top:16px;border-top:1px solid var(--rule)">
+      <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim)">Looking for something new? Check </span><span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);cursor:pointer" onclick="showScreen('predict')">For You</span><span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim)"> for recommendations →</span>
+    </div>`;
 }
 
 function watchlistCard(item, i) {

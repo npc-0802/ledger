@@ -563,7 +563,7 @@ function buildTasteProfile() {
   const sorted = [...MOVIES].sort((a,b) => b.total - a.total);
   const top10 = sorted.slice(0,10).map(m => `${m.title} (${m.total})`).join(', ');
   const bottom5 = sorted.slice(-5).map(m => `${m.title} (${m.total})`).join(', ');
-  const weightStr = CATEGORIES.map(c => `${c.label}×${(currentUser?.weights?.[c.key] ?? c.weight)}`).join(', ');
+  const weightStr = CATEGORIES.map(c => `${c.label}×${+(currentUser?.weights?.[c.key] ?? c.weight).toFixed(1)}`).join(', ');
 
   const predictions = currentUser?.predictions || {};
   const allReconciled = Object.entries(predictions)
