@@ -4,13 +4,18 @@ export const TEST_USER = {
   id: 'test-00000000-0000-0000-0000-000000000001',
   username: 'testuser',
   display_name: 'Test User',
-  archetype: 'Visceralist',
+  archetype: 'Sensualist',
   archetype_secondary: 'Narrativist',
   weights: {
     story: 2, craft: 2, performance: 2, world: 1,
     experience: 5, hold: 3, ending: 1, singularity: 1,
   },
   quiz_weights: {
+    story: 2, craft: 2, performance: 2, world: 1,
+    experience: 5, hold: 3, ending: 1, singularity: 1,
+  },
+  // Set rating_weights so the login-time backfill doesn't re-trigger and reclassify
+  rating_weights: {
     story: 2, craft: 2, performance: 2, world: 1,
     experience: 5, hold: 3, ending: 1, singularity: 1,
   },

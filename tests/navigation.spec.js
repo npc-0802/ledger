@@ -47,7 +47,7 @@ test.describe('Core navigation', () => {
     });
     await page.waitForTimeout(500);
 
-    await expect(page.locator('.screen').filter({ hasText: 'Visceralist' }).first()).toBeVisible({ timeout: 3000 });
+    await expect(page.locator('.screen').filter({ hasText: 'Sensualist' }).first()).toBeVisible({ timeout: 3000 });
   });
 });
 
