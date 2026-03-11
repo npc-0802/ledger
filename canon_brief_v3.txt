@@ -1,5 +1,5 @@
 Palate Map
-Product Brief · Living Document · v3.25
+Product Brief · Living Document · v3.26
 Last updated: March 2026
 Confidential — do not distribute
 
@@ -178,8 +178,8 @@ cast                string comma-separated (top 8 from TMDB)
 productionCompanies string comma-separated
 poster              string  TMDB path e.g. "/abc123.jpg"
 overview            string  synopsis from TMDB
-scores              object  { plot, execution, acting, production,
-                             enjoyability, rewatchability, ending, uniqueness }
+scores              object  { story, craft, performance, world,
+                             experience, hold, ending, singularity }
 
 Scoring Formula
 total = Σ(score[cat] × weight[cat]) / Σ(weight[cat])
@@ -224,7 +224,7 @@ Left column: 4 numbered value props with blue number markers (01–04): "Your fo
 Right column: dark surface card ("Your taste has a shape. Let's find it." + brand copy), Google sign-in button, "or" divider, "Continue with email →" (persimmon), Log in / Import links in readable on-dark contrast. Card stretches to match left column height. Footer: "Starting with film. Expanding to everything."
 
 Onboarding (3 entry points)
-New user: cold landing → auth step (Google OAuth primary, or name + email → magic link) → 6-question quiz (dark surface intro block: "Six questions. Your taste, revealed.") → archetype reveal (dark surface: name + description + quote + secondary + username) → "See what your palate says →" → starter films → welcome modal → main app.
+New user: cold landing → auth step (Google OAuth primary, or name + email → magic link) → adaptive quiz (3–5 questions, Bayesian selection from 15-question bank, stops when uncertainty is sufficiently reduced) → palate type reveal (dark surface: full name + description + quote + secondary + username) → "See what your palate says →" → starter films → curtain lift → main app.
 Starter films: after archetype reveal, presents a curated grid of 10 films selected for the user's palate type (from starter-films.js, 9 archetypes × 10 films + 10 universal fallbacks). 4-column desktop grid, 2-column mobile. Films are genre-grouped ("Dramas & thrillers" / "Sci-fi, animation & more") — but if either group would have fewer than 2 films, all are shown under a single "Selected for you" label instead. Each card shows poster (2:3 aspect ratio, object-fit cover). Tapping a card inserts an inline rate card immediately below the clicked poster (using grid-column: 1/-1 to span full width), preserving spatial continuity. 2-column slider layout with quiz-derived weighted defaults. After rating, auto-scrolls back to top of the overlay. Progress bar tracks rated count. "Show more" reveals additional films. Skip available at any point. Cross-fade animation between reveal and starters steps.
 Returning user: "Log in →" link on auth step. Shows Google OAuth or email-only magic link (no name field). On click: redirects to Google or sends magic link. Supabase session auto-loads profile on return. Legacy profiles with no auth_id are auto-linked on first sign-in (auth session linked to localStorage user, auth_id + email written to Supabase row).
 Letterboxd import: drag-and-drop ratings.csv → parses star ratings (×20 = score) → loads films → proceeds to quiz. CTA on name step ("On Letterboxd? Import your ratings →").
@@ -511,14 +511,7 @@ Phase 3 — Growth Features [IN PROGRESS]
   - New CSS classes: .add-search-state, .add-headline, .add-subline, .add-search-wrap, .add-search-input, .add-search-icon, .add-results, .add-result, .add-hero-wrap, .add-hero-poster, .add-hero-body, .add-hero-title, .add-hero-meta, .add-hero-overview, .add-hero-cta, .add-hero-secondary, .add-hero-details, .add-detail-row, .add-detail-chip, .add-recent, .add-recent-card, .profile-palate-row.
   - Hints system (src/modules/hints.js): shouldShowHint(key) / renderHint(key, config) with localStorage persistence for dismissable educational hints.
 
-• 3.24 Onboarding Weight Accuracy ✓ — quiz-derived weights replace archetype presets:
-  - Weight scale: 1–4 (was 1–5, too extreme at max). All archetype preset weights and weight editor cap updated.
-  - Quiz-derived weights: deriveArchetype() now computes an implied weight vector from the user's actual quiz answers — a score-weighted blend of all positively-scored archetype weights — then normalizes to 1–4. Users no longer get identical weights just because they share a primary archetype.
-  - Atmospherist weights decoupled: rewatchability 4→2, enjoyability 3→4, production 2→3. Atmospherist is about mood/atmosphere/feeling, not rewatch frequency. Revisionist remains the rewatch-focused archetype.
-  - Q5 strengthened: "great performance + messy script" now contributes Humanist+2/Visceralist+1 (A), Narrativist+1 (B), Absolutist+2/Formalist+1 (C), Atmospherist+1 (D) — was mostly harmony-only.
-  - Q3=B: "only if mood is right" now gives Atmospherist+1 (mood-conditional rewatching is an Atmospherist signal).
-  - Starter film genre grouping: groups with <2 films collapse to a single "Selected for you" label (fixes Atmospherist's 1-film "Dramas" section).
-  - Known quiz blind spots (future): production never independent of execution; enjoyability has no dedicated question; Sensualist hard to reach as primary.
+• 3.24 Onboarding Weight Accuracy ✓ — (superseded by 3.26 Quiz v2)
 
 • 3.25 Scoring & Prediction UX Pass ✓ — coordinated refinements across scoring flow and prediction system:
   - Progressive unlock: tiered predictions replace the 10-film hard gate. getPredictionTier() returns tier objects (early at 3 films → exploratory at 5 → full at 10). Early tier uses local compatScore for recommendations (no Claude). Exploratory tier shows score ranges (±6→±2) that narrow with each film rated. Rankings banner and onboarding nudges update per tier.
@@ -533,6 +526,15 @@ Phase 3 — Growth Features [IN PROGRESS]
   - Entity search centering: "I'm in the mood for…" search bar centered with margin: 0 auto.
   - Reference card grid widened from 400px to 480px max-width.
   - Page scrolls to top on all step transitions (window.scrollTo in updateStepUI).
+
+• 3.26 Quiz v2 ✓ — adaptive quiz engine, weight blending, category rename:
+  - Quiz engine (src/modules/quiz-engine.js): 15-question bank (src/data/quiz-questions.js), Bayesian question selection via expected uncertainty reduction, adaptive stopping at 3–5 questions. Each answer nudges 8-dimensional weight vector directly (no archetype scoring). Weight range 1.0–5.0, neutral 2.5.
+  - 5-composite archetype classification: narrative (0.6×story + 0.4×ending), craft (0.5×craft + 0.5×world), human (1.0×performance), experiential (0.6×experience + 0.4×hold), singular (1.0×singularity). Dominant composite = palate type. If no composite leads by >0.3, user is Holist.
+  - Adjective system: Studied (craft > experience by 1.5+), Instinctive (experience > craft by 1.5+), Devoted (neither). Full name = "Studied Narrativist" etc.
+  - Weight blending (src/modules/weight-blend.js): quiz_influence = 1/(1 + films_rated × 0.15). Rating-derived weights from per-category score variance. Effective weights = quiz × decay + rating × (1 − decay). Palate type recomputed on every blend.
+  - Category key rename: plot→story, execution→craft, acting→performance, production→world, enjoyability→experience, rewatchability→hold, uniqueness→singularity. Old keys migrated at localStorage and Supabase load boundaries via migrateKeys().
+  - Legacy user handling: users without quiz_weights are prompted to complete new onboarding before accessing the app (forced re-onboarding, no silent weight migration).
+  - Starter films use NEW_ARCHETYPE_TO_OLD mapping (Archivist→Completionist, Holist→Visceralist) for compatibility with existing starter-films.js data.
 
 Phase 4 — Platform
 • 4.1 Universal entity search — global search surfacing any director/actor/writer/company (entity-level, not film-level — film search is covered by 3.8 Global Search). Entity page shows: TMDB data, user's own rankings (if any), community avg score (requires 4.2). Requires schema change: separate palatemap_ratings table (see below).
@@ -718,4 +720,4 @@ This migration should be planned alongside Phase 4.2 (community ratings) as they
 
 Engineering rule: until the palatemap_predictions table exists, every prediction call must store the full predicted_scores, archetype_at_time, and weights_at_time on the prediction entry in currentUser.predictions. This ensures the data needed for future cross-user learning is captured now and will be migratable when the schema is ready. Do not store only the predicted total — always store the full score breakdown.
 
-Palate Map · private product brief · v3.25 · do not distribute
+Palate Map · private product brief · v3.26 · do not distribute
