@@ -1146,8 +1146,10 @@ function starterFinishAndExit(opts = {}) {
 }
 
 async function obFinish(reveal, opts = {}) {
-  const id = crypto.randomUUID();
-  const slug = reveal._slug || (obDisplayName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'user');
+  // Preserve existing user identity for re-onboarding; generate new id only for fresh sign-ups
+  const existing = currentUser;
+  const id = existing?.id || crypto.randomUUID();
+  const slug = existing?.username || reveal._slug || (obDisplayName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'user');
   const session = window._pendingAuthSession || null;
 
   setCurrentUser({
@@ -1160,8 +1162,12 @@ async function obFinish(reveal, opts = {}) {
     quiz_weights: reveal.quiz_weights,
     quiz_answers: reveal.quiz_answers,
     quiz_log: reveal.quiz_log,
-    email: session?.user?.email || null,
-    auth_id: session?.user?.id || null
+    email: session?.user?.email || existing?.email || null,
+    auth_id: session?.user?.id || existing?.auth_id || null,
+    // Preserve existing data that shouldn't be reset
+    ...(existing?.watchlist ? { watchlist: existing.watchlist } : {}),
+    ...(existing?.predictions ? { predictions: existing.predictions } : {}),
+    ...(existing?.harmony_sensitivity != null ? { harmony_sensitivity: existing.harmony_sensitivity } : {}),
   });
   window._pendingAuthSession = null;
 
