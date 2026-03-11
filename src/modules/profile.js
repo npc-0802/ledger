@@ -363,6 +363,16 @@ export function renderProfile() {
           <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:16px">Taste Fingerprint</div>
           ${radarChart(weights, archWeights)}
           ${radarLegend(archInfo.fullName)}
+          <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--rule)">
+            <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);margin-bottom:12px">Category Weights</div>
+            ${CATS.map(c => {
+              const w = +(weights[c] || 1).toFixed(1);
+              return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-family:'DM Mono',monospace;font-size:10px">
+                <span style="color:var(--dim);text-transform:uppercase;letter-spacing:1px">${CAT_LABELS[c]}</span>
+                <span style="color:var(--ink);font-weight:500">×${w}</span>
+              </div>`;
+            }).join('')}
+          </div>
         </div>
       </div>
 

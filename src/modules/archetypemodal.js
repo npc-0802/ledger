@@ -36,7 +36,7 @@ export function openArchetypeModal() {
         return `<div class="archetype-weight-row">
           <div class="archetype-weight-label">${cat.label}</div>
           <div class="archetype-weight-bar-wrap"><div class="archetype-weight-bar" id="awbar_${cat.key}" style="width:${pct}%"></div></div>
-          <input class="archetype-weight-input" type="number" min="1" max="5" value="${w}"
+          <input class="archetype-weight-input" type="number" min="1" max="5" step="0.1" value="${+(w).toFixed(1)}"
             id="awval_${cat.key}" oninput="previewWeight('${cat.key}', this.value)">
         </div>`;
       }).join('')}
