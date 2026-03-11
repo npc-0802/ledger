@@ -152,20 +152,7 @@ export function classifyArchetype(weights) {
   const [topKey, topVal] = entries[0];
   const [, secondVal] = entries[1];
 
-  // No clear leader → Balanced
-  if (topVal - secondVal < 0.3) {
-    return {
-      archetype: 'Balanced',
-      archetypeKey: 'balanced',
-      adjective: null,
-      fullName: 'Holist',
-      color: '#7A7A6D',
-      dimensions: dims,
-      secondary: entries[1][0]
-    };
-  }
-
-  // Adjective from craft/experience boundary
+  // Adjective from craft/experience boundary (applies to all types including Holist)
   const craftSide  = (weights.story ?? NEUTRAL) + (weights.craft ?? NEUTRAL)
                    + (weights.performance ?? NEUTRAL) + (weights.world ?? NEUTRAL);
   const expSide    = (weights.experience ?? NEUTRAL) + (weights.hold ?? NEUTRAL)
@@ -175,6 +162,19 @@ export function classifyArchetype(weights) {
   if (craftSide > expSide + 1.5) adjective = 'Studied';
   else if (expSide > craftSide + 1.5) adjective = 'Instinctive';
   else adjective = 'Devoted';
+
+  // No clear leader → Holist
+  if (topVal - secondVal < 0.3) {
+    return {
+      archetype: 'Holist',
+      archetypeKey: 'balanced',
+      adjective,
+      fullName: `${adjective} Holist`,
+      color: '#7A7A6D',
+      dimensions: dims,
+      secondary: entries[1][0]
+    };
+  }
 
   const meta = ARCHETYPE_META[topKey];
   return {
