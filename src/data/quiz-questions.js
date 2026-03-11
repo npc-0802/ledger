@@ -52,7 +52,7 @@ export const QUIZ_QUESTIONS = [
       },
       {
         key: 'D',
-        text: 'Research what to watch — reviews, the director\'s other work.',
+        text: 'Research what to watch.',
         nudge: { story: +0.2, craft: +1.0, performance: +0.2, world: +0.3, experience: -0.4, hold: -0.4, ending: 0, singularity: +0.6 }
       }
     ]

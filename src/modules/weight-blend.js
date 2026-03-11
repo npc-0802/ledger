@@ -7,6 +7,71 @@ import { saveUserLocally } from './supabase.js';
 import { classifyArchetype } from './quiz-engine.js';
 
 const DECAY_RATE = 0.15;
+const MAX_SNAPSHOTS = 500;
+
+/**
+ * Record a weight distribution snapshot for historical tracking.
+ * Triggers: 'onboarding' (quiz finish), 'rating' (film rated/calibrated),
+ *           'manual' (user edited weights in archetype modal).
+ * Stored on currentUser.weight_history as a compact array.
+ */
+export function recordWeightSnapshot(trigger, opts = {}) {
+  if (!currentUser) return;
+  const weights = currentUser.weights;
+  if (!weights) return;
+
+  const history = currentUser.weight_history || [];
+
+  // Dedupe: skip if weights haven't actually changed since last snapshot
+  const last = history[history.length - 1];
+  if (last && trigger === 'rating') {
+    const same = CATEGORIES.every(c =>
+      Math.abs((last.w[c.key] || 0) - (weights[c.key] || 0)) < 0.01
+    );
+    if (same) return;
+  }
+
+  const snapshot = {
+    t: Date.now(),
+    trigger,
+    n: MOVIES.length,                    // films rated at this point
+    w: {},                               // weight distribution (compact)
+    arch: currentUser.archetype || null,  // palate type at this point
+    adj: currentUser.adjective || null,   // adjective at this point
+  };
+  for (const cat of CATEGORIES) {
+    snapshot.w[cat.key] = Math.round((weights[cat.key] || 0) * 1000) / 1000;
+  }
+
+  // For onboarding, also capture quiz_weights as the baseline
+  if (trigger === 'onboarding') {
+    snapshot.qw = {};
+    const qw = currentUser.quiz_weights || weights;
+    for (const cat of CATEGORIES) {
+      snapshot.qw[cat.key] = Math.round((qw[cat.key] || 0) * 1000) / 1000;
+    }
+  }
+
+  // For rating triggers, capture the decay factor and rating-derived weights
+  if (trigger === 'rating' && currentUser.rating_weights) {
+    snapshot.decay = Math.round((1.0 / (1.0 + MOVIES.length * DECAY_RATE)) * 1000) / 1000;
+    snapshot.rw = {};
+    for (const cat of CATEGORIES) {
+      snapshot.rw[cat.key] = Math.round((currentUser.rating_weights[cat.key] || 0) * 1000) / 1000;
+    }
+  }
+
+  history.push(snapshot);
+
+  // Trim oldest entries if over cap (keep first entry as baseline)
+  if (history.length > MAX_SNAPSHOTS) {
+    const baseline = history[0];
+    history.splice(0, history.length - MAX_SNAPSHOTS);
+    if (history[0].trigger !== 'onboarding') history.unshift(baseline);
+  }
+
+  setCurrentUser({ ...currentUser, weight_history: history });
+}
 
 /**
  * Derive weights from the variance in per-category scores across all rated films.
@@ -92,6 +157,7 @@ export function updateEffectiveWeights() {
 
   // Recalc all totals with new weights
   recalcAllTotals();
+  recordWeightSnapshot('rating');
   saveUserLocally();
 
   // Toast on archetype change

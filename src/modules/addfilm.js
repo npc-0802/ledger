@@ -292,15 +292,6 @@ export function resetToSearch() {
 }
 
 function showAddFilmBanner(title, year) {
-  // Mobile banner
-  if (window.innerWidth <= 768) {
-    const el = document.getElementById('mobile-addfilm-banner');
-    if (el) {
-      el.innerHTML = `<div style="background:var(--cream);border-bottom:1px solid var(--rule-dark);padding:8px 20px;display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box"><span style="font-family:'DM Mono',monospace;font-size:14px;letter-spacing:2px;text-transform:uppercase;color:var(--action);flex-shrink:0">Rating</span><span style="font-family:'DM Mono',monospace;font-size:15px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${title}${year ? ' · ' + year : ''}</span></div>`;
-      el.style.display = 'block';
-    }
-  }
-  // Desktop context bar
   updateContextBar();
 }
 

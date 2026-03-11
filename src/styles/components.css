@@ -935,7 +935,7 @@ input[type="range"]::-webkit-slider-thumb:hover { background: var(--blue-dark); 
 .addfilm-curate.expanded .addfilm-curate-content { display: block; }
 .addfilm-curate.expanded .addfilm-curate-toggle { color: var(--ink); }
 
-/* Sticky film context banner (desktop) */
+/* Sticky film context banner */
 .addfilm-context-bar {
   display: none;
   position: sticky;
@@ -943,19 +943,22 @@ input[type="range"]::-webkit-slider-thumb:hover { background: var(--blue-dark); 
   z-index: 20;
   background: var(--paper);
   border-bottom: 1px solid var(--rule);
-  padding: 12px 0;
-  margin: 0 0 20px;
+  padding: 14px 0;
+  margin: -40px -56px 20px;
+  padding-left: 56px;
+  padding-right: 56px;
 }
 .addfilm-context-bar.visible { display: flex; }
 .addfilm-context-bar-inner {
   display: flex;
   align-items: center;
-  gap: 12px;
-  max-width: 760px;
+  gap: 14px;
+  width: 100%;
+  max-width: 800px;
 }
 .addfilm-context-poster {
-  width: 32px;
-  height: 48px;
+  width: 40px;
+  height: 60px;
   object-fit: cover;
   border-radius: 2px;
   flex-shrink: 0;
@@ -968,7 +971,7 @@ input[type="range"]::-webkit-slider-thumb:hover { background: var(--blue-dark); 
   font-family: 'Playfair Display', serif;
   font-style: italic;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 16px;
   color: var(--ink);
   white-space: nowrap;
   overflow: hidden;
@@ -979,6 +982,13 @@ input[type="range"]::-webkit-slider-thumb:hover { background: var(--blue-dark); 
   font-size: 9px;
   color: var(--dim);
   letter-spacing: 0.5px;
+  margin-top: 2px;
+}
+.addfilm-context-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
 }
 .addfilm-context-toggle {
   font-family: 'DM Mono', monospace;
@@ -997,8 +1007,24 @@ input[type="range"]::-webkit-slider-thumb:hover { background: var(--blue-dark); 
   color: var(--ink);
   border-color: var(--ink);
 }
+.addfilm-context-back {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--dim);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.12s;
+}
+.addfilm-context-back:hover { color: var(--ink); }
 @media (max-width: 768px) {
-  .addfilm-context-bar { display: none !important; }
+  .addfilm-context-bar {
+    margin: -24px -20px 16px;
+    padding: 12px 20px;
+  }
+  .addfilm-context-poster { width: 32px; height: 48px; }
+  .addfilm-context-title { font-size: 14px; }
+  .addfilm-context-toggle { display: none; }
 }
 
 /* Resume prompt overlay */
@@ -1057,7 +1083,6 @@ input[type="range"]::-webkit-slider-thumb:hover { background: var(--blue-dark); 
 /* Scoring card (one category at a time) */
 .score-card-container {
   position: relative;
-  overflow: hidden;
   min-height: 400px;
 }
 .score-card {

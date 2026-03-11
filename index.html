@@ -247,7 +247,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
   <div class="addfilm-step-indicator" id="addfilm-step-indicator">Select a film</div>
 
-  <!-- Sticky film context bar (desktop, steps 2–3) -->
+  <!-- Sticky film context bar (steps 2–3) -->
   <div class="addfilm-context-bar" id="addfilm-context-bar">
     <div class="addfilm-context-bar-inner">
       <img class="addfilm-context-poster" id="addfilm-context-poster" src="" alt="">
@@ -255,7 +255,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <div class="addfilm-context-title" id="addfilm-context-title"></div>
         <div class="addfilm-context-meta" id="addfilm-context-meta"></div>
       </div>
-      <button class="addfilm-context-toggle" id="addfilm-context-toggle" onclick="toggleScoringMode()"></button>
+      <div class="addfilm-context-actions">
+        <button class="addfilm-context-toggle" id="addfilm-context-toggle" onclick="toggleScoringMode()"></button>
+        <span class="addfilm-context-back" onclick="goToStep(1)">← Back</span>
+      </div>
     </div>
   </div>
 

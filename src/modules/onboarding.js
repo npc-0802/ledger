@@ -8,6 +8,7 @@ import { renderRankings } from './rankings.js';
 import { sb, syncToSupabase, saveUserLocally, signInWithGoogle, sendMagicLink } from './supabase.js';
 import { fetchTmdbMovieBundle } from './tmdb-movie.js';
 import { track } from '../analytics.js';
+import { recordWeightSnapshot } from './weight-blend.js';
 
 let obStep = 'name';
 let quizState = null;         // quiz-engine state object
@@ -1072,6 +1073,7 @@ async function obFinish(reveal, opts = {}) {
 
   applyUserWeights();
   recalcAllTotals();
+  recordWeightSnapshot('onboarding');
 
   // Render app content underneath the overlay before animating
   const { updateMastheadProfile, updateStorageStatus, setCloudStatus } = await import('../ui-callbacks.js');

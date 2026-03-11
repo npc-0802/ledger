@@ -68,8 +68,10 @@ export function exportFullData() {
       archetype: currentUser.archetype,
       archetype_secondary: currentUser.archetype_secondary,
       weights: currentUser.weights,
+      quiz_weights: currentUser.quiz_weights,
       harmony_sensitivity: currentUser.harmony_sensitivity,
     },
+    weight_history: currentUser.weight_history || [],
     films: MOVIES.map(m => ({
       title: m.title,
       year: m.year,

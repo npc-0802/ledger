@@ -95,6 +95,7 @@ async function _applyUserData(data) {
     full_archetype_name: data.full_archetype_name || prev.full_archetype_name || null,
     rating_weights: data.rating_weights || prev.rating_weights || null,
     films_rated: data.films_rated ?? prev.films_rated ?? 0,
+    weight_history: data.weight_history || prev.weight_history || [],
     watchlist: data.watchlist || [],
     predictions: data.predictions || {},
     cachedRecommendations: prev.cachedRecommendations || null,

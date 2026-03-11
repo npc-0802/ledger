@@ -4,6 +4,7 @@ import { saveToStorage } from './storage.js';
 import { renderRankings } from './rankings.js';
 import { renderProfile } from './profile.js';
 import { classifyArchetype } from './quiz-engine.js';
+import { recordWeightSnapshot } from './weight-blend.js';
 
 export function showSyncPanel() {
   if (!currentUser) {
@@ -106,6 +107,7 @@ export function saveArchetypeWeights() {
   currentUser.adjective = detected.adjective;
   currentUser.full_archetype_name = detected.fullName;
 
+  recordWeightSnapshot('manual');
   import('../modules/supabase.js').then(m => {
     m.saveUserLocally();
     m.syncToSupabase().catch(() => {});
