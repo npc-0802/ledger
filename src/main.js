@@ -240,6 +240,12 @@ async function init() {
     return;
   }
 
+  // Backfill: if user completed quiz v2 but weight blend never ran, run it now
+  if (currentUser?.quiz_weights && !currentUser.rating_weights && MOVIES.length >= 3) {
+    const { updateEffectiveWeights } = await import('./modules/weight-blend.js');
+    updateEffectiveWeights();
+  }
+
   renderRankings();
   updateStorageStatus();
 
