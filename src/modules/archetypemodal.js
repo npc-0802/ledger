@@ -3,6 +3,7 @@ import { ARCHETYPES } from '../data/archetypes.js';
 import { saveToStorage } from './storage.js';
 import { renderRankings } from './rankings.js';
 import { renderProfile } from './profile.js';
+import { classifyArchetype } from './quiz-engine.js';
 
 export function showSyncPanel() {
   if (!currentUser) {
@@ -19,9 +20,8 @@ export function openArchetypeModal() {
 
   document.getElementById('archetypeModalContent').innerHTML = `
     <button class="modal-close" onclick="closeArchetypeModal()">×</button>
-    <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--dim);margin-bottom:6px">Your archetype</div>
-    <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:32px;font-weight:900;color:var(--blue);margin-bottom:4px">${currentUser.archetype || '—'}</div>
-    ${currentUser.archetype_secondary ? `<div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);margin-bottom:4px">Secondary: ${currentUser.archetype_secondary}</div>` : ''}
+    <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--dim);margin-bottom:6px">Your palate type</div>
+    <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:32px;font-weight:900;color:var(--blue);margin-bottom:4px">${currentUser.full_archetype_name || currentUser.archetype || '—'}</div>
     <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-bottom:28px">${currentUser.username || ''}</div>
 
     <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--dim);margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--rule)">
@@ -78,21 +78,15 @@ export function resetArchetypeWeights() {
 }
 
 function detectArchetype(weights) {
-  // Returns { primary, secondary } based on cosine similarity to archetype weight vectors
-  const keys = CATEGORIES.map(c => c.key);
-  const norm = v => { const mag = Math.sqrt(keys.reduce((s,k) => s + (v[k]||1)**2, 0)); return keys.map(k => (v[k]||1)/mag); };
-  const userVec = norm(weights);
-  const scores = Object.entries(ARCHETYPES).map(([name, arch]) => {
-    const archVec = norm(arch.weights);
-    const sim = userVec.reduce((s, u, i) => s + u * archVec[i], 0);
-    return { name, sim };
-  }).sort((a, b) => {
-    if (b.sim !== a.sim) return b.sim - a.sim;
-    // Exact cosine tie: break by which archetype has a higher weight on the user's strongest category
-    const userMax = keys.reduce((best, k) => (weights[k] || 1) > (weights[best] || 1) ? k : best, keys[0]);
-    return (ARCHETYPES[b.name].weights[userMax] || 1) - (ARCHETYPES[a.name].weights[userMax] || 1);
-  });
-  return { primary: scores[0].name, secondary: scores[1].name };
+  const classification = classifyArchetype(weights);
+  return {
+    primary: classification.archetype,
+    secondary: classification.secondary || '',
+    adjective: classification.adjective,
+    fullName: classification.fullName,
+    archetypeKey: classification.archetypeKey,
+    color: classification.color,
+  };
 }
 
 export function saveArchetypeWeights() {
@@ -108,6 +102,9 @@ export function saveArchetypeWeights() {
   currentUser.weights = newWeights;
   currentUser.archetype = detected.primary;
   currentUser.archetype_secondary = detected.secondary;
+  currentUser.archetype_key = detected.archetypeKey;
+  currentUser.adjective = detected.adjective;
+  currentUser.full_archetype_name = detected.fullName;
 
   import('../modules/supabase.js').then(m => {
     m.saveUserLocally();
@@ -121,7 +118,8 @@ export function saveArchetypeWeights() {
 
   // Show archetype shift notification if it changed
   if (detected.primary !== prevArchetype) {
-    window.showToast?.(`${prevArchetype} → ${detected.primary}`, { duration: 5000 });
+    const label = detected.fullName || detected.primary;
+    window.showToast?.(`Your palate type shifted → ${label}`, { duration: 5000 });
   }
 }
 

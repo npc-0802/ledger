@@ -7,6 +7,7 @@ import { openPosterPicker } from './posterpicker.js';
 import { fetchTmdbMovieBundle } from './tmdb-movie.js';
 import { track } from '../analytics.js';
 import { shouldShowHint, renderHint } from './hints.js';
+import { updateEffectiveWeights } from './weight-blend.js';
 
 const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
 const TMDB = 'https://api.themoviedb.org/3';
@@ -363,6 +364,7 @@ let prefillScores = null;
 let scoringMode = 'card'; // always start one-at-a-time
 let currentCardIdx = 0;
 let showingInterstitial = false;
+let showCategoryCopy = localStorage.getItem('pm_show_category_copy') === 'true';
 
 export function prefillWithPrediction(scores) {
   prefillScores = scores;
@@ -467,24 +469,33 @@ function renderAllAtOnce() {
   document.getElementById('calibrationAllAtOnce').style.display = 'block';
 
   const container = document.getElementById('calibrationCategories');
-  container.innerHTML = CATEGORIES.map(cat => {
+  container.innerHTML = `
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+      <span class="score-split-toggle" onclick="toggleCategoryCopy()">${showCategoryCopy ? 'Hide guide' : 'Show category guide'}</span>
+    </div>` +
+  CATEGORIES.map(cat => {
     const anchors = getAnchors(cat.key);
     const initVal = newFilm.scores[cat.key] ?? 72;
-    return `<div class="category-section" id="catSection_${cat.key}">
-      <div class="cat-header">
-        <div class="cat-name">${cat.label}</div>
-        <div class="cat-weight">Weight ×${cat.weight} of 17</div>
-      </div>
-      <div class="cat-question">${cat.question}</div>
+    const groupLabel = cat.group === 'craft' ? 'Craft' : 'Experience';
+
+    const copyPanel = showCategoryCopy ? `
+      <div class="score-split-copy">
+        <div class="score-split-copy-fullname">${cat.fullLabel || cat.label}</div>
+        <div class="score-split-copy-prompt">"${cat.question}"</div>
+        <div class="score-split-copy-desc">${cat.description || ''}</div>
+        ${cat.nuance ? `<div class="score-split-copy-nuance">${cat.nuance}</div>` : ''}
+      </div>` : '';
+
+    const sliderContent = `
       ${anchors.length > 0 ? `
-      <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Reference films — select to anchor your score:</div>
+      <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Reference films:</div>
       <div class="anchor-row">
         ${anchors.map(a => `
           <div class="anchor-film" onclick="selectAnchor('${cat.key}', ${a.scores[cat.key]}, this)">
             ${a.poster ? `<img class="anchor-film-poster" src="https://image.tmdb.org/t/p/w92${a.poster}" alt="">` : ''}
             <div>
               <div class="anchor-film-title">${a.title}</div>
-              <div class="anchor-film-score">${cat.label}: ${a.scores[cat.key]}</div>
+              <div class="anchor-film-score">${a.scores[cat.key]}</div>
             </div>
           </div>`).join('')}
       </div>` : ''}
@@ -507,7 +518,15 @@ function renderAllAtOnce() {
         <div class="score-scale-labels">
           <span class="scale-label-poor">Poor</span><span class="scale-label-solid">Solid</span><span class="scale-label-exceptional">Exceptional</span>
         </div>
+      </div>`;
+
+    return `<div class="category-section" id="catSection_${cat.key}">
+      <div class="cat-header">
+        <div class="cat-name">${cat.fullLabel || cat.label}</div>
+        <div class="cat-weight">${groupLabel} · ×${cat.weight}</div>
       </div>
+      ${!showCategoryCopy ? `<div class="cat-question">${cat.question}</div>` : ''}
+      ${showCategoryCopy ? `<div class="score-split">${copyPanel}<div style="flex:1;min-width:0">${sliderContent}</div></div>` : sliderContent}
     </div>`;
   }).join('');
 }
@@ -521,7 +540,6 @@ function renderScoreCard() {
   const groupLabel = currentCardIdx < 4 ? 'Craft' : 'Experience';
   const val = newFilm.scores[cat.key] ?? 72;
   const anchors = getAnchors(cat.key);
-  const tip = CATEGORY_TIPS[cat.key] || '';
 
   // Progress dots
   const dots = CATEGORIES.map((c, i) => {
@@ -544,18 +562,21 @@ function renderScoreCard() {
         'Your weights determine the final score.')
     : '';
 
-  container.innerHTML = `
-    ${introHint}
-    <div style="position:relative">
-      <div class="score-progress-dots">${dots}</div>
-    </div>
-    <div class="score-card score-card-enter-right" id="activeScoreCard">
-      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:8px">${groupLabel} · Category ${currentCardIdx + 1} of 8</div>
-      <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:32px;color:var(--ink);letter-spacing:-1px;margin-bottom:6px">${cat.label}</div>
-      <div style="font-family:'DM Sans',sans-serif;font-size:14px;color:var(--dim);font-style:italic;margin-bottom:28px">"${cat.question}"</div>
+  // Copy panel (left side of 50/50)
+  const copyPanel = showCategoryCopy ? `
+    <div class="score-split-copy">
+      <div class="score-split-copy-fullname">${cat.fullLabel || cat.label}</div>
+      <div class="score-split-copy-prompt">"${cat.question}"</div>
+      <div class="score-split-copy-desc">${cat.description || ''}</div>
+      ${cat.nuance ? `<div class="score-split-copy-nuance">${cat.nuance}</div>` : ''}
+    </div>` : '';
+
+  // Slider panel (right side, or full-width when copy is hidden)
+  const sliderPanel = `
+    <div class="${showCategoryCopy ? 'score-split-slider' : ''}">
       ${anchors.length > 0 ? `
-        <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Reference</div>
-        <div class="anchor-row" style="display:grid;grid-template-columns:repeat(${Math.min(anchors.length, 3)}, 1fr);gap:8px;max-width:480px;margin:0 auto 20px">
+        <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;width:100%">Reference</div>
+        <div class="anchor-row" style="display:grid;grid-template-columns:repeat(${Math.min(anchors.length, 3)}, 1fr);gap:8px;max-width:480px;margin:0 auto 20px;width:100%">
           ${anchors.slice(0, 3).map(a => `
             <div class="anchor-film" data-score="${a.scores[cat.key]}" onclick="selectAnchorCard('${cat.key}', ${a.scores[cat.key]}, this)">
               ${a.poster ? `<img class="anchor-film-poster" src="https://image.tmdb.org/t/p/w92${a.poster}" alt="">` : ''}
@@ -567,7 +588,7 @@ function renderScoreCard() {
         </div>` : ''}
       <div class="score-card-value" id="scoreCardValue" style="color:${getTierColor(val)}">${val}</div>
       <div class="score-card-label" id="scoreCardLabel">${getLabel(val)}</div>
-      <div style="max-width:400px;margin:20px auto 0;padding:0 20px">
+      <div style="max-width:400px;margin:20px auto 0;padding:0 20px;width:100%">
         <div class="score-slider-wrap">
           <input type="range" min="1" max="100" value="${val}" id="scoreCardSlider"
             class="score-slider"
@@ -577,12 +598,28 @@ function renderScoreCard() {
           <span class="scale-label-poor">Poor</span><span class="scale-label-solid">Solid</span><span class="scale-label-exceptional">Exceptional</span>
         </div>
       </div>
+    </div>`;
+
+  container.innerHTML = `
+    ${introHint}
+    <div style="position:relative">
+      <div class="score-progress-dots">${dots}</div>
+    </div>
+    <div class="score-card score-card-enter-right" id="activeScoreCard">
+      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:8px">${groupLabel} · Category ${currentCardIdx + 1} of 8</div>
+      ${!showCategoryCopy ? `
+        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:32px;color:var(--ink);letter-spacing:-1px;margin-bottom:6px">${cat.label}</div>
+        <div style="font-family:'DM Sans',sans-serif;font-size:14px;color:var(--dim);font-style:italic;margin-bottom:28px">"${cat.question}"</div>` : ''}
+      ${showCategoryCopy ? `<div class="score-split">${copyPanel}${sliderPanel}</div>` : sliderPanel}
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+      <span class="score-split-toggle" onclick="toggleCategoryCopy()">${showCategoryCopy ? 'Hide guide' : 'Show category guide'}</span>
+      <div></div>
     </div>
     <div class="score-card-nav">
       <button class="btn btn-outline" onclick="${currentCardIdx === 0 ? 'goToStep(1)' : 'scoreCardPrev()'}" style="min-width:100px">← ${currentCardIdx === 0 ? 'Back' : 'Prev'}</button>
       <button class="btn btn-primary" onclick="scoreCardNext()" style="min-width:100px">${currentCardIdx === 7 ? 'Continue →' : 'Next →'}</button>
     </div>
-    ${tip ? `<div class="score-card-tip">${tip}</div>` : ''}
   `;
 }
 
@@ -680,6 +717,13 @@ window.toggleScoreTooltip = function(el) {
     }
   };
   setTimeout(() => document.addEventListener('click', close), 0);
+};
+
+window.toggleCategoryCopy = function() {
+  showCategoryCopy = !showCategoryCopy;
+  localStorage.setItem('pm_show_category_copy', showCategoryCopy ? 'true' : 'false');
+  if (scoringMode === 'card') renderScoreCard();
+  else renderAllAtOnce();
 };
 
 window.toggleScoringMode = function() {
@@ -884,6 +928,7 @@ function autoSaveFilm() {
     });
   }
   saveToStorage();
+  updateEffectiveWeights();
   if (savedTmdbId) {
     const onWatchlist = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(savedTmdbId));
     if (onWatchlist) removeFromWatchlist(savedTmdbId);

@@ -7,9 +7,9 @@ import { shouldShowHint, renderHint } from './hints.js';
 
 let profileImportedMovies = null;
 
-const CATS = ['plot','execution','acting','production','enjoyability','rewatchability','ending','uniqueness'];
-const CAT_LABELS = { plot:'Plot', execution:'Execution', acting:'Acting', production:'Production', enjoyability:'Enjoyability', rewatchability:'Rewatchability', ending:'Ending', uniqueness:'Uniqueness' };
-const CAT_SHORT  = { plot:'Plot', execution:'Exec', acting:'Acting', production:'Prod', enjoyability:'Enjoy', rewatchability:'Rewatch', ending:'Ending', uniqueness:'Unique' };
+const CATS = ['story','craft','performance','world','experience','hold','ending','singularity'];
+const CAT_LABELS = { story:'Story', craft:'Craft', performance:'Performance', world:'World', experience:'Experience', hold:'Hold', ending:'Ending', singularity:'Singularity' };
+const CAT_SHORT  = { story:'Story', craft:'Craft', performance:'Perf', world:'World', experience:'Exp', hold:'Hold', ending:'Ending', singularity:'Singular' };
 
 function radarChart(weights, archWeights, size = 220) {
   const n = CATS.length;
@@ -62,8 +62,8 @@ function radarChart(weights, archWeights, size = 220) {
 
 function scoreBars(movies) {
   if (!movies.length) return '<p style="font-family:\'DM Mono\',monospace;font-size:11px;color:var(--dim)">No films rated yet.</p>';
-  const craftKeys = ['plot','execution','acting','production'];
-  const expKeys   = ['enjoyability','rewatchability','ending','uniqueness'];
+  const craftKeys = ['story','craft','performance','world'];
+  const expKeys   = ['experience','hold','ending','singularity'];
   function barGroup(keys) {
     return keys.map(c => {
       const scored = movies.filter(m => m.scores?.[c] != null);

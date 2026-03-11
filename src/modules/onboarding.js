@@ -1,5 +1,7 @@
 import { MOVIES, setMovies, setCurrentUser, currentUser, applyUserWeights, recalcAllTotals, CATEGORIES, calcTotal } from '../state.js';
-import { ARCHETYPES, OB_QUESTIONS } from '../data/archetypes.js';
+import { ARCHETYPES } from '../data/archetypes.js';
+import { QUIZ_QUESTIONS } from '../data/quiz-questions.js';
+import { createQuizState, applyAnswer, selectNextQuestion, shouldStop, classifyArchetype, ARCHETYPE_DESCRIPTIONS, ADJECTIVE_DESCRIPTIONS } from './quiz-engine.js';
 import { STARTER_FILMS } from '../data/starter-films.js';
 import { saveToStorage } from './storage.js';
 import { renderRankings } from './rankings.js';
@@ -8,14 +10,18 @@ import { fetchTmdbMovieBundle } from './tmdb-movie.js';
 import { track } from '../analytics.js';
 
 let obStep = 'name';
-let obAnswers = {};
+let quizState = null;         // quiz-engine state object
+let quizQuestionOrder = [];   // ordered list of question IDs to show
+let quizSelections = {};      // { questionId: answerKey } — UI selections (survives back nav)
 let obDisplayName = '';
 let obRevealResult = null;
 let obImportedMovies = null;
 let obMagicLinkEmail = '';
 let starterRated = [];        // tmdbIds of films rated during starters
 let starterScores = {};       // { tmdbId: { scores, total } }
-let starterShowMore = false;  // whether "show me more" has been tapped
+let starterDiscoverFilms = []; // films loaded from TMDB discover
+let starterDiscoverPage = 1;   // TMDB discover page counter
+let starterLoadingMore = false; // loading state for "show more"
 let starterExpandedId = null; // tmdbId of currently expanded rating card
 let starterFineTune = false;  // whether fine-tune sliders are shown
 
@@ -24,7 +30,9 @@ let _obStartTime = null;
 export function launchOnboarding(opts = {}) {
   const overlay = document.getElementById('onboarding-overlay');
   overlay.style.display = 'flex';
-  obAnswers = {};
+  quizState = createQuizState();
+  quizQuestionOrder = [];
+  quizSelections = {};
   _obStartTime = Date.now();
   if (opts.skipToQuiz) {
     obDisplayName = opts.name || '';
@@ -150,41 +158,57 @@ function renderObStep() {
     `;
 
   } else if (typeof obStep === 'number') {
-    const q = OB_QUESTIONS[obStep];
-    const pct = Math.round((obStep / 6) * 100);
-    const isFirstQuestion = obStep === 0;
+    // Determine which question to show
+    const qIdx = obStep; // 0-based index into quizQuestionOrder
+    let currentQ;
+    if (qIdx < quizQuestionOrder.length) {
+      currentQ = QUIZ_QUESTIONS.find(q => q.id === quizQuestionOrder[qIdx]);
+    } else {
+      // Determine next question
+      if (qIdx === 0) currentQ = QUIZ_QUESTIONS.find(q => q.id === 'Q1');
+      else if (qIdx === 1) currentQ = QUIZ_QUESTIONS.find(q => q.id === 'Q2');
+      else currentQ = selectNextQuestion(quizState, QUIZ_QUESTIONS);
+      if (currentQ) {
+        quizQuestionOrder.push(currentQ.id);
+      }
+    }
+    if (!currentQ) { obStep = 'reveal'; renderObStep(); return; }
+
+    // Find if user already selected an answer for this question (for back navigation)
+    const selectedKey = quizSelections[currentQ.id] || null;
+
+    const maxQuestions = 5;
+    const pct = Math.round((qIdx / maxQuestions) * 100);
+    const isFirstQuestion = qIdx === 0;
     const intro = isFirstQuestion ? `
       <div id="ob-quiz-intro" style="background:var(--surface-dark);padding:24px 28px;margin:0 -4px 28px;position:relative;overflow:hidden">
         <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--on-dark-dim);margin-bottom:14px;opacity:0;animation:fadeIn 0.5s ease 0.2s both">palate map · taste quiz</div>
-        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(26px,6vw,36px);line-height:1.1;color:var(--on-dark);letter-spacing:-0.5px;margin-bottom:14px;opacity:0;animation:fadeIn 0.6s ease 0.5s both">Six questions.<br>Your taste, revealed.</div>
+        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(26px,6vw,36px);line-height:1.1;color:var(--on-dark);letter-spacing:-0.5px;margin-bottom:14px;opacity:0;animation:fadeIn 0.6s ease 0.5s both">A few questions.<br>Your taste, revealed.</div>
         <div style="font-family:'DM Sans',sans-serif;font-size:13px;line-height:1.75;color:var(--on-dark-dim);opacity:0;animation:fadeIn 0.5s ease 0.9s both">The films you love follow a pattern — a consistent set of values, instincts, and hungers that show up again and again. These questions find it.</div>
         <div style="margin-top:16px;padding-top:14px;border-top:1px solid rgba(244,239,230,0.1);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;opacity:0;animation:fadeIn 0.4s ease 1.2s both">
           <div style="display:flex;gap:20px">
-            <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);letter-spacing:0.5px">6 questions &nbsp;·&nbsp; ~2 min</div>
+            <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);letter-spacing:0.5px">Up to 6 questions &nbsp;·&nbsp; ~2 min</div>
             <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);letter-spacing:0.5px">Result: your palate type</div>
           </div>
         </div>
       </div>` : '';
     const questionHtml = `
-      <div class="ob-progress">Question ${obStep + 1} of 6</div>
+      <div class="ob-progress">Question ${qIdx + 1}</div>
       <div class="ob-progress-bar"><div class="ob-progress-fill" style="width:${pct}%"></div></div>
-      <div class="ob-question" style="font-family:'DM Sans',sans-serif;font-size:17px;line-height:1.6;font-style:normal">${q.q}</div>
-      ${q.options.map(o => `
-        <div class="ob-option ${obAnswers[obStep] === o.key ? 'selected' : ''}" role="radio" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="obSelectAnswer(${obStep}, '${o.key}', this)">
+      <div class="ob-question" style="font-family:'DM Sans',sans-serif;font-size:17px;line-height:1.6;font-style:normal">${currentQ.text}</div>
+      ${currentQ.answers.map(o => `
+        <div class="ob-option ${selectedKey === o.key ? 'selected' : ''}" role="radio" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="obSelectAnswer('${currentQ.id}', '${o.key}', this)">
           <div class="ob-option-radio"></div>
           <span class="ob-option-key">${o.key}</span>
           <span class="ob-option-text">${o.text}</span>
         </div>`).join('')}
       <div class="ob-nav">
-        ${obStep > 0 ? `<button class="ob-btn-secondary" style="color:var(--ink);border:1.5px solid var(--rule-dark)" onclick="obBack()">← Back</button>` : ''}
-        <button class="ob-btn-primary" id="ob-next-btn" onclick="obNextOrWarn()">
-          ${obStep === 5 ? 'Reveal your archetype →' : 'Next →'}
-        </button>
+        ${qIdx > 0 ? `<button class="ob-btn-secondary" style="color:var(--ink);border:1.5px solid var(--rule-dark)" onclick="obBack()">← Back</button>` : ''}
+        <button class="ob-btn-primary" id="ob-next-btn" onclick="obNextOrWarn()">Next →</button>
         <div id="ob-next-warning" style="display:none;font-family:'DM Mono',monospace;font-size:11px;color:var(--persimmon);text-align:center;margin-top:8px;width:100%;opacity:1;transition:opacity 0.4s ease"></div>
       </div>
     `;
     if (isFirstQuestion) {
-      // Cinematic entrance: intro lingers, then question slides in
       card.innerHTML = `${intro}<div id="ob-q1-content" style="opacity:0;transform:translateY(10px);transition:opacity 0.4s ease,transform 0.4s cubic-bezier(0.22,1,0.36,1)">${questionHtml}</div>`;
       setTimeout(() => {
         const q1 = document.getElementById('ob-q1-content');
@@ -193,39 +217,60 @@ function renderObStep() {
     } else {
       card.innerHTML = questionHtml;
     }
+    // Restore pending answer data attributes if user already selected for this question
+    if (selectedKey) {
+      card.dataset.pendingAnswer = selectedKey;
+      card.dataset.pendingQuestion = currentQ.id;
+    }
     document.getElementById('ob-signout-wrap').style.display = window._pendingAuthSession ? 'block' : 'none';
 
   } else if (obStep === 'reveal') {
-    const result = deriveArchetype(obAnswers);
-    obRevealResult = result;
-    if (!obRevealResult._slug) {
-      obRevealResult._slug = obDisplayName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'user';
-    }
+    const classification = classifyArchetype(quizState.weights);
+    const archDesc = ARCHETYPE_DESCRIPTIONS[classification.archetypeKey] || ARCHETYPE_DESCRIPTIONS.balanced;
+    const palColor = classification.color || '#3d5a80';
+
+    // Map to obRevealResult format for downstream (starters, obFinish)
+    obRevealResult = {
+      primary: classification.archetype,
+      secondary: classification.secondary ? (ARCHETYPE_DESCRIPTIONS[classification.secondary]?.name || '') : '',
+      weights: quizState.weights,
+      adjective: classification.adjective,
+      fullName: classification.fullName,
+      archetypeKey: classification.archetypeKey,
+      color: classification.color,
+      _slug: obDisplayName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'user',
+      quiz_weights: { ...quizState.weights },
+      quiz_answers: [...quizState.answers],
+      quiz_log: [...quizState.log],
+    };
+
     track('quiz_completed', {
       duration_seconds: _obStartTime ? Math.round((Date.now() - _obStartTime) / 1000) : null,
+      questions_asked: quizState.asked.length,
     });
     track('archetype_revealed', {
-      archetype: result.primary,
-      archetype_secondary: result.secondary || null,
+      archetype: classification.archetype,
+      adjective: classification.adjective || null,
+      archetype_key: classification.archetypeKey,
     });
-    const arch = ARCHETYPES[result.primary];
-    const palColor = arch.palette || '#3d5a80';
 
     // Fade out quiz, pause, then reveal
     card.style.transition = 'opacity 0.3s ease';
     card.style.opacity = '0';
     setTimeout(() => {
+      const displayName = classification.fullName || classification.archetype;
+      const adjectiveDesc = classification.adjective ? (ADJECTIVE_DESCRIPTIONS[classification.adjective] || '') : '';
       card.innerHTML = `
         <div class="ob-eyebrow" style="opacity:0;animation:fadeIn 0.4s ease 0.3s both">your palate</div>
         <div class="ob-reveal-card" style="background:var(--surface-dark);padding:28px 32px;margin:16px -4px 20px;opacity:0;transform:scale(0.96);animation:obRevealCard 0.5s cubic-bezier(0.22,1,0.36,1) both">
           <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--on-dark-dim);margin-bottom:10px">you are —</div>
-          <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(36px,8vw,56px);line-height:1;letter-spacing:-1px;color:${palColor};margin-bottom:16px;opacity:0;animation:fadeIn 0.4s ease 0.3s both">${result.primary}</div>
-          <div style="font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.75;color:var(--on-dark);margin-bottom:12px;opacity:0.85">${arch.description}</div>
-          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim);letter-spacing:0.5px">${arch.quote}</div>
-          ${result.secondary ? `
+          <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(32px,7vw,48px);line-height:1.05;letter-spacing:-1px;color:${palColor};margin-bottom:6px;opacity:0;animation:fadeIn 0.4s ease 0.3s both">${displayName}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);letter-spacing:1px;margin-bottom:16px;opacity:0;animation:fadeIn 0.3s ease 0.5s both">${archDesc.tagline}</div>
+          <div style="font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.75;color:var(--on-dark);margin-bottom:12px;opacity:0.85">${archDesc.description}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim);letter-spacing:0.5px;font-style:italic">${archDesc.quote}</div>
+          ${adjectiveDesc ? `
           <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(244,239,230,0.1)">
-            <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--on-dark-dim);margin-bottom:6px">secondary</div>
-            <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:22px;color:var(--on-dark);opacity:0.75">${result.secondary}</div>
+            <div style="font-family:'DM Sans',sans-serif;font-size:12.5px;line-height:1.65;color:var(--on-dark-dim)">${adjectiveDesc}</div>
           </div>` : ''}
         </div>
         <div style="background:var(--card-bg);border:1px solid var(--rule);padding:12px 16px;margin-bottom:24px;font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);opacity:0;animation:fadeIn 0.4s ease 0.5s both">
@@ -239,7 +284,7 @@ function renderObStep() {
         const el = document.getElementById('ob-reveal-username');
         if (el) el.textContent = obRevealResult._slug;
       }, 0);
-    }, 500); // 300ms fade + 200ms pause
+    }, 500);
 
   } else if (obStep === 'starters') {
     renderStarterFilms();
@@ -451,10 +496,15 @@ window.obConfirmImport = function() {
 };
 
 
-window.obSelectAnswer = function(qIdx, key, el) {
-  obAnswers[qIdx] = key;
+window.obSelectAnswer = function(questionId, key, el) {
+  // Store selection visually; actual state mutation happens in obNext()
   el.closest('.ob-card').querySelectorAll('.ob-option').forEach(o => o.classList.remove('selected'));
   el.classList.add('selected');
+  // Tag the card with the pending answer for obNext to read
+  el.closest('.ob-card').dataset.pendingAnswer = key;
+  el.closest('.ob-card').dataset.pendingQuestion = questionId;
+  // Persist selection for back navigation
+  quizSelections[questionId] = key;
   const nextBtn = document.getElementById('ob-next-btn');
   if (nextBtn) nextBtn.disabled = false;
 };
@@ -480,18 +530,58 @@ function transitionQuizStep(nextStep) {
 }
 
 window.obBack = function() {
-  if (typeof obStep === 'number' && obStep > 0) { transitionQuizStep(obStep - 1); }
+  if (typeof obStep === 'number' && obStep > 0) {
+    // Undo the last applied answer if stepping back from a question that was answered
+    const prevQId = quizQuestionOrder[obStep - 1];
+    // Remove the answer from quizState if it was applied for the current step
+    // We need to rebuild state from scratch up to (obStep - 1) since nudges are cumulative
+    const answersToReplay = quizState.answers.filter(a => {
+      const idx = quizQuestionOrder.indexOf(a.question);
+      return idx >= 0 && idx < obStep - 1;
+    });
+    // Reset and replay
+    quizState = createQuizState();
+    for (const a of answersToReplay) {
+      applyAnswer(quizState, a.question, a.answer, QUIZ_QUESTIONS);
+    }
+    // Trim question order — keep up to current step (don't remove adaptive picks before this point)
+    // But do allow re-selection of the question we're going back to
+    transitionQuizStep(obStep - 1);
+  }
   else { obStep = 'name'; renderObStep(); }
 };
 
 window.obNext = function() {
-  if (!obAnswers[obStep]) return;
-  if (obStep < 5) { transitionQuizStep(obStep + 1); }
-  else { obStep = 'reveal'; renderObStep(); }
+  // Read pending answer from DOM
+  const card = document.getElementById('ob-card-content');
+  const pendingKey = card?.dataset.pendingAnswer;
+  const pendingQId = card?.dataset.pendingQuestion;
+  if (!pendingKey || !pendingQId) return;
+
+  // Check if this question was already answered (back-navigation case)
+  const alreadyAnswered = quizState.answers.find(a => a.question === pendingQId);
+  if (!alreadyAnswered) {
+    applyAnswer(quizState, pendingQId, pendingKey, QUIZ_QUESTIONS);
+  } else if (alreadyAnswered.answer !== pendingKey) {
+    // User changed answer — rebuild state with the new answer
+    const allPrev = quizState.answers.filter(a => a.question !== pendingQId);
+    quizState = createQuizState();
+    for (const a of allPrev) applyAnswer(quizState, a.question, a.answer, QUIZ_QUESTIONS);
+    applyAnswer(quizState, pendingQId, pendingKey, QUIZ_QUESTIONS);
+  }
+
+  // Check adaptive stopping
+  if (shouldStop(quizState)) {
+    obStep = 'reveal';
+    renderObStep();
+  } else {
+    transitionQuizStep(obStep + 1);
+  }
 };
 
 window.obNextOrWarn = function() {
-  if (obAnswers[obStep]) {
+  const card = document.getElementById('ob-card-content');
+  if (card?.dataset.pendingAnswer) {
     obNext();
     return;
   }
@@ -508,7 +598,7 @@ window.obFinishFromReveal = function() {
   if (!obRevealResult) return;
   // Skip starters if user imported films from Letterboxd
   if (obImportedMovies?.length > 0) {
-    obFinish(obRevealResult.primary, obRevealResult.secondary || '', obRevealResult.weights, obRevealResult.harmonySensitivity);
+    obFinish(obRevealResult, {});
     return;
   }
   // Transition: fade out ob-card, shift overlay to dark, render starters
@@ -525,9 +615,25 @@ window.obFinishFromReveal = function() {
 
 // ── STARTER FILMS ──
 
+// Map new archetype names to old ARCHETYPES/STARTER_FILMS keys
+const NEW_ARCHETYPE_TO_OLD = {
+  Narrativist: 'Narrativist',
+  Formalist: 'Formalist',
+  Humanist: 'Humanist',
+  Sensualist: 'Sensualist',
+  Archivist: 'Completionist',
+  Holist: 'Visceralist',      // balanced → default to Visceralist pool
+  Balanced: 'Visceralist',
+};
+
+function getOldArchetypeKey(name) {
+  return NEW_ARCHETYPE_TO_OLD[name] || name;
+}
+
 function getStarterDefaults() {
   // Use user's quiz-derived weights, falling back to archetype preset
-  const weights = obRevealResult?.weights || ARCHETYPES[obRevealResult.primary]?.weights || {};
+  const oldKey = getOldArchetypeKey(obRevealResult?.primary);
+  const weights = obRevealResult?.weights || ARCHETYPES[oldKey]?.weights || {};
   const maxWeight = Math.max(...Object.values(weights), 1);
   const defaults = {};
   CATEGORIES.forEach(cat => {
@@ -538,7 +644,8 @@ function getStarterDefaults() {
 }
 
 function singleSliderToScores(overallScore) {
-  const weights = obRevealResult?.weights || ARCHETYPES[obRevealResult.primary]?.weights || {};
+  const oldKey = getOldArchetypeKey(obRevealResult?.primary);
+  const weights = obRevealResult?.weights || ARCHETYPES[oldKey]?.weights || {};
   const maxW = Math.max(...Object.values(weights), 1);
   const scores = {};
   CATEGORIES.forEach(cat => {
@@ -567,20 +674,20 @@ function groupFilmsByGenre(films) {
 }
 
 function getStarterFilms() {
-  const archetype = obRevealResult?.primary || 'Visceralist';
+  const archetype = getOldArchetypeKey(obRevealResult?.primary || 'Visceralist');
   const primary = STARTER_FILMS[archetype] || STARTER_FILMS.Visceralist;
-  if (starterShowMore) {
-    // Show remaining archetype films + universal fallbacks, deduped
-    const shown = new Set(primary.slice(0, 8).map(f => f.tmdbId));
-    const extra = [...primary.slice(8)];
-    for (const f of (STARTER_FILMS.universal || [])) {
-      if (!shown.has(f.tmdbId) && !extra.some(e => e.tmdbId === f.tmdbId)) {
-        extra.push(f);
-      }
+  // Combine: archetype films + universal + discovered, all deduped
+  const seen = new Set();
+  const ratedSet = new Set(MOVIES.map(m => String(m.tmdbId)));
+  const all = [];
+  for (const f of [...primary, ...(STARTER_FILMS.universal || []), ...starterDiscoverFilms]) {
+    const id = String(f.tmdbId);
+    if (!seen.has(id) && !ratedSet.has(id)) {
+      seen.add(id);
+      all.push(f);
     }
-    return { initial: primary.slice(0, 8), extra };
   }
-  return { initial: primary.slice(0, 8), extra: [] };
+  return all;
 }
 
 function getNudgeMessage() {
@@ -594,10 +701,10 @@ function getNudgeMessage() {
 
 function renderStarterFilms() {
   const card = document.getElementById('ob-card-content');
-  const arch = ARCHETYPES[obRevealResult.primary];
-  const palColor = arch?.palette || '#3d5a80';
-  const { initial, extra } = getStarterFilms();
-  const allFilms = [...initial, ...extra];
+  const oldArchKey = getOldArchetypeKey(obRevealResult.primary);
+  const arch = ARCHETYPES[oldArchKey];
+  const palColor = obRevealResult.color || arch?.palette || '#3d5a80';
+  const allFilms = getStarterFilms();
   const nudge = getNudgeMessage();
 
   // Progress circles
@@ -610,42 +717,22 @@ function renderStarterFilms() {
       '>' + total + '</div>';
   }).join('');
 
-  // Genre-grouped grid — insert rate card inline after the tapped film
-  const groups = groupFilmsByGenre(allFilms.slice(0, 8));
+  // Single flat grid with inline rate card
   let gridIdx = 0;
-  const gridsHTML = groups.map((g, gi) => {
-    let cardsHTML = '';
-    let rateCardInserted = false;
-    g.films.forEach(film => {
-      cardsHTML += renderStarterCard(film, gridIdx, palColor);
-      gridIdx++;
-      if (starterExpandedId != null && film.tmdbId === starterExpandedId) {
-        cardsHTML += '<div class="starter-rate-inline" style="grid-column:1/-1">' + renderStarterRateCard(allFilms.find(f => f.tmdbId === starterExpandedId), palColor) + '</div>';
-        rateCardInserted = true;
-      }
-    });
-    return '<div class="starter-genre-label">' + g.label + '</div><div class="starter-grid">' + cardsHTML + '</div>';
-  }).join('');
-
-  // Extra films (from "show me more")
-  let extraHTML = '';
-  if (extra.length > 0) {
-    let extraCards = '';
-    extra.forEach(film => {
-      extraCards += renderStarterCard(film, gridIdx, palColor);
-      gridIdx++;
-      if (starterExpandedId != null && film.tmdbId === starterExpandedId) {
-        extraCards += '<div class="starter-rate-inline" style="grid-column:1/-1">' + renderStarterRateCard(allFilms.find(f => f.tmdbId === starterExpandedId), palColor) + '</div>';
-      }
-    });
-    extraHTML = '<div class="starter-genre-label">More films</div><div class="starter-grid">' + extraCards + '</div>';
-  }
+  let cardsHTML = '';
+  allFilms.forEach(film => {
+    cardsHTML += renderStarterCard(film, gridIdx, palColor);
+    gridIdx++;
+    if (starterExpandedId != null && film.tmdbId === starterExpandedId) {
+      cardsHTML += '<div class="starter-rate-inline" style="grid-column:1/-1">' + renderStarterRateCard(film, palColor) + '</div>';
+    }
+  });
 
   card.innerHTML = `
     <div class="ob-starters-enter">
-      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:${palColor};margin-bottom:10px">your palate · ${obRevealResult.primary}</div>
+      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:${palColor};margin-bottom:10px">your palate · ${obRevealResult.fullName || obRevealResult.primary}</div>
       <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(24px,5vw,32px);line-height:1.1;color:var(--on-dark);letter-spacing:-0.5px;margin-bottom:10px">Let's start with what you know.</div>
-      <div style="font-family:'DM Sans',sans-serif;font-size:15px;color:var(--on-dark);opacity:0.7;line-height:1.6;margin-bottom:24px;max-width:480px">These are films ${obRevealResult.primary}s tend to connect with — chosen because they reward ${arch?.starterDescription || 'what your palate values most'}. Have you seen any?</div>
+      <div style="font-family:'DM Sans',sans-serif;font-size:15px;color:var(--on-dark);opacity:0.7;line-height:1.6;margin-bottom:24px;max-width:480px">These are films chosen for your palate — they reward ${arch?.starterDescription || 'what your palate values most'}. Have you seen any?</div>
 
       <div style="margin-bottom:24px">
         <div class="starter-progress-circles">${circles}</div>
@@ -653,14 +740,13 @@ function renderStarterFilms() {
         <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);text-align:center;letter-spacing:0.5px">${10 - starterRated.length > 0 ? (10 - starterRated.length) + ' more to unlock predictions' : ''}</div>
       </div>
 
-      ${gridsHTML}
-      ${extraHTML}
+      <div class="starter-grid">${cardsHTML}</div>
 
-      ${!starterShowMore ? `
-        <div style="text-align:center;margin-top:24px">
-          <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);cursor:pointer;letter-spacing:1px" onclick="starterShowMoreFilms()">Not seeing anything familiar? &nbsp;<span style="color:${palColor}">Show me different films →</span></span>
-        </div>
-      ` : ''}
+      <div style="text-align:center;margin-top:24px">
+        <span id="starter-load-more" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);cursor:pointer;letter-spacing:1px" onclick="starterLoadMoreFilms()">
+          ${starterLoadingMore ? 'Loading…' : `Not seeing anything familiar? <span style="color:${palColor}">Show me more →</span>`}
+        </span>
+      </div>
 
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:28px;padding-top:16px;border-top:1px solid rgba(244,239,230,0.1)">
         <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);cursor:pointer;letter-spacing:0.5px" onclick="starterSkipToSearch()">Skip to search →</span>
@@ -711,25 +797,33 @@ function getScoreLabel(v) {
 function renderStarterRateCard(film, palColor) {
   if (!film) return '';
   const data = starterScores[film.tmdbId];
-  const overallVal = data ? Math.round(data.total) : 75;
-  const scores = data?.scores || singleSliderToScores(75);
+  const scores = data?.scores || {};
+  CATEGORIES.forEach(function(cat) {
+    if (scores[cat.key] == null) scores[cat.key] = 65;
+  });
   const posterUrl = film.poster ? 'https://image.tmdb.org/t/p/w92' + film.poster : null;
-  // Fine-tune 8-slider grid (hidden by default)
-  let fineTuneHTML = '';
-  if (starterFineTune) {
-    const sliders = CATEGORIES.map(function(cat) {
-      const val = scores[cat.key] || 65;
-      return '<div>' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">' +
-        '<span style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--on-dark-dim);text-transform:uppercase;letter-spacing:0.5px">' + cat.label + '</span>' +
-        '<span style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--on-dark)" id="starter-sv-' + film.tmdbId + '-' + cat.key + '">' + val + '</span>' +
+
+  // Always 8 categories in 50/50 layout during onboarding
+  const slidersHTML = CATEGORIES.map(function(cat) {
+    const val = scores[cat.key] || 65;
+    const groupLabel = cat.group === 'craft' ? 'Craft' : 'Experience';
+    return '<div class="score-split score-split-dark" style="margin-bottom:16px">' +
+      '<div class="score-split-copy">' +
+        '<div class="score-split-copy-fullname">' + (cat.fullLabel || cat.label) + '</div>' +
+        '<div class="score-split-copy-prompt">"' + cat.question + '"</div>' +
+        '<div class="score-split-copy-desc">' + (cat.description || '') + '</div>' +
+      '</div>' +
+      '<div class="score-split-slider">' +
+        '<div style="font-family:\'DM Mono\',monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--on-dark-dim);margin-bottom:6px">' + groupLabel + '</div>' +
+        '<div style="font-family:\'Playfair Display\',serif;font-style:italic;font-weight:900;font-size:28px;color:' + palColor + '" id="starter-sv-' + film.tmdbId + '-' + cat.key + '">' + val + '</div>' +
+        '<div style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--on-dark-dim);margin-bottom:8px" id="starter-sl-' + film.tmdbId + '-' + cat.key + '">' + getScoreLabel(val) + '</div>' +
+        '<div style="width:100%;padding:0 8px">' +
+          '<input type="range" min="1" max="100" value="' + val + '" class="starter-slider" oninput="starterSliderChange(' + film.tmdbId + ',\'' + cat.key + '\',this.value)">' +
+          '<div class="score-scale-labels score-scale-labels-dark" style="margin-top:2px"><span class="scale-label-poor">Poor</span><span class="scale-label-solid">Solid</span><span class="scale-label-exceptional">Exceptional</span></div>' +
         '</div>' +
-        '<input type="range" min="1" max="100" value="' + val + '" class="starter-slider" oninput="starterSliderChange(' + film.tmdbId + ',\'' + cat.key + '\',this.value)">' +
-        '<div class="score-scale-labels score-scale-labels-dark" style="margin-top:2px"><span class="scale-label-poor">Poor</span><span class="scale-label-solid">Solid</span><span class="scale-label-exceptional">Exceptional</span></div>' +
-        '</div>';
-    }).join('');
-    fineTuneHTML = '<div class="starter-sliders-grid" style="margin-top:16px">' + sliders + '</div>';
-  }
+      '</div>' +
+    '</div>';
+  }).join('');
 
   return '<div class="starter-rate-card" style="border-left:3px solid ' + palColor + '">' +
     '<div style="display:flex;gap:14px;margin-bottom:20px;align-items:center">' +
@@ -740,29 +834,64 @@ function renderStarterRateCard(film, palColor) {
     '</div>' +
     '<span style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--on-dark-dim);cursor:pointer;text-decoration:underline;flex-shrink:0" onclick="starterCollapseCard()">\u2190 Back</span>' +
     '</div>' +
-    // Single gut-feeling slider
-    '<div style="text-align:center;margin-bottom:8px">' +
-    '<div class="starter-single-slider-value" id="starter-overall-val" style="color:' + palColor + '">' + overallVal + '</div>' +
-    '<div class="starter-single-slider-label">' + getScoreLabel(overallVal) + '</div>' +
-    '</div>' +
-    '<input type="range" min="1" max="100" value="' + overallVal + '" class="starter-slider" style="margin-bottom:4px" oninput="starterSingleSliderChange(' + film.tmdbId + ',this.value)">' +
-    '<div class="score-scale-labels score-scale-labels-dark" style="margin-bottom:16px"><span class="scale-label-poor">Poor</span><span class="scale-label-solid">Solid</span><span class="scale-label-exceptional">Exceptional</span></div>' +
-    // Fine-tune toggle + grid
-    '<div style="display:flex;align-items:center;justify-content:space-between">' +
-    '<button class="starter-finetune-toggle" onclick="starterToggleFineTune()">' + (starterFineTune ? 'Hide category scores \u2191' : 'Fine-tune each category \u2193') + '</button>' +
+    slidersHTML +
+    '<div style="display:flex;justify-content:flex-end;margin-top:8px">' +
     '<button class="ob-btn" style="margin:0;padding:10px 24px;background:' + palColor + '" onclick="starterRateFilm(' + film.tmdbId + ')">Rate \u2192</button>' +
     '</div>' +
-    fineTuneHTML +
     '</div>';
 }
 
 window.starterTapFilm = function(tmdbId) {
   if (starterRated.includes(tmdbId)) return;
+
+  // One-time spotlight before first rating
+  if (!localStorage.getItem('pm_seen_scoring_spotlight')) {
+    localStorage.setItem('pm_seen_scoring_spotlight', '1');
+    showScoringSpotlight(tmdbId);
+    return;
+  }
+
+  openStarterRateCard(tmdbId);
+};
+
+function showScoringSpotlight(pendingTmdbId) {
+  const overlay = document.createElement('div');
+  overlay.className = 'scoring-spotlight-overlay';
+  overlay.innerHTML = `
+    <div class="scoring-spotlight">
+      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--on-dark-dim);margin-bottom:12px">How you'll rate films</div>
+      <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:22px;color:var(--on-dark);margin-bottom:16px;letter-spacing:-0.5px">Eight dimensions. One honest picture.</div>
+      <div style="font-family:'DM Sans',sans-serif;font-size:13.5px;line-height:1.7;color:var(--on-dark);margin-bottom:16px">
+        Every film gets scored across eight categories split into two halves: <strong style="color:var(--on-dark)">Craft</strong> — how the film was made (the story, the filmmaking, the performances, the world it builds) — and <strong style="color:var(--on-dark)">Experience</strong> — how it made you feel (the enjoyment, the hold it has on you, the ending, the singularity).
+      </div>
+      <div style="font-family:'DM Sans',sans-serif;font-size:13px;line-height:1.7;color:var(--on-dark-dim);margin-bottom:20px">
+        Most recommendation systems flatten your taste into a single signal. This doesn't. By capturing what specifically matters to you — whether you care more about story or atmosphere, craft or feeling — Palate Map builds something no algorithm has: a real model of how you think about film.
+      </div>
+      <div style="font-family:'DM Sans',sans-serif;font-size:12.5px;line-height:1.65;color:var(--on-dark-dim);font-style:italic;margin-bottom:24px">
+        Don't overthink the scores. Go with your gut on each one — you'll refine later. The descriptions next to each slider will guide you.
+      </div>
+      <button class="ob-btn" style="margin:0;padding:12px 32px" onclick="dismissScoringSpotlight()">Got it →</button>
+    </div>
+  `;
+  overlay.dataset.pendingTmdbId = pendingTmdbId;
+  document.body.appendChild(overlay);
+}
+
+window.dismissScoringSpotlight = function() {
+  const overlay = document.querySelector('.scoring-spotlight-overlay');
+  if (!overlay) return;
+  const tmdbId = parseInt(overlay.dataset.pendingTmdbId);
+  overlay.remove();
+  if (tmdbId) openStarterRateCard(tmdbId);
+};
+
+function openStarterRateCard(tmdbId) {
   starterExpandedId = tmdbId;
   starterFineTune = false;
-  // Initialize with single-slider default of 75
+  // Initialize all 8 categories at 65
   if (!starterScores[tmdbId]) {
-    const scores = singleSliderToScores(75);
+    const scores = {};
+    CATEGORIES.forEach(function(cat) { scores[cat.key] = 65; });
     starterScores[tmdbId] = { scores, total: calcTotal(scores) };
   }
   renderStarterFilms();
@@ -770,7 +899,7 @@ window.starterTapFilm = function(tmdbId) {
     const inline = document.querySelector('.starter-rate-inline');
     if (inline) inline.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, 50);
-};
+}
 
 window.starterCollapseCard = function() {
   starterExpandedId = null;
@@ -795,14 +924,17 @@ window.starterSingleSliderChange = function(tmdbId, val) {
 
 window.starterSliderChange = function(tmdbId, catKey, val) {
   val = parseInt(val);
-  if (!starterScores[tmdbId]) starterScores[tmdbId] = { scores: singleSliderToScores(75), total: 0 };
+  if (!starterScores[tmdbId]) {
+    var initScores = {};
+    CATEGORIES.forEach(function(c) { initScores[c.key] = 65; });
+    starterScores[tmdbId] = { scores: initScores, total: 0 };
+  }
   starterScores[tmdbId].scores[catKey] = val;
   starterScores[tmdbId].total = calcTotal(starterScores[tmdbId].scores);
   var el = document.getElementById('starter-sv-' + tmdbId + '-' + catKey);
   if (el) el.textContent = val;
-  // Update overall display
-  var valEl = document.getElementById('starter-overall-val');
-  if (valEl) valEl.textContent = Math.round(starterScores[tmdbId].total);
+  var labelEl = document.getElementById('starter-sl-' + tmdbId + '-' + catKey);
+  if (labelEl) labelEl.textContent = getScoreLabel(val);
 };
 
 window.starterToggleFineTune = function() {
@@ -815,9 +947,12 @@ window.starterToggleFineTune = function() {
 };
 
 window.starterRateFilm = async function(tmdbId) {
-  const filmData = [...(STARTER_FILMS[obRevealResult.primary] || []), ...(STARTER_FILMS.universal || [])].find(f => f.tmdbId === tmdbId);
+  const oldKey = getOldArchetypeKey(obRevealResult.primary);
+  const filmData = [...(STARTER_FILMS[oldKey] || []), ...(STARTER_FILMS.universal || []), ...starterDiscoverFilms].find(f => f.tmdbId === tmdbId);
   if (!filmData || starterRated.includes(tmdbId)) return;
-  const scores = starterScores[tmdbId]?.scores || singleSliderToScores(75);
+  const fallbackScores = {};
+  CATEGORIES.forEach(function(c) { fallbackScores[c.key] = 65; });
+  const scores = starterScores[tmdbId]?.scores || fallbackScores;
   const total = calcTotal(scores);
 
   // Build the film object with pre-baked metadata
@@ -871,8 +1006,35 @@ window.starterRateFilm = async function(tmdbId) {
   }
 };
 
-window.starterShowMoreFilms = function() {
-  starterShowMore = true;
+window.starterLoadMoreFilms = async function() {
+  if (starterLoadingMore) return;
+  starterLoadingMore = true;
+  renderStarterFilms(); // show loading state
+  try {
+    const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
+    const res = await fetch(`https://api.themoviedb.org/3/movie/popular?api_key=${TMDB_KEY}&page=${starterDiscoverPage}&language=en-US`);
+    const data = await res.json();
+    starterDiscoverPage++;
+    const existing = new Set([
+      ...getStarterFilms().map(f => String(f.tmdbId)),
+      ...starterRated.map(String),
+      ...MOVIES.map(m => String(m.tmdbId))
+    ]);
+    const newFilms = (data.results || [])
+      .filter(f => f.poster_path && !existing.has(String(f.id)))
+      .map(f => ({
+        tmdbId: f.id,
+        title: f.title,
+        year: f.release_date ? f.release_date.slice(0, 4) : '',
+        director: '',
+        poster: f.poster_path,
+        genre: ''
+      }));
+    starterDiscoverFilms.push(...newFilms);
+  } catch (e) {
+    console.warn('Failed to load more starter films:', e);
+  }
+  starterLoadingMore = false;
   renderStarterFilms();
 };
 
@@ -885,96 +1047,24 @@ window.starterFinish = function() {
 };
 
 function starterFinishAndExit(opts = {}) {
-  obFinish(obRevealResult.primary, obRevealResult.secondary || '', obRevealResult.weights, obRevealResult.harmonySensitivity, opts);
+  obFinish(obRevealResult, opts);
 }
 
-// ── ARCHETYPE DERIVATION ──
-
-function deriveArchetype(answers) {
-  const scores = {};
-  Object.keys(ARCHETYPES).forEach(a => scores[a] = 0);
-
-  if (answers[0] === 'A') { scores.Formalist+=2; scores.Sensualist+=1; scores.Completionist+=1; }
-  if (answers[0] === 'C') { scores.Visceralist+=2; scores.Atmospherist+=1; }
-  if (answers[0] === 'D') { scores.Revisionist+=3; }
-  if (answers[0] === 'B') { scores.Narrativist+=1; scores.Humanist+=1; }
-
-  if (answers[1] === 'A') { scores.Absolutist+=3; scores.Narrativist+=2; }
-  if (answers[1] === 'C') { scores.Visceralist+=2; scores.Atmospherist+=2; }
-  if (answers[1] === 'D') { scores.Completionist+=1; scores.Revisionist+=1; }
-  if (answers[1] === 'B') { scores.Humanist+=1; scores.Formalist+=1; }
-
-  if (answers[2] === 'A') { scores.Atmospherist+=3; }
-  if (answers[2] === 'C') { scores.Formalist+=2; scores.Absolutist+=2; }
-  if (answers[2] === 'D') { scores.Completionist+=2; scores.Revisionist -= 1; }
-  if (answers[2] === 'B') { scores.Narrativist+=1; }
-
-  if (answers[3] === 'A') { scores.Atmospherist+=2; scores.Revisionist+=2; }
-  if (answers[3] === 'C') { scores.Completionist+=3; }
-  if (answers[3] === 'D') { scores.Atmospherist+=1; }
-  if (answers[3] === 'B') { scores.Sensualist+=1; scores.Atmospherist+=1; }
-
-  if (answers[4] === 'A') { scores.Humanist+=3; scores.Visceralist+=1; }
-  if (answers[4] === 'D') { scores.Sensualist+=3; }
-  if (answers[4] === 'C') { scores.Formalist+=1; scores.Completionist+=1; }
-  if (answers[4] === 'B') { scores.Narrativist+=1; scores.Absolutist+=1; }
-
-  let harmonySensitivity = 0.3;
-  if (answers[5] === 'A') { scores.Humanist+=2; scores.Visceralist+=1; harmonySensitivity = 0.0; }
-  if (answers[5] === 'B') { scores.Narrativist+=1; harmonySensitivity = 0.4; }
-  if (answers[5] === 'C') { scores.Absolutist+=2; scores.Formalist+=1; harmonySensitivity = 1.0; }
-  if (answers[5] === 'D') { scores.Atmospherist+=1; harmonySensitivity = 0.3; }
-
-  // Build implied weight vector from quiz scores for cosine tiebreaker
-  const keys = ['plot','execution','acting','production','enjoyability','rewatchability','ending','uniqueness'];
-  const impliedWeights = {};
-  keys.forEach(k => {
-    impliedWeights[k] = Object.entries(scores)
-      .filter(([, s]) => s > 0)
-      .reduce((sum, [name, s]) => sum + (ARCHETYPES[name].weights[k] || 1) * s, 0);
-  });
-  const cosineToImplied = (name) => {
-    const aw = ARCHETYPES[name].weights;
-    const dot = keys.reduce((s, k) => s + (impliedWeights[k] || 0) * (aw[k] || 1), 0);
-    const magI = Math.sqrt(keys.reduce((s, k) => s + (impliedWeights[k] || 0) ** 2, 0));
-    const magA = Math.sqrt(keys.reduce((s, k) => s + (aw[k] || 1) ** 2, 0));
-    return magI > 0 && magA > 0 ? dot / (magI * magA) : 0;
-  };
-
-  const sorted = Object.entries(scores).sort((a, b) => {
-    if (b[1] !== a[1]) return b[1] - a[1];
-    return cosineToImplied(b[0]) - cosineToImplied(a[0]);
-  });
-
-  // Normalize implied weights to 1–4 scale for the user's personal weight profile
-  const maxIW = Math.max(...Object.values(impliedWeights), 1);
-  const minIW = Math.min(...Object.values(impliedWeights));
-  const normalizedWeights = {};
-  keys.forEach(k => {
-    const raw = impliedWeights[k] || 0;
-    // Map [minIW, maxIW] → [1, 4]
-    normalizedWeights[k] = maxIW > minIW
-      ? Math.round((((raw - minIW) / (maxIW - minIW)) * 3 + 1) * 10) / 10
-      : 2.5;
-  });
-
-  return {
-    primary: sorted[0][0],
-    secondary: sorted[1][1] > 0 ? sorted[1][0] : null,
-    harmonySensitivity,
-    weights: normalizedWeights
-  };
-}
-
-async function obFinish(primary, secondary, weights, harmonySensitivity, opts = {}) {
+async function obFinish(reveal, opts = {}) {
   const id = crypto.randomUUID();
-  const slug = obRevealResult._slug || (obDisplayName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'user');
+  const slug = reveal._slug || (obDisplayName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'user');
   const session = window._pendingAuthSession || null;
 
   setCurrentUser({
     id, username: slug, display_name: obDisplayName,
-    archetype: primary, archetype_secondary: secondary,
-    weights, harmony_sensitivity: harmonySensitivity,
+    archetype: reveal.primary, archetype_secondary: reveal.secondary || '',
+    archetype_key: reveal.archetypeKey,
+    adjective: reveal.adjective,
+    full_archetype_name: reveal.fullName,
+    weights: { ...reveal.weights },
+    quiz_weights: reveal.quiz_weights,
+    quiz_answers: reveal.quiz_answers,
+    quiz_log: reveal.quiz_log,
     email: session?.user?.email || null,
     auth_id: session?.user?.id || null
   });
@@ -1013,7 +1103,9 @@ async function obFinish(primary, secondary, weights, harmonySensitivity, opts = 
 
   track('onboarding_completed', {
     films_rated_count: MOVIES.length,
-    archetype: primary,
+    archetype: reveal.primary,
+    archetype_key: reveal.archetypeKey,
+    adjective: reveal.adjective,
     time_in_onboarding_seconds: _obStartTime ? Math.round((Date.now() - _obStartTime) / 1000) : null,
   });
 }

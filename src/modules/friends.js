@@ -3,9 +3,9 @@ import { ARCHETYPES } from '../data/archetypes.js';
 import { sb, loadFriends, loadFriendFull, acceptFriendInvite, confirmFriendInvite, unfriendUser, searchUsers, sendFriendRequest, loadPendingIncoming, loadPendingOutgoing, acceptFriendRequest, declineFriendRequest, cancelFriendRequest, getUserEmail, loadAllFriendsFilmData } from './supabase.js';
 import { shouldShowHint, renderHint } from './hints.js';
 
-const CATS = ['plot','execution','acting','production','enjoyability','rewatchability','ending','uniqueness'];
-const CAT_SHORT = { plot:'Plot', execution:'Exec', acting:'Acting', production:'Prod', enjoyability:'Enjoy', rewatchability:'Rewatch', ending:'Ending', uniqueness:'Unique' };
-const CAT_LABEL = { plot:'Plot', execution:'Execution', acting:'Acting', production:'Production', enjoyability:'Enjoyability', rewatchability:'Rewatchability', ending:'Ending', uniqueness:'Uniqueness' };
+const CATS = ['story','craft','performance','world','experience','hold','ending','singularity'];
+const CAT_SHORT = { story:'Story', craft:'Craft', performance:'Perf', world:'World', experience:'Exp', hold:'Hold', ending:'Ending', singularity:'Singular' };
+const CAT_LABEL = { story:'Story', craft:'Craft', performance:'Performance', world:'World', experience:'Experience', hold:'Hold', ending:'Ending', singularity:'Singularity' };
 const PROXY_URL = 'https://palate-map-proxy.noahparikhcott.workers.dev';
 const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
 
@@ -974,8 +974,8 @@ function friendTasteHTML(friend, color) {
   if (movies.length === 0) return `<div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);padding:32px 0;text-align:center">No films rated yet.</div>`;
 
   const avg = arr => arr.length ? Math.round(arr.reduce((s,v)=>s+v,0)/arr.length * 100)/100 : null;
-  const craftKeys = ['plot','execution','acting','production'];
-  const experienceKeys = ['enjoyability','rewatchability','ending','uniqueness'];
+  const craftKeys = ['story','craft','performance','world'];
+  const experienceKeys = ['experience','hold','ending','singularity'];
 
   function barColor(v) {
     if (v >= 90) return '#C4922A'; if (v >= 80) return '#1F4A2A';

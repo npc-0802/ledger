@@ -81,8 +81,8 @@ function renderModal() {
   const scores = editMode ? editScores : m.scores;
   const previewTotal = editMode ? calcTotal(editScores) : m.total;
 
-  const craftKeys = ['plot','execution','acting','production'];
-  const expKeys   = ['enjoyability','rewatchability','ending','uniqueness'];
+  const craftKeys = ['story','craft','performance','world'];
+  const expKeys   = ['experience','hold','ending','singularity'];
 
   function renderBreakdownGroup(label, keys) {
     const cats = CATEGORIES.filter(c => keys.includes(c.key));

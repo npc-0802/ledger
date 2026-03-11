@@ -184,6 +184,111 @@
   color: var(--on-dark-dim);
 }
 
+/* ── 50/50 Score Layout (copy left, slider right) ── */
+.score-split {
+  display: flex;
+  gap: 32px;
+  align-items: stretch;
+  margin-bottom: 20px;
+}
+.score-split-copy {
+  flex: 1;
+  min-width: 0;
+  padding: 20px 24px;
+  background: var(--card-bg);
+  border-left: 3px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.score-split-copy-fullname {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-weight: 900;
+  font-size: 20px;
+  color: var(--ink);
+  letter-spacing: -0.5px;
+  margin-bottom: 8px;
+}
+.score-split-copy-prompt {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--dim);
+  margin-bottom: 12px;
+}
+.score-split-copy-desc {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--ink);
+  margin-bottom: 10px;
+}
+.score-split-copy-nuance {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--dim);
+  font-style: italic;
+}
+.score-split-slider {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 20px 0;
+}
+.score-split-toggle {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: var(--blue);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  margin-bottom: 12px;
+  user-select: none;
+}
+@media (max-width: 768px) {
+  .score-split {
+    flex-direction: column;
+    gap: 16px;
+  }
+}
+/* Dark surface variant (onboarding) */
+.score-split-dark .score-split-copy {
+  background: rgba(255,255,255,0.05);
+  border-left-color: rgba(255,255,255,0.15);
+}
+.score-split-dark .score-split-copy-fullname { color: var(--on-dark); }
+.score-split-dark .score-split-copy-prompt { color: var(--on-dark-dim); }
+.score-split-dark .score-split-copy-desc { color: var(--on-dark); }
+.score-split-dark .score-split-copy-nuance { color: var(--on-dark-dim); }
+
+/* ── Scoring Spotlight (onboarding) ── */
+.scoring-spotlight-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(12, 11, 9, 0.7);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: fadeIn 0.2s ease;
+}
+.scoring-spotlight {
+  background: var(--surface-dark);
+  color: var(--on-dark);
+  max-width: 480px;
+  width: 100%;
+  padding: 32px 28px;
+  text-align: center;
+  box-shadow: 0 16px 48px rgba(12, 11, 9, 0.4);
+}
+
 /* ── INLINE HINTS ── */
 .inline-hint {
   display: flex;

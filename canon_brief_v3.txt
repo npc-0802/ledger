@@ -186,10 +186,36 @@ total = Σ(score[cat] × weight[cat]) / Σ(weight[cat])
 Weights are user-specific. recalcAllTotals() must be called after any weight change.
 Score scale: 0–100 (not 0–10).
 
-9 Archetypes (internally) / Palate Types (brand voice)
-Visceralist · Formalist · Narrativist · Humanist · Completionist · Sensualist · Revisionist · Absolutist · Atmospherist
-Each has: weight distribution (1–4 scale), description (2–3 sentences, 2nd person, observational), quote.
-Derived from 6-question onboarding quiz. Quiz answers produce archetype scores; an implied weight vector is computed by blending all positively-scored archetypes' weights proportional to their scores, then normalized to a 1–4 scale. This means the user's weights reflect their actual answers, not just the winning archetype's preset. Editable post-onboarding via weight editor (click username in masthead → Profile → "Edit weights →").
+6 Palate Types (5 composite + Balanced)
+Derived from 5 composite dimensions computed from the 8 category weights:
+  narrative = 0.6 × story + 0.4 × ending
+  craft = 0.5 × craft + 0.5 × world
+  human = 1.0 × performance
+  experiential = 0.6 × experience + 0.4 × hold
+  singular = 1.0 × singularity
+The palate type is the dominant composite. If no composite leads by >0.3 over the second, the user is a Holist.
+
+Narrativist — "You follow the thread." Story is your compass. You track where a film goes, how it gets there, and whether it earns its ending.
+Formalist — "You see how it's built." The cut, the frame, the sound design, the world — you notice when someone knows what they're doing behind the camera.
+Humanist — "You watch for the people." Characters are your entry point. A film lives or dies on whether the people in it feel real.
+Sensualist — "You're here for what it feels like." The experience of watching is the point — not whether a film is "good" but whether it was good to sit through.
+Archivist — "You want the thing that's never been done." Originality is the axis you rotate around. You're drawn to the one-of-ones.
+Holist — "The film is one thing." You experience film as a whole. Story, craft, performance, world, feeling, memory, ending, originality — you don't rank them because for you they're inseparable. A great film gets everything right at once. A flawed film has a crack that runs through the entire thing.
+
+Each palate type has an adjective (Studied / Instinctive / Devoted) derived from the craft-vs-experience boundary:
+  Studied: craft-side weights > experience-side by 1.5+ → analytical engagement
+  Instinctive: experience-side weights > craft-side by 1.5+ → visceral engagement
+  Devoted: neither side dominates → integrated engagement
+Full name example: "Studied Narrativist", "Instinctive Sensualist", "Devoted Holist".
+
+8 Categories (renamed from original):
+  Craft side: The Story (plot→story), The Craft (execution→craft), The Performances (acting→performance), The World (production→world)
+  Experience side: The Experience (enjoyability→experience), The Hold (rewatchability→hold), The Ending (ending), The Singularity (uniqueness→singularity)
+Old keys aliased via migrateKeys() — existing user data reads through alias map, writes in new keys.
+
+Weight system: 1.0–5.0 scale (was 1–4), neutral at 2.5. Quiz produces initial estimate. Rating-derived weights computed from per-category score variance (high variance = user discriminates on that category = higher weight). Effective weights are a Bayesian blend: quiz_weights × quiz_influence + rating_weights × rating_influence, where quiz_influence = 1/(1 + films_rated × 0.15). Quiz influence decays from 100% at 0 films to 40% at 10 films to 12% at 50 films. Palate type recomputed on every effective weight update.
+
+Editable post-onboarding via weight editor (click username in masthead → Profile → "Edit weights →").
 
 06  Screens & Features (Current)
 Cold Landing

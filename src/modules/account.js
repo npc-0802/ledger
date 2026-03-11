@@ -112,13 +112,13 @@ export function exportFullData() {
 }
 
 export function exportFilmsCSV() {
-  const headers = ['Title', 'Year', 'Director', 'Total', 'Plot', 'Execution', 'Acting', 'Production', 'Enjoyability', 'Rewatchability', 'Ending', 'Uniqueness'];
+  const headers = ['Title', 'Year', 'Director', 'Total', 'Story', 'Craft', 'Performance', 'World', 'Experience', 'Hold', 'Ending', 'Singularity'];
   const rows = MOVIES.map(m => [
     `"${(m.title || '').replace(/"/g, '""')}"`,
     m.year || '',
     `"${(m.director || '').replace(/"/g, '""')}"`,
     m.total || '',
-    ...['plot', 'execution', 'acting', 'production', 'enjoyability', 'rewatchability', 'ending', 'uniqueness'].map(c => m.scores?.[c] ?? '')
+    ...['story', 'craft', 'performance', 'world', 'experience', 'hold', 'ending', 'singularity'].map(c => m.scores?.[c] ?? '')
   ].join(','));
 
   const csv = [headers.join(','), ...rows].join('\n');

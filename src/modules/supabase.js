@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { MOVIES, currentUser, setCurrentUser, setMovies, applyUserWeights, recalcAllTotals, mergeSplitNames } from '../state.js';
 import { saveToStorage } from './storage.js';
+import { OLD_TO_NEW } from './quiz-engine.js';
 
 const SUPABASE_URL = 'https://gzuuhjjedrzeqbgxhfip.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_OprjtxkrwknRf8jSZ7bYWg_GGqRiu4z';
@@ -96,11 +97,21 @@ async function _applyUserData(data) {
   });
 
   if (data.movies && Array.isArray(data.movies) && data.movies.length >= MOVIES.length) {
-    const fixed = data.movies.map(m => ({
-      ...m,
-      cast: mergeSplitNames((m.cast||'').split(',').map(s=>s.trim()).filter(Boolean)).join(', '),
-      productionCompanies: mergeSplitNames((m.productionCompanies||'').split(',').map(s=>s.trim()).filter(Boolean)).join(', ')
-    }));
+    const fixed = data.movies.map(m => {
+      // Migrate score keys from old → new
+      const newScores = {};
+      if (m.scores) {
+        for (const [k, v] of Object.entries(m.scores)) {
+          newScores[OLD_TO_NEW[k] || k] = v;
+        }
+      }
+      return {
+        ...m,
+        scores: newScores,
+        cast: mergeSplitNames((m.cast||'').split(',').map(s=>s.trim()).filter(Boolean)).join(', '),
+        productionCompanies: mergeSplitNames((m.productionCompanies||'').split(',').map(s=>s.trim()).filter(Boolean)).join(', ')
+      };
+    });
     setMovies(fixed);
   }
 

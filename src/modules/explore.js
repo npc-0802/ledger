@@ -189,8 +189,8 @@ export function exploreEntity(type, name) {
       </div>
 
       ${scored.length > 0 ? (() => {
-        const craftKeys = ['plot','execution','acting','production'];
-        const expKeys   = ['enjoyability','rewatchability','ending','uniqueness'];
+        const craftKeys = ['story','craft','performance','world'];
+        const expKeys   = ['experience','hold','ending','singularity'];
         function renderCatGroup(label, keys) {
           const items = catAvgs.filter(c => keys.includes(c.key) && c.avg != null);
           if (!items.length) return '';
@@ -236,7 +236,7 @@ export function exploreEntity(type, name) {
             <div class="film-title-main">${f.title}</div>
             <div class="film-title-sub">${f.year||''} · ${f.director||''}</div>
           </div>
-          ${['plot','execution','acting','production','enjoyability','rewatchability','ending','uniqueness'].map(k =>
+          ${['story','craft','performance','world','experience','hold','ending','singularity'].map(k =>
             `<div class="film-score ${f.scores[k]?scoreClass(f.scores[k]):'}'}">${f.scores[k]??'—'}</div>`
           ).join('')}
           <div class="film-total">${total}</div>

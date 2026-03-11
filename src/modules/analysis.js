@@ -40,8 +40,8 @@ export function renderAnalysis() {
       <div style="margin-bottom:40px;padding-bottom:32px;border-bottom:1px solid var(--rule)">
         <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:20px">Category averages · all films</div>
         ${(() => {
-          const craftKeys   = ['plot','execution','acting','production'];
-          const experienceKeys = ['enjoyability','rewatchability','ending','uniqueness'];
+          const craftKeys   = ['story','craft','performance','world'];
+          const experienceKeys = ['experience','hold','ending','singularity'];
           const filtered = catAvgs.filter(c => c.avg != null && !isNaN(c.avg));
           const craft     = filtered.filter(c => craftKeys.includes(c.key));
           const experience = filtered.filter(c => experienceKeys.includes(c.key));

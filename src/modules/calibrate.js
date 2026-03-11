@@ -1,6 +1,7 @@
 import { MOVIES, CATEGORIES, calcTotal, recalcAllTotals, scoreClass, getLabel } from '../state.js';
 import { saveToStorage } from './storage.js';
 import { renderRankings } from './rankings.js';
+import { updateEffectiveWeights } from './weight-blend.js';
 
 let calCategory = 'all';
 let calIntensity = 'focused';
@@ -227,8 +228,8 @@ function showCalReview() {
   CATEGORIES.forEach(cat => { catGroups[cat.key] = []; });
   entries.forEach((e, i) => { if (catGroups[e.catKey]) catGroups[e.catKey].push({ ...e, idx: i }); });
 
-  const craftKeys = ['plot','execution','acting','production'];
-  const expKeys   = ['enjoyability','rewatchability','ending','uniqueness'];
+  const craftKeys = ['story','craft','performance','world'];
+  const expKeys   = ['experience','hold','ending','singularity'];
 
   function renderCatGroup(groupLabel, keys) {
     const cats = CATEGORIES.filter(c => keys.includes(c.key));
@@ -293,6 +294,7 @@ export function applyCalibration() {
     });
     recalcAllTotals();
     saveToStorage();
+    updateEffectiveWeights();
     const threshold = Math.floor(MOVIES.length / 10) * 10;
     localStorage.setItem('palatemap_calibrate_last_threshold', String(threshold));
     import('../ui-callbacks.js').then(({ updateStorageStatus }) => updateStorageStatus());

@@ -487,7 +487,7 @@ export async function predictSelectFilm(tmdbId, title, year) {
 }
 
 function buildTasteProfile() {
-  const cats = ['plot','execution','acting','production','enjoyability','rewatchability','ending','uniqueness'];
+  const cats = ['story','craft','performance','world','experience','hold','ending','singularity'];
   const stats = {};
   cats.forEach(cat => {
     const vals = MOVIES.filter(m => m.scores[cat] != null).map(m => m.scores[cat]);
@@ -1070,7 +1070,7 @@ async function callClaudeForPrediction(film, entityConstraint = null) {
   const comps = findComparableFilms(film);
 
   const compStr = comps.length
-    ? comps.map(m => `- ${m.title} (${m.year||''}): total=${m.total}, plot=${m.scores.plot}, execution=${m.scores.execution}, acting=${m.scores.acting}, production=${m.scores.production}, enjoyability=${m.scores.enjoyability}, rewatchability=${m.scores.rewatchability}, ending=${m.scores.ending}, uniqueness=${m.scores.uniqueness}`).join('\n')
+    ? comps.map(m => `- ${m.title} (${m.year||''}): total=${m.total}, story=${m.scores.story}, craft=${m.scores.craft}, performance=${m.scores.performance}, world=${m.scores.world}, experience=${m.scores.experience}, hold=${m.scores.hold}, ending=${m.scores.ending}, singularity=${m.scores.singularity}`).join('\n')
     : 'No direct comparisons found in rated list.';
 
   const statsStr = Object.entries(profile.stats).map(([k,v]) =>
@@ -1141,14 +1141,14 @@ The reasoning must feel personal and specific to THIS person's taste — not a g
 Respond with this exact JSON structure:
 {
   "predicted_scores": {
-    "plot": <integer 1-100>,
-    "execution": <integer 1-100>,
-    "acting": <integer 1-100>,
-    "production": <integer 1-100>,
-    "enjoyability": <integer 1-100>,
-    "rewatchability": <integer 1-100>,
+    "story": <integer 1-100>,
+    "craft": <integer 1-100>,
+    "performance": <integer 1-100>,
+    "world": <integer 1-100>,
+    "experience": <integer 1-100>,
+    "hold": <integer 1-100>,
     "ending": <integer 1-100>,
-    "uniqueness": <integer 1-100>
+    "singularity": <integer 1-100>
   },
   "confidence": "high" | "medium" | "low",
   "reasoning": "<2-3 sentences in second person (you/your). Reference specific films they have rated. Never say the user. Sound like a trusted friend who knows their taste intimately, not a film critic.>",

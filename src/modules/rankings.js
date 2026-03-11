@@ -6,15 +6,15 @@ let currentSort = { key: 'total', dir: 'desc' };
 let viewMode = 'grid';
 
 const SORT_CATS = [
-  { key: 'total',         label: 'Total' },
-  { key: 'plot',          label: 'Plot' },
-  { key: 'execution',     label: 'Execution' },
-  { key: 'acting',        label: 'Acting' },
-  { key: 'production',    label: 'Production' },
-  { key: 'enjoyability',  label: 'Enjoyability' },
-  { key: 'rewatchability',label: 'Rewatchability' },
-  { key: 'ending',        label: 'Ending' },
-  { key: 'uniqueness',    label: 'Uniqueness' },
+  { key: 'total',       label: 'Total' },
+  { key: 'story',       label: 'Story' },
+  { key: 'craft',       label: 'Craft' },
+  { key: 'performance', label: 'Performance' },
+  { key: 'world',       label: 'World' },
+  { key: 'experience',  label: 'Experience' },
+  { key: 'hold',        label: 'Hold' },
+  { key: 'ending',      label: 'Ending' },
+  { key: 'singularity', label: 'Singularity' },
 ];
 
 function badgeClass(score) {
@@ -216,7 +216,7 @@ function renderTable(sorted, list, controls, rankingsEl) {
         <div class="film-title-main">${m.title}</div>
         <div class="film-title-sub">${m.year || ''}${m.director ? ' · ' + m.director.split(',')[0] : ''}</div>
       </div>
-      ${['plot','execution','acting','production','enjoyability','rewatchability','ending','uniqueness'].map(k =>
+      ${['story','craft','performance','world','experience','hold','ending','singularity'].map(k =>
         `<div class="film-score ${s[k] ? scoreClass(s[k]) : ''}">${s[k] ?? '—'}</div>`
       ).join('')}
       <div class="film-total">${total}</div>

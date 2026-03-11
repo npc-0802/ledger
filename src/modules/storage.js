@@ -1,6 +1,20 @@
 import { MOVIES, setMovies, currentUser, mergeSplitNames } from '../state.js';
+import { OLD_TO_NEW } from './quiz-engine.js';
 
 const MIGRATIONS_KEY = 'palate_migrations_v1';
+
+// Migrate film score keys from old names to new names
+function migrateFilmScoreKeys(films) {
+  for (const film of films) {
+    if (!film.scores) continue;
+    const newScores = {};
+    for (const [k, v] of Object.entries(film.scores)) {
+      newScores[OLD_TO_NEW[k] || k] = v;
+    }
+    film.scores = newScores;
+  }
+  return films;
+}
 
 // One-time data migrations — run after movies are loaded into memory.
 // Each migration is idempotent: guarded by a flag in localStorage.
@@ -52,6 +66,7 @@ export function loadFromStorage() {
     if (!saved) return;
     const parsed = JSON.parse(saved);
     if (!Array.isArray(parsed) || parsed.length === 0) return;
+    migrateFilmScoreKeys(parsed);
     setMovies(parsed);
   } catch(e) {
     console.warn('localStorage load failed:', e);

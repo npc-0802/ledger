@@ -223,6 +223,14 @@ async function init() {
     }
   }
 
+  // Legacy user check: if user exists but has no quiz_weights, force re-onboarding
+  if (currentUser && !currentUser.quiz_weights) {
+    renderRankings();
+    updateStorageStatus();
+    launchOnboarding({ skipToQuiz: true, name: currentUser.display_name || '' });
+    return;
+  }
+
   renderRankings();
   updateStorageStatus();
 
