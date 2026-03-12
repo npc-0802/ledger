@@ -1,4 +1,4 @@
-import { MOVIES, setMovies, currentUser, mergeSplitNames } from '../state.js';
+import { MOVIES, setMovies, currentUser, setCurrentUser, mergeSplitNames } from '../state.js';
 import { OLD_TO_NEW } from './quiz-engine.js';
 
 const MIGRATIONS_KEY = 'palate_migrations_v1';
@@ -35,6 +35,33 @@ export function runMigrations() {
       console.log(`Migration fix_split_names: repaired ${changed} fields.`);
     }
     flags.fix_split_names = true;
+    try { localStorage.setItem(MIGRATIONS_KEY, JSON.stringify(flags)); } catch {}
+  }
+
+  // Migrate predicted_scores keys from old category names to new
+  if (!flags.migrate_prediction_keys && currentUser?.predictions) {
+    let changed = 0;
+    const predictions = { ...currentUser.predictions };
+    for (const [tmdbId, entry] of Object.entries(predictions)) {
+      const ps = entry?.prediction?.predicted_scores;
+      if (!ps) continue;
+      // Check if any old keys are present
+      const hasOld = Object.keys(ps).some(k => OLD_TO_NEW[k] && k !== OLD_TO_NEW[k]);
+      if (hasOld) {
+        const migrated = {};
+        for (const [k, v] of Object.entries(ps)) {
+          migrated[OLD_TO_NEW[k] || k] = v;
+        }
+        entry.prediction.predicted_scores = migrated;
+        changed++;
+      }
+    }
+    if (changed > 0) {
+      setCurrentUser({ ...currentUser, predictions });
+      import('./supabase.js').then(m => { m.saveUserLocally(); m.syncToSupabase().catch(() => {}); });
+      console.log(`Migration migrate_prediction_keys: migrated ${changed} predictions.`);
+    }
+    flags.migrate_prediction_keys = true;
     try { localStorage.setItem(MIGRATIONS_KEY, JSON.stringify(flags)); } catch {}
   }
 }
