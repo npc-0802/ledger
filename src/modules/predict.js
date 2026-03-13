@@ -2595,11 +2595,14 @@ window.forYouDismissSecondary = function(index) {
 };
 
 window.forYouSeenIt = function(index, title, tmdbId) {
-  // Dismiss from recommendations
+  // Pull film data from cache before splicing
   const cached = currentUser?.cachedRecommendations;
+  let filmData = null;
   if (cached && index + 1 < cached.length) {
     const actualIndex = index + 1;
-    dismissedTmdbIds.add(String(cached[actualIndex].tmdbId));
+    const rec = cached[actualIndex];
+    filmData = { tmdbId: rec.tmdbId, title: rec.title, year: rec.year, poster: rec.poster, overview: rec.overview || '', director: rec.director || '' };
+    dismissedTmdbIds.add(String(rec.tmdbId));
     cached.splice(actualIndex, 1);
     setCurrentUser({ ...currentUser, cachedRecommendations: cached });
     saveUserLocally();
@@ -2608,15 +2611,10 @@ window.forYouSeenIt = function(index, title, tmdbId) {
       loadForYouRecommendations();
     }
   }
-  // Navigate to Add Film with title pre-filled
-  window.showScreen('add');
-  setTimeout(() => {
-    const search = document.getElementById('f-search');
-    if (search) {
-      search.value = title;
-      import('./addfilm.js').then(m => m.liveSearch(title));
-    }
-  }, 100);
+  // Mark as seen on watchlist (adds if not already there)
+  import('./watchlist.js').then(({ markAsSeen }) => {
+    markAsSeen(tmdbId, filmData);
+  });
 };
 
 window.loadFullRecommendation = function(tmdbId, title, year) {

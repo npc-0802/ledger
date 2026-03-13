@@ -96,7 +96,7 @@ async function _applyUserData(data) {
     rating_weights: data.rating_weights || prev.rating_weights || null,
     films_rated: data.films_rated ?? prev.films_rated ?? 0,
     weight_history: data.weight_history || prev.weight_history || [],
-    watchlist: data.watchlist || [],
+    watchlist: (data.watchlist || []).map(w => ({ ...w, status: w.status || 'watch', seenAt: w.seenAt || null })),
     predictions: data.predictions || {},
     cachedRecommendations: prev.cachedRecommendations || null,
     lastRecommendationAt: prev.lastRecommendationAt || null,

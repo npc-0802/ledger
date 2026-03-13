@@ -2,6 +2,7 @@ import { currentUser, setCurrentUser, MOVIES, CATEGORIES, getLabel } from '../st
 import { syncToSupabase, saveUserLocally } from './supabase.js';
 import { isNewTerritory, DISCOVERY_ICON_SVG, getPredictionTier, formatPredictedScore } from './predict.js';
 import { shouldShowHint, renderHint } from './hints.js';
+import { track } from '../analytics.js';
 
 const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
 let wlSearchDebounce = null;
@@ -26,13 +27,20 @@ export function renderWatchlist() {
   const content = document.getElementById('watchlistContent');
   if (!content) return;
   const list = currentUser?.watchlist || [];
+  const seenCount = list.filter(w => w.status === 'seen').length;
+  const watchCount = list.length - seenCount;
+
+  const headerStats = [
+    seenCount > 0 ? `${seenCount} seen` : '',
+    watchCount > 0 ? `${watchCount} queued` : '',
+  ].filter(Boolean).join(' · ');
 
   content.innerHTML = `
     <div style="padding:28px 0 48px">
       <!-- Editorial header -->
       <div style="margin-bottom:28px">
-        <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--dim);margin-bottom:10px">watch list · ${list.length} film${list.length !== 1 ? 's' : ''}</div>
-        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(28px,4vw,40px);line-height:1;color:var(--ink);letter-spacing:-1px;margin-bottom:12px">Up next.</div>
+        <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--dim);margin-bottom:10px">watch list · ${list.length} film${list.length !== 1 ? 's' : ''}${headerStats ? ' · ' + headerStats : ''}</div>
+        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(28px,4vw,40px);line-height:1;color:var(--ink);letter-spacing:-1px;margin-bottom:12px">${seenCount > 0 && watchCount === 0 ? 'Ready to rate.' : 'Up next.'}</div>
         <div style="width:40px;height:3px;background:var(--blue);margin-bottom:16px"></div>
       </div>
       ${list.length === 0 ? emptyState() : listHTML(list)}
@@ -43,18 +51,16 @@ export function renderWatchlist() {
       </div>
     </div>`;
 
-  // Schedule background predictions for items that don't have one yet
+  // Schedule background predictions for "watch" items only (not "seen")
   if (getPredictionTier().canPredict) {
-    const unpredicted = list.filter(item => item.tmdbId && !currentUser?.predictions?.[String(item.tmdbId)]);
+    const unpredicted = list.filter(item => item.status !== 'seen' && item.tmdbId && !currentUser?.predictions?.[String(item.tmdbId)]);
     unpredicted.forEach((item, i) => {
       setTimeout(async () => {
         const { runAutoPredict } = await import('./predict.js');
         await runAutoPredict(item);
         const screen = document.getElementById('watchlist');
         if (screen?.classList.contains('active')) {
-          const wlList = document.getElementById('wl-list');
-          const wlItems = currentUser?.watchlist || [];
-          if (wlList) wlList.innerHTML = wlGetSortedList(wlItems).map(({ item, originalIndex }) => watchlistRow(item, originalIndex)).join('');
+          renderWatchlist();
         }
       }, (i + 1) * 1500);
     });
@@ -97,52 +103,85 @@ function sortPill(mode, label) {
 }
 
 function listHTML(list) {
-  const sorted = wlGetSortedList(list);
-  const hasPrediction = list.some(item => item.tmdbId && currentUser?.predictions?.[String(item.tmdbId)]);
+  const seenItems = list.map((item, i) => ({ item, originalIndex: i })).filter(({ item }) => item.status === 'seen');
+  const watchItems = list.map((item, i) => ({ item, originalIndex: i })).filter(({ item }) => item.status !== 'seen');
+
+  // Sort seen by seenAt desc
+  seenItems.sort((a, b) => (b.item.seenAt || '').localeCompare(a.item.seenAt || ''));
+
+  // Sort watch items by current sort mode, preserving original indices
+  const watchOnly = watchItems.map(w => w.item);
+  const sortedWatchLocal = wlGetSortedList(watchOnly);
+  const sortedWatch = sortedWatchLocal.map(({ originalIndex: localIdx }) => watchItems[localIdx]);
+
+  const hasPrediction = watchItems.some(({ item }) => item.tmdbId && currentUser?.predictions?.[String(item.tmdbId)]);
   const wlHint = hasPrediction && shouldShowHint('watchlist_predict', () => {
     const visits = parseInt(localStorage.getItem('pm_wl_visits') || '0') + 1;
     localStorage.setItem('pm_wl_visits', String(visits));
     return visits <= 3;
   }) ? renderHint('watchlist_predict', 'Scores are predicted by your taste profile — tap any film to see the reasoning.') : '';
-  return `
-    <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:16px;gap:4px">
-      ${sortPill('added', 'Added')}
-      ${sortPill('score', 'Score ↓')}
-    </div>
-    ${wlHint}
-    <div id="wl-list" class="wl-grid">${sorted.map(({ item, originalIndex }) => watchlistCard(item, originalIndex)).join('')}</div>
+
+  let html = '';
+
+  // ── SEEN section ──
+  if (seenItems.length > 0) {
+    html += `
+      <div style="margin-bottom:28px">
+        <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--dim);margin-bottom:14px">── seen ── ${seenItems.length} film${seenItems.length !== 1 ? 's' : ''}</div>
+        <div class="wl-grid">${seenItems.map(({ item, originalIndex }) => watchlistCard(item, originalIndex)).join('')}</div>
+      </div>`;
+  }
+
+  // ── UP NEXT section ──
+  if (watchItems.length > 0) {
+    html += `
+      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--dim);margin-bottom:14px">── up next ── ${watchItems.length} film${watchItems.length !== 1 ? 's' : ''}</div>
+      <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:16px;gap:4px">
+        ${sortPill('added', 'Added')}
+        ${sortPill('score', 'Score ↓')}
+      </div>
+      ${wlHint}
+      <div id="wl-list" class="wl-grid">${sortedWatch.map(({ item, originalIndex }) => watchlistCard(item, originalIndex)).join('')}</div>`;
+  }
+
+  html += `
     <div style="text-align:center;margin-top:24px;padding-top:16px;border-top:1px solid var(--rule)">
       <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim)">Looking for something new? Check </span><span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);cursor:pointer" onclick="showScreen('predict')">For You</span><span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim)"> for recommendations →</span>
     </div>`;
+  return html;
 }
 
 function watchlistCard(item, i) {
+  const isSeen = item.status === 'seen';
   const prediction = item.tmdbId ? currentUser?.predictions?.[String(item.tmdbId)] : null;
   const predTotal = prediction ? calcWlPredictedTotal(prediction.prediction) : null;
-  const isPending = predTotal == null && item.tmdbId && getPredictionTier().canPredict;
+  const isPending = !isSeen && predTotal == null && item.tmdbId && getPredictionTier().canPredict;
   const filmData = prediction?.film || item;
-  const newTerr = isNewTerritory(filmData);
+  const newTerr = !isSeen && isNewTerritory(filmData);
 
   const posterImg = item.poster
     ? `<img class="wl-card-poster" src="https://image.tmdb.org/t/p/w342${item.poster}" alt="${item.title}" loading="lazy">`
     : `<div class="wl-card-poster" style="background:var(--rule);display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">${item.title}</div>`;
 
   const wlTier = getPredictionTier();
-  const scoreBadge = predTotal != null
-    ? `<div class="wl-card-score">${wlTier.rangeWidth > 0 ? formatPredictedScore(predTotal, MOVIES.length) : '~' + Math.round(predTotal)}</div>`
-    : isPending
-      ? `<div class="wl-card-score pending">est…</div>`
-      : '';
+  let badge = '';
+  if (isSeen) {
+    badge = `<div class="wl-seen-badge">✓</div>`;
+  } else if (predTotal != null) {
+    badge = `<div class="wl-card-score">${wlTier.rangeWidth > 0 ? formatPredictedScore(predTotal, MOVIES.length) : '~' + Math.round(predTotal)}</div>`;
+  } else if (isPending) {
+    badge = `<div class="wl-card-score pending">est…</div>`;
+  }
 
   const discoveryBadge = newTerr
     ? `<div style="position:absolute;top:6px;left:6px;display:flex;align-items:center;gap:3px;background:rgba(0,0,0,0.6);padding:2px 6px;border-radius:2px">${DISCOVERY_ICON_SVG}</div>`
     : '';
 
   return `
-    <div class="wl-card" onclick="openWatchlistDetail(${i})">
+    <div class="wl-card${isSeen ? ' seen' : ''}" onclick="openWatchlistDetail(${i})">
       <div class="wl-card-poster-wrap">
         ${posterImg}
-        ${scoreBadge}
+        ${badge}
         ${discoveryBadge}
       </div>
       <div class="wl-card-meta">
@@ -162,14 +201,22 @@ export function addToWatchlist(item) {
     import('../ui-callbacks.js').then(({ showToast }) => showToast('Already on your watch list.'));
     return;
   }
-  const updated = [{ ...item, addedAt: new Date().toISOString() }, ...list];
+  const status = item.status || 'watch';
+  const entry = {
+    ...item,
+    addedAt: item.addedAt || new Date().toISOString(),
+    status,
+    seenAt: item.seenAt || null,
+  };
+  const updated = [entry, ...list];
   setCurrentUser({ ...currentUser, watchlist: updated });
   saveUserLocally();
   syncToSupabase();
-  import('../ui-callbacks.js').then(({ showToast }) => showToast(`${item.title} added to watch list.`));
+  const toastMsg = status === 'seen' ? `${item.title} marked as seen.` : `${item.title} added to watch list.`;
+  import('../ui-callbacks.js').then(({ showToast }) => showToast(toastMsg));
 
-  // Auto-predict after 30s if still on list
-  if (item.tmdbId && getPredictionTier().canPredict) {
+  // Auto-predict after 30s if still on list (skip for seen items)
+  if (status !== 'seen' && item.tmdbId && getPredictionTier().canPredict) {
     clearTimeout(autoPredictTimers[item.tmdbId]);
     autoPredictTimers[item.tmdbId] = setTimeout(async () => {
       const stillOn = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(item.tmdbId));
@@ -182,9 +229,89 @@ export function addToWatchlist(item) {
   }
 }
 
+export function markAsSeen(tmdbId, filmData = null) {
+  if (!currentUser) return;
+  const list = currentUser.watchlist || [];
+  const idx = list.findIndex(w => String(w.tmdbId) === String(tmdbId));
+
+  if (idx >= 0) {
+    // Already on watchlist — toggle to seen
+    list[idx].status = 'seen';
+    list[idx].seenAt = new Date().toISOString();
+    clearTimeout(autoPredictTimers[tmdbId]);
+    setCurrentUser({ ...currentUser, watchlist: list });
+  } else if (filmData) {
+    // Not on watchlist — add as seen
+    const entry = {
+      tmdbId: filmData.tmdbId || tmdbId,
+      title: filmData.title || '',
+      year: filmData.year || '',
+      poster: filmData.poster || null,
+      overview: filmData.overview || '',
+      director: filmData.director || '',
+      addedAt: new Date().toISOString(),
+      status: 'seen',
+      seenAt: new Date().toISOString(),
+    };
+    const updated = [entry, ...list];
+    setCurrentUser({ ...currentUser, watchlist: updated });
+  } else {
+    return;
+  }
+
+  saveUserLocally();
+  syncToSupabase();
+  import('../ui-callbacks.js').then(({ showToast }) => showToast('Marked as seen.'));
+
+  const item = (currentUser.watchlist || []).find(w => String(w.tmdbId) === String(tmdbId));
+  if (item) {
+    const daysOnList = item.addedAt ? Math.round((Date.now() - new Date(item.addedAt).getTime()) / 86400000) : 0;
+    track('watchlist_mark_seen', { tmdb_id: tmdbId, title: item.title, days_on_list: daysOnList });
+  }
+
+  const screen = document.getElementById('watchlist');
+  if (screen?.classList.contains('active')) renderWatchlist();
+}
+window.markAsSeen = markAsSeen;
+
+export function unmarkSeen(tmdbId) {
+  if (!currentUser) return;
+  const list = currentUser.watchlist || [];
+  const idx = list.findIndex(w => String(w.tmdbId) === String(tmdbId));
+  if (idx < 0) return;
+  list[idx].status = 'watch';
+  list[idx].seenAt = null;
+  setCurrentUser({ ...currentUser, watchlist: list });
+  saveUserLocally();
+  syncToSupabase();
+  import('../ui-callbacks.js').then(({ showToast }) => showToast('Moved back to watch list.'));
+
+  // Trigger auto-predict now that it's back in watch state
+  if (list[idx].tmdbId && getPredictionTier().canPredict) {
+    clearTimeout(autoPredictTimers[list[idx].tmdbId]);
+    autoPredictTimers[list[idx].tmdbId] = setTimeout(async () => {
+      const stillOn = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(list[idx].tmdbId));
+      if (!stillOn) return;
+      const { runAutoPredict } = await import('./predict.js');
+      await runAutoPredict(list[idx]);
+      const screen = document.getElementById('watchlist');
+      if (screen?.classList.contains('active')) renderWatchlist();
+    }, 5000);
+  }
+
+  const screen = document.getElementById('watchlist');
+  if (screen?.classList.contains('active')) renderWatchlist();
+}
+window.unmarkSeen = unmarkSeen;
+
 export function removeFromWatchlist(tmdbId) {
   if (!currentUser) return;
+  const item = (currentUser.watchlist || []).find(w => String(w.tmdbId) === String(tmdbId));
   clearTimeout(autoPredictTimers[tmdbId]);
+  if (item?.status === 'seen') {
+    const daysSinceSeen = item.seenAt ? Math.round((Date.now() - new Date(item.seenAt).getTime()) / 86400000) : 0;
+    track('watchlist_seen_removed', { tmdb_id: tmdbId, title: item.title, days_since_seen: daysSinceSeen });
+  }
   const updated = (currentUser.watchlist || []).filter(w => String(w.tmdbId) !== String(tmdbId));
   setCurrentUser({ ...currentUser, watchlist: updated });
   saveUserLocally();
@@ -255,6 +382,10 @@ window.watchlistRemove = function(index) {
 window.watchlistRate = function(index) {
   const item = currentUser?.watchlist?.[index];
   if (!item) return;
+  if (item.status === 'seen' && item.seenAt) {
+    const daysSinceSeen = Math.round((Date.now() - new Date(item.seenAt).getTime()) / 86400000);
+    track('watchlist_seen_to_rated', { tmdb_id: item.tmdbId, title: item.title, days_since_seen: daysSinceSeen });
+  }
   const predictedScores = item.tmdbId
     ? currentUser?.predictions?.[String(item.tmdbId)]?.prediction?.predicted_scores
     : null;
@@ -338,6 +469,10 @@ window.openWatchlistDetail = function(index) {
     ${predHtml}
     <div style="display:flex;gap:8px;margin-top:8px">
       <button onclick="closeModal();watchlistRemove(${index})" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;background:none;border:1px solid var(--rule);color:var(--dim);padding:10px 20px;cursor:pointer;flex:1">Remove</button>
+      ${item.status === 'seen'
+        ? `<button onclick="unmarkSeen(${item.tmdbId});closeModal()" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;background:var(--green);color:white;border:none;padding:10px 20px;cursor:pointer;flex:1">✓ Seen</button>`
+        : `<button onclick="markAsSeen(${item.tmdbId});closeModal()" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;background:none;border:1px solid var(--green);color:var(--green);padding:10px 20px;cursor:pointer;flex:1">Seen it ✓</button>`
+      }
       <button onclick="watchlistRate(${index})" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:10px 20px;cursor:pointer;flex:2">Rank it →</button>
     </div>
   `;
@@ -569,9 +704,12 @@ async function gsSearch() {
       const poster = m.poster_path
         ? `<img src="https://image.tmdb.org/t/p/w92${m.poster_path}" style="width:28px;height:42px;object-fit:cover;flex-shrink:0">`
         : `<div style="width:28px;height:42px;background:var(--rule);flex-shrink:0"></div>`;
-      const onList = watchlistSet.has(title.toLowerCase());
+      const wlItem = (currentUser?.watchlist || []).find(w => w.title.toLowerCase() === title.toLowerCase());
+      const onList = !!wlItem;
+      const isSeen = wlItem?.status === 'seen';
       const safeTitle = title.replace(/'/g, "\\'");
       const safePoster = (m.poster_path || '').replace(/'/g, "\\'");
+      const safeOverview = (m.overview || '').slice(0, 200).replace(/'/g, "\\'").replace(/\n/g, ' ');
       return `<div onclick="closeGlobalSearch();openRecommendedDetail(${m.id})" style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--rule);cursor:pointer" onmouseover="this.style.background='var(--cream)'" onmouseout="this.style.background=''">
         ${poster}
         <div style="flex:1;min-width:0">
@@ -579,9 +717,15 @@ async function gsSearch() {
           <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">${year}</div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
-          ${onList
+          ${isSeen
+            ? `<button onclick="event.stopPropagation()" class="gs-list-btn gs-seen-active">✓ Seen</button>`
+            : `<button onclick="event.stopPropagation();gsMarkSeen(${m.id},'${safeTitle}','${year}','${safePoster}','${safeOverview}')" class="gs-list-btn gs-seen-btn">Seen ✓</button>`
+          }
+          ${onList && !isSeen
             ? `<button onclick="event.stopPropagation();gsRemoveWatchlist('${safeTitle}')" class="gs-list-btn on-list">✓ On List</button>`
-            : `<button onclick="event.stopPropagation();gsAddWatchlist(${m.id},'${safeTitle}','${year}','${safePoster}')" class="gs-list-btn">＋ List</button>`
+            : !onList
+              ? `<button onclick="event.stopPropagation();gsAddWatchlist(${m.id},'${safeTitle}','${year}','${safePoster}')" class="gs-list-btn">＋ List</button>`
+              : ''
           }
           <button onclick="event.stopPropagation();gsRate(${m.id},'${safeTitle}')" class="gs-rate-btn">Rate →</button>
         </div>
@@ -655,6 +799,16 @@ window.gsAddWatchlist = function(tmdbId, title, year, poster) {
 window.gsRemoveWatchlist = function(title) {
   const item = (currentUser?.watchlist || []).find(w => w.title.toLowerCase() === title.toLowerCase());
   if (item) removeFromWatchlist(item.tmdbId);
+  gsSearch();
+};
+
+window.gsMarkSeen = function(tmdbId, title, year, poster, overview) {
+  const existing = (currentUser?.watchlist || []).find(w => String(w.tmdbId) === String(tmdbId));
+  if (existing) {
+    markAsSeen(tmdbId);
+  } else {
+    markAsSeen(tmdbId, { tmdbId, title, year, poster: poster || null, overview: overview || '', director: '' });
+  }
   gsSearch();
 };
 

@@ -1628,6 +1628,38 @@ input[type="range"]::-webkit-slider-thumb:hover { background: var(--blue-dark); 
   color: var(--dim);
 }
 
+/* ── SEEN CARD TREATMENT ── */
+.wl-card.seen .wl-card-poster { opacity: 0.7; }
+.wl-seen-badge {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  background: var(--green);
+  color: white;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+}
+.gs-seen-btn {
+  color: var(--green) !important;
+  border-color: var(--green) !important;
+}
+.gs-seen-btn:hover {
+  background: var(--green) !important;
+  color: white !important;
+  border-color: var(--green) !important;
+}
+.gs-seen-active {
+  background: var(--green) !important;
+  color: white !important;
+  border: none !important;
+}
+
 /* ── DARK GRID TEXTURE ── */
 .dark-grid { position: relative; overflow: hidden; }
 .dark-grid::before {
