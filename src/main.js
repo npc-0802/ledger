@@ -191,21 +191,23 @@ async function init() {
     setCloudStatus('syncing');
     const loaded = await loadFromSupabaseByAuth(session.user.id, session.user.email);
     if (!loaded) {
+      // Session exists but no Supabase profile. Check if there's a
+      // meaningful local profile (has quiz_weights AND movies) worth linking.
       loadUserLocally();
-      if (currentUser) {
-        // Existing local profile — link this auth session to it and load by UUID
+      const hasRealProfile = currentUser && currentUser.quiz_weights && MOVIES.length > 0;
+
+      if (hasRealProfile) {
+        // Existing local profile with real data — link auth and load
         const { sb: supabase } = await import('./modules/supabase.js');
         await supabase.rpc('link_auth_id', { target_user_id: currentUser.id, user_email: currentUser.email || session.user.email || '' });
         setCurrentUser({ ...currentUser, auth_id: session.user.id, email: session.user.email || null });
         saveUserLocally();
-        // Load by profile UUID — always reliable, doesn't need auth_id/email to match
         await loadFromSupabase(currentUser.id);
       } else {
-        // Session exists but no profile anywhere — show cold landing.
-        // The user may have clicked Google sign-in once without completing
-        // onboarding, or this is a genuinely new user arriving via auth link.
-        // If they came from the landing page (pending name set), go to onboarding.
-        // Otherwise, let them see the cold landing first.
+        // No real profile — either brand new user or abandoned attempt.
+        // Clear any junk local state and show cold landing.
+        // Exception: if palatemap_pending_name is set, user just clicked
+        // "Get Started" or Google from the landing page — go to onboarding.
         const pendingName = localStorage.getItem('palatemap_pending_name');
         if (pendingName) {
           const name = pendingName
@@ -220,8 +222,11 @@ async function init() {
           launchOnboarding({ skipToQuiz: true, name });
           return;
         } else {
-          // No pending name — they didn't come from our landing flow.
-          // Show cold landing and let them start fresh.
+          // Discard partial local user if any
+          if (currentUser && !currentUser.quiz_weights) {
+            setCurrentUser(null);
+            setMovies([]);
+          }
           window._pendingAuthSession = session;
           setCloudStatus('local');
           setTimeout(() => showColdLanding(), 400);
