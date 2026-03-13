@@ -251,6 +251,9 @@ async function init() {
     }
   }
 
+  // Re-run migrations after Supabase load (which may overwrite locally-migrated data)
+  runMigrations();
+
   // Legacy user check: if user exists but has no quiz_weights, force re-onboarding
   if (currentUser && !currentUser.quiz_weights) {
     renderRankings();

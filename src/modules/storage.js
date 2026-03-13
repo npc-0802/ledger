@@ -66,8 +66,9 @@ export function runMigrations() {
     try { localStorage.setItem(MIGRATIONS_KEY, JSON.stringify(flags)); } catch {}
   }
 
-  // Backfill _tmdbId on movies that are missing it, using OWNER_MOVIES lookup
-  if (!flags.backfill_tmdb_ids) {
+  // Backfill _tmdbId on movies that are missing it, using OWNER_MOVIES lookup.
+  // Runs every time (no flag) since Supabase loads may overwrite local state.
+  {
     const lookup = new Map();
     for (const om of OWNER_MOVIES) {
       if (om._tmdbId) lookup.set(`${om.title}::${om.year}`, om._tmdbId);
@@ -84,8 +85,6 @@ export function runMigrations() {
       import('./supabase.js').then(mod => { mod.syncToSupabase().catch(() => {}); });
       console.log(`Migration backfill_tmdb_ids: added TMDB IDs to ${changed} films.`);
     }
-    flags.backfill_tmdb_ids = true;
-    try { localStorage.setItem(MIGRATIONS_KEY, JSON.stringify(flags)); } catch {}
   }
 }
 
