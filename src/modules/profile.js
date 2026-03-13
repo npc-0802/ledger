@@ -8,6 +8,7 @@ import { shouldShowHint, renderHint } from './hints.js';
 import { on } from '../events.js';
 import { loadTagVectors, getTagVector, tagVectorsLoaded, getAdmissibleTags } from './tag-genome.js';
 import { computeCategoryFingerprints, getTopCategoryTags, getCoverageCount } from './tag-profile.js';
+import { evaluatePredictions } from './eval-framework.js';
 
 let profileImportedMovies = null;
 
@@ -378,6 +379,47 @@ function renderTasteTexture() {
     </div>`;
 }
 
+function renderDarkEvalPanel() {
+  if (localStorage.getItem('pm_eval_panel') !== '1') return '';
+  const predictions = currentUser?.predictions || {};
+  const reconciled = Object.values(predictions)
+    .filter(p => p.actualTotal != null && p.prediction?.predicted_scores)
+    .map(p => {
+      const film = MOVIES.find(m => String(m.tmdbId || m._tmdbId) === String(p.film?.tmdbId));
+      return {
+        predictedScores: p.prediction.predicted_scores,
+        actualScores: film?.scores || null,
+        predictedTotal: p.predictedTotal,
+        actualTotal: p.actualTotal
+      };
+    })
+    .filter(p => p.actualScores);
+  const result = evaluatePredictions(reconciled);
+  if (!result) return '';
+  const cats = ['story','craft','performance','world','experience','hold','ending','singularity'];
+  let rows = '';
+  if (result.status === 'ok') {
+    for (const cat of cats) {
+      const c = result.categories[cat];
+      if (!c || c.status === 'insufficient_data') { rows += `<tr><td>${cat}</td><td colspan="3" style="color:var(--dim)">insufficient</td></tr>`; continue; }
+      rows += `<tr><td>${cat}</td><td>${c.mae}</td><td>${c.rmse}</td><td>${c.correlation}</td></tr>`;
+    }
+    if (result.overall?.mae != null) {
+      rows += `<tr style="border-top:1px solid var(--rule);font-weight:600"><td>total</td><td>${result.overall.mae}</td><td>${result.overall.rmse}</td><td>${result.overall.correlation}</td></tr>`;
+    }
+  }
+  return `
+    <div style="margin-bottom:40px;padding:16px;border:1px dashed var(--dim);background:var(--bg)">
+      <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:8px">Dark Eval Panel (dev only)</div>
+      <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);margin-bottom:12px">${reconciled.length} reconciled predictions</div>
+      ${result.status === 'ok' ? `
+      <table style="font-family:'DM Mono',monospace;font-size:11px;width:100%;border-collapse:collapse">
+        <tr style="color:var(--dim);text-align:left"><th>cat</th><th>MAE</th><th>RMSE</th><th>r</th></tr>
+        ${rows}
+      </table>` : `<div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim)">${result.status} (need 5+ reconciled)</div>`}
+    </div>`;
+}
+
 export function renderProfile() {
   ensureProfileListeners();
   const el = document.getElementById('profileContent');
@@ -474,6 +516,9 @@ export function renderProfile() {
 
       <!-- TASTE TEXTURE (tag genome) -->
       <div id="tasteTextureSlot">${renderTasteTexture()}</div>
+
+      <!-- DARK EVAL PANEL (dev only, pm_eval_panel=1) -->
+      ${renderDarkEvalPanel()}
 
       <!-- SIGNATURE FILMS -->
       <div style="margin-bottom:40px;padding-bottom:32px;border-bottom:1px solid var(--rule)">

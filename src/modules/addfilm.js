@@ -8,6 +8,7 @@ import { fetchTmdbMovieBundle } from './tmdb-movie.js';
 import { track } from '../analytics.js';
 import { shouldShowHint, renderHint } from './hints.js';
 import { updateEffectiveWeights } from './weight-blend.js';
+import { evaluatePredictions } from './eval-framework.js';
 
 const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
 const TMDB = 'https://api.themoviedb.org/3';
@@ -668,6 +669,22 @@ function autoSaveFilm() {
       actualTotal,
       delta
     );
+    // Dark eval framework — log accuracy metrics when enough reconciled predictions exist
+    try {
+      const reconciled = Object.values(currentUser.predictions || {})
+        .filter(p => p.actualTotal != null && p.prediction?.predicted_scores)
+        .map(p => ({
+          predictedScores: p.prediction.predicted_scores,
+          actualScores: p.actualTotal != null ? (MOVIES.find(m => String(m.tmdbId || m._tmdbId) === String(p.film?.tmdbId))?.scores || null) : null,
+          predictedTotal: p.predictedTotal,
+          actualTotal: p.actualTotal
+        }))
+        .filter(p => p.actualScores);
+      const evalResult = evaluatePredictions(reconciled);
+      if (evalResult?.status === 'ok') {
+        console.log('[dark-eval]', evalResult);
+      }
+    } catch {}
   }
   track('film_rated', {
     tmdb_id: savedTmdbId || null,

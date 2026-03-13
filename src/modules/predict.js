@@ -325,8 +325,13 @@ export function initPredict() {
   // Compute dynamic entity weights
   computeEntityWeights();
 
-  // Preload tag vectors (non-blocking)
-  if (TAG_GENOME_ENABLED()) loadTagVectors();
+  // Preload tag vectors + Part 6 data (non-blocking)
+  if (TAG_GENOME_ENABLED()) {
+    loadTagVectors();
+    loadPcaCoords();
+    loadBundleScores();
+    loadPcaFactors();
+  }
 
   // Set archetype palette color on pulsing dots
   setForYouDotColor();
@@ -1461,6 +1466,68 @@ async function runPrediction(film) {
     syncToSupabase();
     // Fire-and-forget prediction log (enriched with tag context if available)
     const _tagCtx = buildTagContext(film);
+
+    // ── Dark residual model (Part 6) — compute but don't use for display ──
+    let _darkResidual = null;
+    try {
+      if (TAG_GENOME_ENABLED() && tagVectorsLoaded() && pcaCoordsLoaded()) {
+        const userRatings = MOVIES.filter(m => m.scores && (m.tmdbId || m._tmdbId))
+          .map(m => ({ tmdbId: String(m.tmdbId || m._tmdbId), scores: m.scores }));
+        const coverageCount = userRatings.filter(r => getTagVector(r.tmdbId)).length;
+        // Only attempt if gate conditions could plausibly be met
+        if (coverageCount >= 15) {
+          // Try loading pooled baselines (static file, may not exist yet)
+          let pooledBaselines = null;
+          try {
+            const resp = await fetch('/data/pooled-baselines.json');
+            if (resp.ok) pooledBaselines = await resp.json();
+          } catch {}
+          if (pooledBaselines) {
+            // Build filmCoords map from loaded PCA coords (or bundles as fallback)
+            const useBundle = bundlesLoaded() && !pcaCoordsLoaded();
+            const filmCoords = {};
+            for (const r of userRatings) {
+              const c = useBundle ? getBundleScores(r.tmdbId) : getPcaCoords(r.tmdbId);
+              if (c) filmCoords[r.tmdbId] = c;
+            }
+            const residualModel = fitUserResidual(userRatings, pooledBaselines, filmCoords, (id) => getTagVector(id));
+            if (residualModel) {
+              // Compute dark prediction for this film
+              const filmCoord = useBundle ? getBundleScores(String(film.tmdbId)) : getPcaCoords(String(film.tmdbId));
+              if (filmCoord) {
+                const filmTagVec = getTagVector(String(film.tmdbId));
+                if (filmTagVec) {
+                  // Compute pooled baseline prediction for this film
+                  const basePred = {};
+                  const cats = ['story','craft','performance','world','experience','hold','ending','singularity'];
+                  for (const cat of cats) {
+                    const bl = pooledBaselines[cat];
+                    if (!bl) continue;
+                    let p = bl.intercept || 0;
+                    for (let j = 0; j < filmTagVec.values.length && j < (bl.coefficients?.length || 0); j++) {
+                      p += (filmTagVec.values[j] || 0) * bl.coefficients[j];
+                    }
+                    basePred[cat] = Math.max(1, Math.min(100, Math.round(p)));
+                  }
+                  const adjusted = predictWithResidual(basePred, residualModel, filmCoord);
+                  _darkResidual = {
+                    method: residualModel._method,
+                    nFilms: residualModel._nFilms,
+                    basePrediction: basePred,
+                    adjustedPrediction: adjusted,
+                    claudePrediction: prediction.predicted_scores
+                  };
+                  console.log('[dark-residual]', film.title, _darkResidual);
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[dark-residual] error:', e.message);
+    }
+
     logPrediction({
       userId: currentUser?.id,
       tmdbId: film.tmdbId,
@@ -1471,7 +1538,10 @@ async function runPrediction(film) {
       userFilmsAtPrediction: MOVIES.length,
       weightsAtPrediction: currentUser?.weights ? { ...currentUser.weights } : null,
       tagContextVersion: _tagCtx?.version || null,
-      metadata: _tagCtx ? { tag_coverage: _tagCtx.coverage } : null
+      metadata: {
+        ...(_tagCtx ? { tag_coverage: _tagCtx.coverage } : {}),
+        ...(_darkResidual ? { dark_residual: _darkResidual } : {})
+      }
     });
     renderPrediction(film, prediction, comps, predictedAt);
   } catch(e) {
