@@ -740,8 +740,8 @@ body {
 }
 .cold-beat-rule {
   width: 36px;
-  height: 1px;
-  background: #333;
+  height: 2px;
+  background: var(--blue);
   margin-bottom: 18px;
 }
 .cold-beat-desc {
@@ -750,10 +750,128 @@ body {
   line-height: 1.65;
   color: #888;
   margin-bottom: 28px;
-  max-width: 300px;
+  max-width: 320px;
 }
 .cold-beat-visual {
   min-height: 80px;
+}
+
+/* ── Rate: Scrolling category showcase ── */
+.sys-rate-scroll {
+  overflow: hidden;
+  height: 220px;
+  position: relative;
+  mask-image: linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%);
+}
+.sys-rate-inner {
+  animation: sysScrollUp 24s linear infinite;
+}
+@keyframes sysScrollUp {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
+.sys-rate-card {
+  background: #1a1916;
+  padding: 14px 18px;
+  margin-bottom: 2px;
+}
+.sys-rate-label {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-weight: 700;
+  font-size: 15px;
+  color: #e8e2d6;
+  margin-bottom: 3px;
+}
+.sys-rate-question {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11.5px;
+  color: #777;
+  line-height: 1.4;
+  margin-bottom: 10px;
+}
+.sys-rate-slider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sys-rate-track {
+  flex: 1;
+  height: 4px;
+  background: rgba(244,239,230,0.08);
+}
+.sys-rate-fill {
+  height: 100%;
+  background: var(--blue);
+}
+.sys-rate-value {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--blue);
+  min-width: 22px;
+  text-align: right;
+}
+
+/* ── Map: Radar chart ── */
+.sys-radar-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.sys-radar-svg {
+  width: 240px;
+  height: 240px;
+}
+.sys-radar-dot {
+  transition: opacity 0.4s ease;
+}
+.sys-radar-legend {
+  display: flex;
+  gap: 20px;
+  margin-top: 12px;
+}
+.sys-radar-legend-item {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  color: #666;
+  letter-spacing: 0.3px;
+}
+
+/* ── Discover: Stacked feature cards ── */
+.sys-discover-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sys-discover-card {
+  background: #1a1916;
+  padding: 16px 20px;
+  border: 1px solid rgba(255,255,255,0.04);
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.sys-discover-card.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.sys-discover-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--blue);
+  margin-bottom: 10px;
+}
+.sys-discover-territory .sys-discover-label {
+  color: #4a8;
+}
+.sys-discover-reason {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11.5px;
+  color: #777;
+  line-height: 1.55;
 }
 
 /* ── Compare Strip ── */
@@ -865,6 +983,9 @@ body {
   .tab-predict { transform: rotate(-1.5deg) !important; }
   .tab-reco { transform: rotate(1.8deg) !important; }
   .tab-anchor { transform: rotate(-2deg) !important; }
+  .sys-rate-inner { animation: none; }
+  .sys-rate-scroll { height: auto; mask-image: none; -webkit-mask-image: none; }
+  .sys-discover-card { opacity: 1; transform: none; }
 }
 
 /* ── Tablet ── */
@@ -909,6 +1030,8 @@ body {
     padding: 0 32px;
     gap: 16px;
   }
+  .sys-radar-svg { width: 200px; height: 200px; }
+  .sys-rate-scroll { height: 200px; }
 }
 
 /* ── Small Mobile ── */

@@ -269,60 +269,209 @@ function buildTableau() {
 
 function buildSystemVisuals() {
   const mono = "font-family:'DM Mono',monospace";
+  const sans = "font-family:'DM Sans',sans-serif";
+  const serif = "font-family:'Playfair Display',serif;font-style:italic";
   const blue = '#3d5a80';
 
-  const posters = {
-    parasite: 'https://image.tmdb.org/t/p/w154/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg',
-    lost: 'https://image.tmdb.org/t/p/w154/4GDy0PHYX3VRXUtwK5ysFbg3kEx.jpg',
-    handmaiden: 'https://image.tmdb.org/t/p/w154/dLlH4aNHdnmf62umnInL8xPlPzw.jpg',
-    arrival: 'https://image.tmdb.org/t/p/w154/x2FJsf1ElAgr63Y3PNPtJrcmpoe.jpg',
-    mood: 'https://image.tmdb.org/t/p/w154/iYypPT4bhqXfq1b6EnmxvRt6b2Y.jpg',
-  };
-
-  // Beat 1: Rate — poster thumbnails
+  // ══ Beat 1: Rate — scrolling category showcase ══
   const rateEl = document.getElementById('cold-beat-rate');
   if (rateEl) {
-    const films = [
-      { src: posters.parasite, t: 'Parasite' },
-      { src: posters.lost, t: 'Lost in Translation' },
-      { src: posters.handmaiden, t: 'The Handmaiden' },
-      { src: posters.arrival, t: 'Arrival' },
-      { src: posters.mood, t: 'In the Mood for Love' },
+    const cats = [
+      ['The Story', 'How much did you like what happens in this film?', 87],
+      ['The Craft', 'How well was this film made?', 92],
+      ['The Performances', 'How compelling are the people in this film?', 78],
+      ['The World', 'How much does this film\'s world pull you in?', 70],
+      ['The Experience', 'How much did you enjoy watching this?', 85],
+      ['The Hold', 'Does this film have a hold on you?', 90],
+      ['The Ending', 'How do you feel about where this film left you?', 95],
+      ['The Singularity', 'How much does this film stand alone?', 82],
     ];
-    rateEl.innerHTML = `<div style="display:flex;gap:6px">${films.map(f =>
-      `<div style="flex:1;min-width:0">${posterImg(f.src, f.t, 60, 90)}</div>`
-    ).join('')}</div>`;
+    const cardHTML = cats.map(([label, q, val]) => `
+      <div class="sys-rate-card">
+        <div class="sys-rate-label">${label}</div>
+        <div class="sys-rate-question">${q}</div>
+        <div class="sys-rate-slider">
+          <div class="sys-rate-track"><div class="sys-rate-fill" style="width:${val}%"></div></div>
+          <span class="sys-rate-value">${val}</span>
+        </div>
+      </div>`).join('');
+    // Duplicate for infinite scroll
+    rateEl.innerHTML = `
+      <div class="sys-rate-scroll">
+        <div class="sys-rate-inner">${cardHTML}${cardHTML}</div>
+      </div>`;
   }
 
-  // Beat 2: Map — category bars
+  // ══ Beat 2: Map — animated radar chart ══
   const mapEl = document.getElementById('cold-beat-map');
   if (mapEl) {
-    const cats = [['Story',92],['Craft',88],['Perf',80],['World',70],['Exp',85],['Hold',90],['End',97],['Sing',82]];
-    mapEl.innerHTML = cats.map(([c, v]) => `
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
-        <div style="${mono};font-size:7px;color:#777;width:32px;text-align:right">${c}</div>
-        <div style="flex:1;height:2px;background:#2a2a28"><div style="height:100%;width:${v}%;background:${blue}"></div></div>
-        <div style="${mono};font-size:8px;color:#666;width:16px;text-align:right">${v}</div>
-      </div>`).join('');
+    const labels = ['Story', 'Craft', 'Perf', 'World', 'Exp', 'Hold', 'End', 'Sing'];
+    const values = [0.87, 0.92, 0.68, 0.55, 0.85, 0.90, 0.75, 0.62];
+    const crowd =  [0.72, 0.74, 0.76, 0.70, 0.78, 0.65, 0.70, 0.58];
+    const cx = 130, cy = 130, r = 100;
+    const n = 8;
+
+    function polarPoint(index, val) {
+      const angle = (Math.PI * 2 * index / n) - Math.PI / 2;
+      return [cx + r * val * Math.cos(angle), cy + r * val * Math.sin(angle)];
+    }
+
+    // Grid rings
+    const rings = [0.33, 0.66, 1.0].map(level => {
+      const pts = Array.from({length: n}, (_, i) => polarPoint(i, level).join(',')).join(' ');
+      return `<polygon points="${pts}" fill="none" stroke="rgba(244,239,230,0.08)" stroke-width="0.5"/>`;
+    }).join('');
+
+    // Axis lines
+    const axes = Array.from({length: n}, (_, i) => {
+      const [ex, ey] = polarPoint(i, 1);
+      return `<line x1="${cx}" y1="${cy}" x2="${ex}" y2="${ey}" stroke="rgba(244,239,230,0.06)" stroke-width="0.5"/>`;
+    }).join('');
+
+    // Labels
+    const labelEls = labels.map((l, i) => {
+      const [lx, ly] = polarPoint(i, 1.18);
+      const anchor = lx < cx - 5 ? 'end' : lx > cx + 5 ? 'start' : 'middle';
+      return `<text x="${lx}" y="${ly}" text-anchor="${anchor}" dominant-baseline="central" font-family="'DM Mono',monospace" font-size="9" fill="#666" letter-spacing="0.3">${l}</text>`;
+    }).join('');
+
+    // User polygon (starts collapsed, animates via JS)
+    const userPts = values.map((v, i) => polarPoint(i, v).join(',')).join(' ');
+    const centerPts = Array.from({length: n}, () => `${cx},${cy}`).join(' ');
+    // Crowd polygon (dashed, appears later)
+    const crowdPts = crowd.map((v, i) => polarPoint(i, v).join(',')).join(' ');
+
+    // Vertex dots
+    const dots = values.map((v, i) => {
+      const [dx, dy] = polarPoint(i, v);
+      return `<circle cx="${dx}" cy="${dy}" r="3" fill="${blue}" class="sys-radar-dot" opacity="0"/>`;
+    }).join('');
+
+    mapEl.innerHTML = `
+      <div class="sys-radar-wrap">
+        <svg viewBox="0 0 260 260" class="sys-radar-svg">
+          ${rings}${axes}${labelEls}
+          <polygon class="sys-radar-crowd" points="${crowdPts}" fill="none" stroke="rgba(244,239,230,0.2)" stroke-width="1" stroke-dasharray="4,3" opacity="0"/>
+          <polygon class="sys-radar-poly" points="${centerPts}" data-target="${userPts}" fill="rgba(61,90,128,0.15)" stroke="${blue}" stroke-width="1.5"/>
+          ${dots}
+        </svg>
+        <div class="sys-radar-legend">
+          <span class="sys-radar-legend-item"><span style="display:inline-block;width:12px;height:2px;background:${blue};vertical-align:middle;margin-right:6px"></span>Your palate</span>
+          <span class="sys-radar-legend-item"><span style="display:inline-block;width:12px;height:2px;background:rgba(244,239,230,0.2);vertical-align:middle;margin-right:6px;border-top:1px dashed rgba(244,239,230,0.4)"></span>Average</span>
+        </div>
+      </div>`;
+
+    // Animate radar on scroll into view
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        observer.disconnect();
+        animateRadar(mapEl, values, crowd, cx, cy, r, n);
+      });
+    }, { threshold: 0.3 });
+    observer.observe(mapEl);
   }
 
-  // Beat 3: Discover — prediction + recommendation
+  // ══ Beat 3: Discover — stacked feature cards ══
   const discEl = document.getElementById('cold-beat-discover');
   if (discEl) {
     discEl.innerHTML = `
-      <div style="display:flex;gap:12px;align-items:flex-start">
-        <div style="flex:1;background:#1a1a18;padding:14px;border:1px solid #2a2a28">
-          <div style="${mono};font-size:7px;letter-spacing:1px;text-transform:uppercase;color:#555;margin-bottom:8px">Predicted</div>
-          <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:32px;color:${blue};letter-spacing:-1px;line-height:1">78</div>
-          <div style="${mono};font-size:8px;color:#555;margin-top:4px">Lost in Translation</div>
+      <div class="sys-discover-stack">
+        <div class="sys-discover-card">
+          <div class="sys-discover-label">Predicted</div>
+          <div style="display:flex;align-items:flex-end;gap:12px;margin-bottom:8px">
+            <div style="${serif};font-weight:900;font-size:36px;color:${blue};letter-spacing:-1px;line-height:1">78</div>
+            <div>
+              <div style="${sans};font-size:13px;color:#e8e2d6">Lost in Translation</div>
+              <div style="${mono};font-size:8px;color:#555;margin-top:2px">2003 · Sofia Coppola</div>
+            </div>
+          </div>
+          <div class="sys-discover-reason">Strong World match. Lower Story — you need more narrative drive.</div>
         </div>
-        <div style="flex:1">
-          ${posterImg(posters.arrival, 'Arrival', 80, 120)}
-          <div style="${mono};font-size:7px;color:${blue};letter-spacing:0.5px;margin-top:6px;text-transform:uppercase;letter-spacing:1px">For you</div>
-          <div style="${mono};font-size:8px;color:#777;margin-top:2px">Arrival · 84</div>
+        <div class="sys-discover-card">
+          <div class="sys-discover-label">For you</div>
+          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px">
+            <div style="${sans};font-size:13px;color:#e8e2d6">Arrival</div>
+            <div style="${mono};font-size:10px;color:${blue}">· 84</div>
+          </div>
+          <div class="sys-discover-reason">Director affinity — Denis Villeneuve films match your Craft + World profile.</div>
+        </div>
+        <div class="sys-discover-card sys-discover-territory">
+          <div class="sys-discover-label"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" style="vertical-align:-1px;margin-right:4px"><circle cx="8" cy="8" r="6" stroke="#4a8" stroke-width="1.2" fill="none"/><path d="M8 3v5l3 2" stroke="#4a8" stroke-width="1" fill="none"/></svg>New territory</div>
+          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px">
+            <div style="${sans};font-size:13px;color:#e8e2d6">The Handmaiden</div>
+            <div style="${mono};font-size:10px;color:#4a8">· 87</div>
+          </div>
+          <div class="sys-discover-reason">Outside your usual — high Singularity match from a genre you haven't explored.</div>
         </div>
       </div>`;
+
+    // Stagger cards on scroll into view
+    const dObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        dObserver.disconnect();
+        const cards = discEl.querySelectorAll('.sys-discover-card');
+        cards.forEach((c, i) => {
+          setTimeout(() => c.classList.add('visible'), i * 200);
+        });
+      });
+    }, { threshold: 0.3 });
+    dObserver.observe(discEl);
   }
+}
+
+function animateRadar(container, values, crowd, cx, cy, r, n) {
+  const poly = container.querySelector('.sys-radar-poly');
+  const crowdPoly = container.querySelector('.sys-radar-crowd');
+  const dots = container.querySelectorAll('.sys-radar-dot');
+  if (!poly) return;
+
+  const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const duration = prefersReduced ? 0 : 1200;
+
+  function polarPt(index, val) {
+    const angle = (Math.PI * 2 * index / n) - Math.PI / 2;
+    return [cx + r * val * Math.cos(angle), cy + r * val * Math.sin(angle)];
+  }
+
+  if (prefersReduced) {
+    poly.setAttribute('points', values.map((v, i) => polarPt(i, v).join(',')).join(' '));
+    dots.forEach((d, i) => { d.setAttribute('opacity', '1'); });
+    if (crowdPoly) crowdPoly.setAttribute('opacity', '1');
+    return;
+  }
+
+  const start = performance.now();
+  function frame(now) {
+    const elapsed = now - start;
+    const t = Math.min(elapsed / duration, 1);
+    const ease = 1 - Math.pow(1 - t, 3); // cubic ease-out
+
+    const pts = values.map((v, i) => {
+      const stagger = Math.min(1, Math.max(0, (t * n - i * 0.3) / (n * 0.7)));
+      const eased = 1 - Math.pow(1 - stagger, 3);
+      return polarPt(i, v * eased).join(',');
+    }).join(' ');
+    poly.setAttribute('points', pts);
+
+    if (t >= 1) {
+      // Show dots
+      dots.forEach((d, i) => {
+        setTimeout(() => d.setAttribute('opacity', '1'), i * 50);
+      });
+      // Show crowd polygon
+      if (crowdPoly) {
+        setTimeout(() => {
+          crowdPoly.style.transition = 'opacity 0.8s ease';
+          crowdPoly.setAttribute('opacity', '1');
+        }, 600);
+      }
+      return;
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
 }
 
 function exitColdLanding(el) {
