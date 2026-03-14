@@ -190,27 +190,31 @@ function buildTableau() {
       <div class="tab-bar-num" style="${mono};font-size:9px;color:#777;width:20px;text-align:right;opacity:0;transition:opacity 0.5s ease">${val}</div>
     </div>`).join('');
 
-  // ══ PRIMARY: Your Palate — dominant luxury surface ══
+  // ══ PRIMARY: Your Palate — signature luxury surface ══
   const main = `
     <div class="tab-panel tab-main">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
         <div style="${mono};font-size:8px;letter-spacing:2.5px;text-transform:uppercase;color:#555">Your palate</div>
         <div style="${mono};font-size:7px;color:#333;letter-spacing:0.5px">12 films rated</div>
       </div>
-      <div style="border-top:1px solid #1e1e1c;margin-bottom:22px"></div>
+      <div style="border-top:1px solid rgba(255,255,255,0.06);margin-bottom:22px"></div>
       ${bars}
-      <div style="border-top:1px solid #1e1e1c;margin-top:16px;padding-top:20px;display:flex;justify-content:space-between;align-items:flex-end">
-        <div>
-          <div class="tab-palate-type" style="${serif};font-size:18px;color:#e8e2d6;margin-bottom:6px;opacity:0;transition:opacity 0.6s ease">Studied Narrativist</div>
-          <div style="${mono};font-size:8px;color:#555;letter-spacing:0.3px">story-driven · high hold · atmospheric</div>
-        </div>
-        <div style="text-align:right">
-          <div class="tab-total" style="${serif};font-weight:900;font-size:64px;color:${blue};letter-spacing:-4px;line-height:0.8;opacity:0;transition:opacity 0.7s ease">86</div>
-          <div style="${mono};font-size:7px;color:#444;letter-spacing:1px;text-transform:uppercase;margin-top:8px">weighted total</div>
+      <div style="border-top:1px solid rgba(255,255,255,0.06);margin-top:18px;padding-top:24px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between">
+          <div style="flex:1">
+            <div class="tab-palate-type" style="${serif};font-size:22px;color:#e8e2d6;letter-spacing:-0.5px;line-height:1.1;opacity:0;transition:opacity 0.6s ease">Studied<br>Narrativist</div>
+            <div style="${mono};font-size:7.5px;color:#444;letter-spacing:1.2px;text-transform:uppercase;margin-top:10px">palate type</div>
+          </div>
+          <div style="text-align:right;padding-left:16px">
+            <div class="tab-total" style="${serif};font-weight:900;font-size:72px;color:${blue};letter-spacing:-4px;line-height:0.75;opacity:0;transition:opacity 0.7s ease">86</div>
+            <div style="${mono};font-size:7px;color:#444;letter-spacing:1px;text-transform:uppercase;margin-top:10px">weighted total</div>
+          </div>
         </div>
       </div>
-      <div style="border-top:1px solid #1e1e1c;margin-top:16px"></div>
-      <div class="tab-insight-line" style="${sans};font-size:11.5px;color:#666;margin-top:16px;line-height:1.55;opacity:0;transition:opacity 0.6s ease">You care most about Story and Hold. You forgive a lot when Experience is high.</div>
+      <div style="margin-top:18px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.06)">
+        <div style="${mono};font-size:7.5px;color:#444;letter-spacing:0.8px;margin-bottom:6px">story-driven · high hold · atmospheric</div>
+        <div class="tab-insight-line" style="${sans};font-size:11.5px;color:#666;line-height:1.6;opacity:0;transition:opacity 0.6s ease">You care most about Story and Hold. You forgive a lot when Experience is high.</div>
+      </div>
     </div>`;
 
   // ══ SECONDARY: Prediction — overlapping, cooler surface ══

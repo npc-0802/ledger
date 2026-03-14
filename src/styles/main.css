@@ -580,29 +580,34 @@ body {
 .cold-tableau::before {
   content: '';
   position: absolute;
-  top: 45%;
+  top: 42%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 160%;
-  height: 170%;
+  width: 170%;
+  height: 180%;
   background:
-    radial-gradient(ellipse at 55% 40%,
-      rgba(0,0,0,0.12) 0%,
-      rgba(0,0,0,0.07) 30%,
-      rgba(0,0,0,0.03) 55%,
-      transparent 70%);
+    radial-gradient(ellipse at 55% 38%,
+      rgba(0,0,0,0.15) 0%,
+      rgba(0,0,0,0.09) 28%,
+      rgba(0,0,0,0.04) 50%,
+      transparent 68%),
+    radial-gradient(ellipse at 35% 60%,
+      rgba(61,90,128,0.04) 0%,
+      transparent 45%);
   pointer-events: none;
   z-index: 0;
 }
-/* Secondary light wash */
+/* Secondary light wash — warm accent */
 .cold-tableau::after {
   content: '';
   position: absolute;
-  top: 10%;
-  right: 15%;
-  width: 300px;
-  height: 300px;
-  background: radial-gradient(circle, rgba(61,90,128,0.04) 0%, transparent 70%);
+  top: 5%;
+  right: 10%;
+  width: 350px;
+  height: 350px;
+  background:
+    radial-gradient(circle, rgba(61,90,128,0.05) 0%, transparent 60%),
+    radial-gradient(circle at 60% 80%, rgba(212,168,75,0.02) 0%, transparent 50%);
   pointer-events: none;
   z-index: 0;
 }
@@ -620,18 +625,19 @@ body {
   width: 460px;
   right: -20px;
   top: -10px;
-  padding: 34px 34px 28px;
-  background: linear-gradient(165deg, #0f0e0c 0%, #080706 100%);
-  border: 1px solid rgba(255,255,255,0.08);
+  padding: 36px 36px 30px;
+  background: linear-gradient(168deg, #100f0d 0%, #070605 100%);
+  border: 1px solid rgba(255,255,255,0.07);
   transform: translateY(70px) rotate(1deg);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.05),
+    inset 0 1px 0 rgba(255,255,255,0.06),
     inset 0 -1px 0 rgba(255,255,255,0.02),
     0 1px 2px rgba(0,0,0,0.06),
-    0 4px 8px rgba(0,0,0,0.08),
-    0 16px 40px rgba(0,0,0,0.14),
-    0 48px 96px rgba(0,0,0,0.16),
-    0 80px 140px rgba(0,0,0,0.08);
+    0 4px 8px rgba(0,0,0,0.1),
+    0 16px 40px rgba(0,0,0,0.16),
+    0 48px 96px rgba(0,0,0,0.18),
+    0 80px 140px rgba(0,0,0,0.1),
+    0 120px 180px rgba(0,0,0,0.05);
   z-index: 2;
 }
 .tab-main.visible {
@@ -639,64 +645,64 @@ body {
   transform: translateY(0) rotate(1deg);
 }
 
-/* ── SECONDARY: Prediction (bites into main panel) ── */
+/* ── SECONDARY: Prediction (bites aggressively into main panel) ── */
 .tab-predict {
   width: 260px;
-  right: -40px;
-  bottom: -20px;
+  right: -30px;
+  bottom: 10px;
   padding: 26px 26px 22px;
   background: linear-gradient(165deg, #131620 0%, #0d0f16 100%);
   border: 1px solid rgba(61,90,128,0.15);
-  transform: translateY(60px) rotate(-2deg);
+  transform: translateY(60px) rotate(-2.5deg);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.04),
     0 1px 2px rgba(0,0,0,0.05),
-    0 8px 24px rgba(0,0,0,0.12),
-    0 32px 64px rgba(0,0,0,0.16),
-    0 64px 110px rgba(0,0,0,0.08);
+    0 8px 24px rgba(0,0,0,0.14),
+    0 32px 64px rgba(0,0,0,0.18),
+    0 64px 110px rgba(0,0,0,0.1);
   z-index: 3;
 }
 .tab-predict.visible {
   opacity: 1;
-  transform: translateY(0) rotate(-2deg);
+  transform: translateY(0) rotate(-2.5deg);
 }
 
-/* ── TERTIARY: Recommendation (tucked behind predict) ── */
+/* ── TERTIARY: Recommendation (buried deeper in the stack) ── */
 .tab-reco {
-  width: 130px;
-  right: 190px;
-  bottom: -24px;
+  width: 125px;
+  right: 170px;
+  bottom: -8px;
   background: #0c0b09;
   border: 1px solid rgba(255,255,255,0.06);
-  transform: translateY(40px) rotate(2.5deg);
+  transform: translateY(40px) rotate(3deg);
   box-shadow:
-    0 4px 12px rgba(0,0,0,0.08),
-    0 24px 56px rgba(0,0,0,0.14),
-    0 48px 80px rgba(0,0,0,0.06);
+    0 4px 12px rgba(0,0,0,0.1),
+    0 24px 56px rgba(0,0,0,0.16),
+    0 48px 80px rgba(0,0,0,0.08);
   z-index: 1;
 }
 .tab-reco.visible {
   opacity: 1;
-  transform: translateY(0) rotate(2.5deg);
+  transform: translateY(0) rotate(3deg);
 }
 
-/* ── INPUT: Anchor film (overlaps main panel edge) ── */
+/* ── INPUT: Anchor film (tight against main panel — causal link) ── */
 .tab-anchor {
   width: 140px;
-  left: 10px;
-  top: 60px;
+  left: 30px;
+  top: 40px;
   background: #0c0b09;
   border: 1px solid rgba(255,255,255,0.06);
-  transform: translateY(30px) rotate(-3deg);
+  transform: translateY(30px) rotate(-2.5deg);
   box-shadow:
-    0 4px 12px rgba(0,0,0,0.06),
-    0 20px 48px rgba(0,0,0,0.12),
-    0 40px 64px rgba(0,0,0,0.06);
+    0 4px 12px rgba(0,0,0,0.08),
+    0 20px 48px rgba(0,0,0,0.14),
+    0 40px 64px rgba(0,0,0,0.08);
   z-index: 4;
 }
 .tab-anchor.visible {
   opacity: 1;
-  transform: translateY(0) rotate(-3deg);
+  transform: translateY(0) rotate(-2.5deg);
 }
 
 /* ── System Section ── */
@@ -997,7 +1003,7 @@ body {
   .tab-main { width: 360px; padding: 24px; right: -10px; }
   .tab-predict { width: 220px; right: -20px; bottom: -10px; }
   .tab-reco { width: 110px; right: 150px; }
-  .tab-anchor { left: 0; top: 50px; width: 120px; }
+  .tab-anchor { left: 10px; top: 35px; width: 120px; }
   .cold-tableau { min-height: 560px; }
   .cold-system-inner { padding: 0 48px; }
   .cold-compare-inner { padding: 0 48px; }
@@ -1019,7 +1025,7 @@ body {
   .tab-main { width: 290px; right: 10px; top: 0; padding: 18px; }
   .tab-predict { width: 200px; right: -10px; bottom: 10px; padding: 16px; }
   .tab-reco { width: 100px; right: 130px; bottom: -4px; }
-  .tab-anchor { left: -5px; top: 30px; width: 105px; }
+  .tab-anchor { left: 5px; top: 20px; width: 105px; }
   .cold-system { padding: 64px 0; }
   .cold-system-inner { padding: 0 32px; }
   .cold-system-grid {
