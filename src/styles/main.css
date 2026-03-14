@@ -426,15 +426,7 @@ body {
     radial-gradient(ellipse at 75% 25%, rgba(212,168,75,0.025) 0%, transparent 45%);
   pointer-events: none;
 }
-.cold-hero::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: var(--rule);
-}
+/* Compare strip sits inside hero at bottom */
 .cold-hero-inner {
   position: relative;
   display: grid;
@@ -443,7 +435,7 @@ body {
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
-  padding: 100px 80px 80px;
+  padding: 100px 80px 64px;
   align-items: center;
 }
 
@@ -686,19 +678,24 @@ body {
 
 /* ── Compare Strip ── */
 .cold-compare {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
   background: var(--paper);
-  padding: 36px 0;
+  padding: 16px 0;
   border-top: 1px solid var(--rule);
 }
 .cold-compare-inner {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 0 80px;
+  padding: 0 48px;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: center;
-  gap: 24px;
-  flex-wrap: wrap;
+  gap: 18px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 .cold-compare-item {
   display: flex;
@@ -708,13 +705,13 @@ body {
 .cold-compare-item svg { flex-shrink: 0; }
 .cold-compare-name {
   font-family: 'DM Mono', monospace;
-  font-size: 10px;
+  font-size: 9px;
   color: var(--rule-dark);
   letter-spacing: 0.3px;
 }
 .cold-compare-cat {
   font-family: 'DM Sans', sans-serif;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--rule-dark);
   opacity: 0.5;
 }
