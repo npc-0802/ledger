@@ -520,8 +520,8 @@ body {
   font-size: 13px;
   letter-spacing: 2.5px;
   text-transform: uppercase;
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--action);
+  color: white;
   border: none;
   padding: 18px 28px;
   cursor: pointer;
@@ -557,19 +557,25 @@ body {
 }
 .cold-links {
   display: flex;
-  gap: 14px;
+  gap: 18px;
   font-family: 'DM Mono', monospace;
-  font-size: 10px;
-  color: var(--rule-dark);
+  font-size: 11px;
+  color: var(--dim);
+  align-items: center;
 }
 .cold-links a {
-  color: var(--rule-dark);
-  text-decoration: none;
+  color: var(--dim);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--rule);
   cursor: pointer;
-  transition: color 0.2s;
+  transition: color 0.2s, text-decoration-color 0.2s;
 }
-.cold-links a:hover { color: var(--dim); }
-.cold-links span { opacity: 0.4; }
+.cold-links a:hover {
+  color: var(--ink);
+  text-decoration-color: var(--dim);
+}
+.cold-links span { color: var(--rule-dark); opacity: 0.5; }
 
 /* ── Hero Product Card ── */
 .cold-tableau {
@@ -878,7 +884,7 @@ body {
   margin-bottom: 10px;
 }
 .sys-discover-territory .sys-discover-label {
-  color: #4a8;
+  color: var(--discover);
 }
 .sys-discover-reason {
   font-family: 'DM Sans', sans-serif;
@@ -902,26 +908,14 @@ body {
 }
 .cold-system-cta:hover { opacity: 0.85; }
 
-/* ── Compare Strip ── */
+/* ── Compare Strip (two-tier) ── */
 .cold-compare {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
   background: var(--paper);
-  padding: 20px 0;
   border-top: 1px solid var(--rule);
-}
-.cold-compare-inner {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 80px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 28px;
-  flex-wrap: nowrap;
-  white-space: nowrap;
   opacity: 0;
   transform: translateY(8px);
   animation: compare-in 0.8s ease 1.8s forwards;
@@ -929,46 +923,71 @@ body {
 @keyframes compare-in {
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* Top tier — Palate Map value prop */
+.cold-compare-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 32px 10px;
+}
+.cold-compare-pm-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: var(--blue);
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+.cold-compare-pm-value {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: 15px;
+  color: var(--ink);
+  letter-spacing: -0.3px;
+}
+
+/* Bottom tier — competitors auto-scroll */
+.cold-compare-bottom {
+  border-top: 1px solid var(--rule);
+  overflow: hidden;
+  mask-image: linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%);
+}
+.cold-compare-track {
+  display: flex;
+  gap: 48px;
+  padding: 12px 0;
+  white-space: nowrap;
+  animation: compareScroll 20s linear infinite;
+}
+@keyframes compareScroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
 .cold-compare-item {
   display: flex;
   align-items: center;
   gap: 7px;
+  flex-shrink: 0;
 }
 .cold-compare-item svg { flex-shrink: 0; }
 .cold-compare-name {
   font-family: 'DM Mono', monospace;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--ink);
   letter-spacing: 0.3px;
-  opacity: 0.6;
+  opacity: 0.5;
 }
-.cold-compare-cat {
+.cold-compare-verb {
   font-family: 'DM Sans', sans-serif;
-  font-size: 12px;
+  font-size: 11px;
+  color: var(--rule-dark);
+}
+.cold-compare-what {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
   color: var(--dim);
-}
-.cold-compare-sep {
-  width: 1px;
-  height: 18px;
-  background: var(--rule);
-  align-self: center;
-}
-.cold-compare-div {
-  width: 2px;
-  height: 22px;
-  background: var(--blue);
-  margin: 0 10px;
-  align-self: center;
-}
-.cold-compare-pm .cold-compare-name {
-  color: var(--blue);
-  opacity: 1;
-  font-size: 13px;
-}
-.cold-compare-pm .cold-compare-cat {
-  color: var(--blue);
-  font-size: 13px;
-  font-weight: 500;
 }
 
 /* ── Footer ── */
@@ -1019,7 +1038,6 @@ body {
   .hero-product-card { padding: 24px 28px; }
   .hero-bar-label { min-width: 95px; font-size: 11px; }
   .cold-system-inner { padding: 0 48px; }
-  .cold-compare-inner { padding: 0 48px; }
 }
 
 /* ── Mobile ── */
@@ -1041,10 +1059,8 @@ body {
     grid-template-columns: 1fr;
     gap: 48px;
   }
-  .cold-compare-inner {
-    padding: 0 32px;
-    gap: 16px;
-  }
+  .cold-compare-top { padding: 12px 20px 8px; }
+  .cold-compare-pm-value { font-size: 13px; }
   .sys-radar-svg { width: 240px; height: 240px; }
   .sys-rate-scroll { height: 260px; }
 }
@@ -1058,8 +1074,6 @@ body {
   .hero-total-score { font-size: 36px; }
   .hero-archetype { font-size: 16px; }
   .cold-system-inner { padding: 0 20px; }
-  .cold-compare-inner { padding: 0 20px; }
-  .cold-compare-sep { display: none; }
 }
 
 /* ── MOBILE NAV ── */

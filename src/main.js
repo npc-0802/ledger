@@ -316,10 +316,10 @@ function buildSystemVisuals() {
           <div class="sys-discover-reason">Director affinity — Denis Villeneuve films match your Craft + World profile.</div>
         </div>
         <div class="sys-discover-card sys-discover-territory">
-          <div class="sys-discover-label"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" style="vertical-align:-1px;margin-right:4px"><circle cx="8" cy="8" r="6" stroke="#4a8" stroke-width="1.2" fill="none"/><path d="M8 3v5l3 2" stroke="#4a8" stroke-width="1" fill="none"/></svg>New territory</div>
+          <div class="sys-discover-label"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" style="vertical-align:-1px;margin-right:4px"><circle cx="8" cy="8" r="6" stroke="#b8860b" stroke-width="1.2" fill="none"/><polygon points="8,3 9.5,7 8,6 6.5,7" fill="#b8860b" opacity="0.7"/><polygon points="8,13 6.5,9 8,10 9.5,9" fill="#b8860b" opacity="0.4"/></svg>New territory</div>
           <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px">
             <div style="${sans};font-size:13px;color:#e8e2d6">The Handmaiden</div>
-            <div style="${mono};font-size:10px;color:#4a8">· 87</div>
+            <div style="${mono};font-size:10px;color:#b8860b">· 87</div>
           </div>
           <div class="sys-discover-reason">Outside your usual — high Singularity match from a genre you haven't explored.</div>
         </div>
