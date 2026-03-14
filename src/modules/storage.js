@@ -66,6 +66,33 @@ export function runMigrations() {
     try { localStorage.setItem(MIGRATIONS_KEY, JSON.stringify(flags)); } catch {}
   }
 
+  // Backfill onboarding_role on guided-flow films (by position, for users who onboarded before role tagging)
+  if (!flags.backfill_onboarding_roles) {
+    // Only apply to users who went through the new guided flow (uniform quiz_weights)
+    const qw = currentUser?.quiz_weights;
+    const isNewOnboarding = qw && Object.values(qw).every(v => v === 2.5);
+    if (isNewOnboarding && MOVIES.length >= 1) {
+      const roles = ['anchor', 'contrast', 'guilty_pleasure', 'rejection', 'wildcard'];
+      // Tag the first N films (up to 5) that don't already have a role
+      const untagged = MOVIES.filter(m => !m.onboarding_role);
+      const toTag = untagged.slice(0, Math.min(5, MOVIES.length));
+      let changed = 0;
+      toTag.forEach((m, i) => {
+        if (i < roles.length) {
+          m.onboarding_role = roles[i];
+          changed++;
+        }
+      });
+      if (changed > 0) {
+        saveToStorage();
+        import('./supabase.js').then(mod => { mod.syncToSupabase().catch(() => {}); });
+        console.log(`Migration backfill_onboarding_roles: tagged ${changed} films.`);
+      }
+    }
+    flags.backfill_onboarding_roles = true;
+    try { localStorage.setItem(MIGRATIONS_KEY, JSON.stringify(flags)); } catch {}
+  }
+
   // Backfill _tmdbId on movies that are missing it, using OWNER_MOVIES lookup.
   // Runs every time (no flag) since Supabase loads may overwrite local state.
   {

@@ -659,6 +659,44 @@ export async function predictSelectFilm(tmdbId, title, year) {
   await runPrediction(predictSelectedFilm);
 }
 
+// Format onboarding films with role context for Claude
+function buildOnboardingContext() {
+  const cats = ['story','craft','performance','world','experience','hold','ending','singularity'];
+  const obFilms = MOVIES.filter(m => m.onboarding_role);
+  if (obFilms.length === 0) return null;
+
+  const roleLabels = {
+    anchor: 'Anchor (comfort pick — center of gravity)',
+    contrast: 'Deliberate contrast',
+    guilty_pleasure: 'Guilty pleasure (unguarded, honest signal)',
+    rejection: 'Rejected consensus pick (low scores = high standards)',
+    wildcard: 'Wild card (pattern-breaker, hidden range)',
+  };
+
+  const roleInterpretation = {
+    anchor: 'This is the user\'s center of gravity. High scores here define their baseline preferences.',
+    contrast: null, // dynamic
+    guilty_pleasure: 'User is self-aware this isn\'t "great." High scores here are unguarded — what they reach for when critical standards are off. Treat as honest Experience and Hold evidence.',
+    rejection: 'Widely loved film the user doesn\'t connect with. Low scores are the signal — these are dimensions where the user\'s bar is higher than the crowd\'s, or where their taste genuinely diverges.',
+    wildcard: 'Breaks the user\'s own pattern. Interpret as the edge case that reveals hidden range in their taste.',
+  };
+
+  const lines = obFilms.map(m => {
+    const label = roleLabels[m.onboarding_role] || m.onboarding_role;
+    const scoresStr = cats.map(c => `${c}=${m.scores?.[c] ?? '?'}`).join(', ');
+    let interpretation = roleInterpretation[m.onboarding_role] || '';
+    if (m.onboarding_role === 'contrast' && m.contrast_target) {
+      interpretation = `Asked to pick a film they love WITHOUT their dominant dimension (${m.contrast_target}). The gap reveals secondary drivers.`;
+    }
+    return `${label}: ${m.title} (${m.year || ''})\n  ${scoresStr}\n  ${interpretation}`;
+  });
+
+  return `ONBOARDING FILMS (context-annotated — these films were elicited by specific prompts, not random picks):
+${lines.join('\n\n')}
+
+Interpret these films in context: the anchor defines baseline, the contrast reveals secondary drivers, the guilty pleasure shows unguarded preferences, the rejection reveals standards, and the wild card shows hidden range.`;
+}
+
 function buildTasteProfile() {
   const cats = ['story','craft','performance','world','experience','hold','ending','singularity'];
   const stats = {};
@@ -732,7 +770,9 @@ function buildTasteProfile() {
     }
   }
 
-  return { stats, top10, bottom5, weightStr, archetype: currentUser?.archetype, archetypeSecondary: currentUser?.archetype_secondary, totalFilms: MOVIES.length, reconciledPredictions, categoryBias, reconciledCount: allReconciled.length, tagFingerprint };
+  const onboardingContext = buildOnboardingContext();
+
+  return { stats, top10, bottom5, weightStr, archetype: currentUser?.archetype, archetypeSecondary: currentUser?.archetype_secondary, totalFilms: MOVIES.length, reconciledPredictions, categoryBias, reconciledCount: allReconciled.length, tagFingerprint, onboardingContext };
 }
 
 function findComparableFilms(film) {
@@ -1353,7 +1393,9 @@ ${statsStr}
 
 Top 10 films: ${profile.top10}
 Bottom 5 films: ${profile.bottom5}
-${trackRecordStr ? `
+${profile.onboardingContext ? `
+${profile.onboardingContext}
+` : ''}${trackRecordStr ? `
 PREDICTION TRACK RECORD (your recent predictions vs what they actually gave):
 ${trackRecordStr}
 

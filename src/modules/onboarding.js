@@ -52,6 +52,28 @@ const FILM_PROMPTS = {
   // Film 5 is dynamic — see getFilm5Prompt()
 };
 
+// ── ONBOARDING ROLE METADATA ──
+const ONBOARDING_ROLES = {
+  1: 'anchor',
+  2: 'contrast',
+  3: 'guilty_pleasure',
+  4: 'rejection',
+  5: 'wildcard',
+};
+
+function getOnboardingRoleMeta(step) {
+  const role = ONBOARDING_ROLES[step] || 'anchor';
+  const meta = { onboarding_role: role };
+  if (step === 2 && guidedFilms.length >= 1) {
+    // Record which category we asked them to suppress
+    const sorted = CATEGORIES
+      .map(c => ({ key: c.key, score: guidedFilms[0].scores[c.key] || 50 }))
+      .sort((a, b) => b.score - a.score);
+    meta.contrast_target = sorted[0].key;
+  }
+  return meta;
+}
+
 // Dynamic prompt for Film 2 based on Film 1's scores
 function getFilm2Prompt(film1Scores) {
   const sorted = CATEGORIES
@@ -116,7 +138,7 @@ function getPromptForStep(step) {
   return FILM_PROMPTS[step] || FILM_PROMPTS[1];
 }
 
-// ── INSIGHT GENERATION ──
+// ── INSIGHT GENERATION (role-aware) ──
 function generateInsight(films, latest) {
   const scores = latest.scores;
   const cats = CATEGORIES.map(c => c.key);
@@ -125,24 +147,73 @@ function generateInsight(films, latest) {
   const peakVal = scores[peak] || 0;
   const valleyVal = scores[valley] || 0;
   const gap = peakVal - valleyVal;
+  const role = latest.onboarding_role;
 
-  if (films.length === 1) {
+  // Film 1 — anchor
+  if (role === 'anchor' || films.length === 1) {
     if (gap > 25) {
       return `${CAT_LABELS[peak]} is where this film hits you hardest — ${peakVal}. ${CAT_LABELS[valley]} barely registers at ${valleyVal}. That ${gap}-point gap says something about what you're here for.`;
     }
     return `Your scores are tightly clustered — this film works for you on almost every level. ${CAT_LABELS[peak]} leads at ${peakVal}, but nothing falls far behind. You might be someone who experiences films as whole things, not parts.`;
   }
 
-  if (films.length === 2) {
+  // Film 2 — contrast
+  if (role === 'contrast' || films.length === 2) {
     const prev = films[0].scores;
     const prevPeak = cats.reduce((a, b) => (prev[a] || 0) > (prev[b] || 0) ? a : b);
+    const suppressed = latest.contrast_target;
+    if (suppressed && (scores[suppressed] || 0) < (prev[suppressed] || 0)) {
+      const secondaryDriver = cats.filter(c => c !== suppressed).reduce((a, b) => (scores[a] || 0) > (scores[b] || 0) ? a : b);
+      return `Without ${(CAT_LABELS[suppressed] || suppressed).replace('The ', '').toLowerCase()} doing the heavy lifting, ${CAT_LABELS[secondaryDriver]} takes over. That's your secondary driver — the thing that pulls you into a film when your main instinct isn't engaged.`;
+    }
     if (peak === prevPeak) {
       return `Interesting — both films peak on ${CAT_LABELS[peak]}. Your taste has a strong center of gravity. Let's see if we can find the edge of it.`;
     }
     return `${films[0].title} is a ${CAT_LABELS[prevPeak]} film for you. ${latest.title} is a ${CAT_LABELS[peak]} film. Your taste isn't one thing — it has at least two modes.`;
   }
 
-  // Films 3+: accumulative pattern
+  // Film 3 — guilty pleasure
+  if (role === 'guilty_pleasure') {
+    const highCats = cats.filter(c => (scores[c] || 0) >= 70);
+    const lowCats = cats.filter(c => (scores[c] || 0) <= 35);
+    if (highCats.length > 0 && lowCats.length > 0) {
+      const highLabels = highCats.map(c => (CAT_LABELS[c] || c).replace('The ', '').toLowerCase()).join(' and ');
+      const lowLabels = lowCats.map(c => (CAT_LABELS[c] || c).replace('The ', '').toLowerCase()).join(' and ');
+      return `You gave ${latest.title} strong marks on ${highLabels} despite low ${lowLabels}. That's not a guilty pleasure — that's self-knowledge. You know exactly what this film does for you, and you don't need it to do anything else.`;
+    }
+    return `Your guilty pleasure scores tell us something honest. ${CAT_LABELS[peak]} at ${peakVal} — that's what you reach for when your guard is down.`;
+  }
+
+  // Film 4 — rejection
+  if (role === 'rejection') {
+    const lowCats = cats.filter(c => (scores[c] || 0) <= 40).sort((a, b) => (scores[a] || 0) - (scores[b] || 0));
+    if (lowCats.length > 0) {
+      const lowestLabel = (CAT_LABELS[lowCats[0]] || lowCats[0]).replace('The ', '');
+      return `Everyone loves ${latest.title}. You gave ${lowestLabel} a ${scores[lowCats[0]]}. That's not indifference — that's a standard. ${lowestLabel} is something you need a film to earn, and this one didn't.`;
+    }
+    return `Interesting — even on a film you don't love, nothing scored terribly low. You might not reject films categorically so much as lose interest when nothing stands out. ${CAT_LABELS[peak]} at ${peakVal} was the closest this one came to reaching you.`;
+  }
+
+  // Film 5 — wildcard
+  if (role === 'wildcard') {
+    // Compare wildcard to the pattern from films 1-4
+    const priorFilms = films.slice(0, -1);
+    const avgScores = {};
+    cats.forEach(c => {
+      avgScores[c] = priorFilms.reduce((s, f) => s + (f.scores[c] || 0), 0) / priorFilms.length;
+    });
+    // Find the biggest positive divergence — where wildcard exceeds the prior pattern
+    const divergences = cats.map(c => ({ key: c, delta: (scores[c] || 0) - avgScores[c] }))
+      .sort((a, b) => b.delta - a.delta);
+    const biggestUp = divergences[0];
+    if (biggestUp.delta > 15) {
+      const label = (CAT_LABELS[biggestUp.key] || biggestUp.key).replace('The ', '');
+      return `This one breaks the pattern. ${label} jumped ${Math.round(biggestUp.delta)} points above your average — that's the hidden range your first four films didn't show us. Your taste has a side door.`;
+    }
+    return `Your wild card isn't as wild as you think — it fits the pattern more than it breaks it. That's still a finding: your taste might be more coherent than you realize.`;
+  }
+
+  // Fallback for films 3+ without role tags
   const avgScores = {};
   cats.forEach(c => {
     avgScores[c] = films.reduce((s, f) => s + (f.scores[c] || 0), 0) / films.length;
@@ -845,18 +916,22 @@ window.guidedRateFilm = async function() {
   const scores = { ...guidedScores };
   const total = calcTotal(scores);
 
+  // Build role metadata for this onboarding step
+  const roleMeta = getOnboardingRoleMeta(guidedStep);
+
   // Build full film object
   const filmObj = {
     title: film.title, year: film.year,
     director: film.director || '', writer: '', cast: '',
     productionCompanies: '', poster: film.poster,
     overview: '', tmdbId: film.tmdbId,
-    scores: { ...scores }, total
+    scores: { ...scores }, total,
+    ...roleMeta,
   };
 
   // Push to MOVIES
   MOVIES.push(filmObj);
-  guidedFilms.push({ tmdbId: film.tmdbId, title: film.title, year: film.year, poster: film.poster, director: film.director, scores: { ...scores }, total });
+  guidedFilms.push({ tmdbId: film.tmdbId, title: film.title, year: film.year, poster: film.poster, director: film.director, scores: { ...scores }, total, ...roleMeta });
 
   // Generate insight
   guidedInsight = generateInsight(guidedFilms, guidedFilms[guidedFilms.length - 1]);
