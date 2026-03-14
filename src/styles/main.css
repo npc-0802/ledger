@@ -589,6 +589,7 @@ body {
   position: relative;
   overflow: hidden;
   border-radius: 8px;
+  max-height: calc(100vh - 260px);
   box-shadow:
     0 1px 2px rgba(0,0,0,0.06),
     0 8px 24px rgba(0,0,0,0.1),
@@ -605,6 +606,7 @@ body {
   padding: 24px 32px 20px;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
 }
 .cold-carousel-dots {
   display: flex;
