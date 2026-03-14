@@ -340,11 +340,11 @@ function buildCarouselCards() {
     card1.innerHTML = `
       <div class="card-overlap-label">— taste overlap —</div>
       <div class="card-overlap-header">
-        <div style="text-align:center">
+        <div class="card-avatar-wrap">
           <div class="card-avatar"><span class="card-avatar-letter">You</span></div>
         </div>
         <div class="card-compat-score">73<span class="card-compat-pct">%</span></div>
-        <div style="text-align:center">
+        <div class="card-avatar-wrap">
           <div class="card-avatar"><span class="card-avatar-letter">S</span></div>
           <div class="card-avatar-name">Sarah</div>
         </div>
@@ -370,10 +370,10 @@ function buildCarouselCards() {
 
   // ── Card 3: For You Recommendations ──
   const recs = [
-    { title: 'The Handmaiden', poster: 'https://image.tmdb.org/t/p/w154/gCgt1WARPmhOwiMEpLDqU59vfAn.jpg', score: 87, source: 'World + Singularity', isNew: true },
-    { title: 'Arrival', poster: 'https://image.tmdb.org/t/p/w154/x2FJsf1ElAgr63Y3PNPtJrcmpoe.jpg', score: 84, source: 'Director affinity' },
-    { title: 'In the Mood for Love', poster: 'https://image.tmdb.org/t/p/w154/iYypPT4bhqXfq1b6sFBxMNEHlTp.jpg', score: 82, source: 'High predicted Hold' },
-    { title: 'Moonlight', poster: 'https://image.tmdb.org/t/p/w154/d5NXSklXo0qyIYkgV94XAgMIckC.jpg', score: 89, source: 'Performance + Ending' },
+    { title: 'The Handmaiden', poster: 'https://image.tmdb.org/t/p/w342/dLlH4aNHdnmf62umnInL8xPlPzw.jpg', score: 87, source: 'World + Singularity', isNew: true },
+    { title: 'Arrival', poster: 'https://image.tmdb.org/t/p/w342/pEzNVQfdzYDzVK0XqxERIw2x2se.jpg', score: 84, source: 'Director affinity' },
+    { title: 'In the Mood for Love', poster: 'https://image.tmdb.org/t/p/w342/iYypPT4bhqXfq1b6EnmxvRt6b2Y.jpg', score: 82, source: 'High predicted Hold' },
+    { title: 'Moonlight', poster: 'https://image.tmdb.org/t/p/w342/qLnfEmPrDjJfPyyddLJPkXmshkp.jpg', score: 89, source: 'Performance + Ending' },
   ];
   const recCards = recs.map(r => `
     <div class="carousel-rec-card">

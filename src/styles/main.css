@@ -435,7 +435,7 @@ body {
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
-  padding: 100px 80px 64px;
+  padding: 60px 80px 140px;
   align-items: center;
 }
 
@@ -562,6 +562,7 @@ body {
   font-size: 11px;
   color: var(--dim);
   align-items: center;
+  margin-top: 16px;
 }
 .cold-links a {
   color: var(--dim);
@@ -850,6 +851,13 @@ body {
   gap: 16px;
   margin-bottom: 16px;
 }
+.card-avatar-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 56px;
+  justify-content: center;
+}
 .card-avatar {
   width: 36px;
   height: 36px;
@@ -858,7 +866,6 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-direction: column;
 }
 .card-avatar-letter {
   font-family: 'DM Mono', monospace;
@@ -1296,7 +1303,7 @@ body {
 @media (max-width: 1024px) {
   .cold-hero-inner {
     gap: 48px;
-    padding: 80px 48px 60px;
+    padding: 60px 48px 130px;
   }
   .cold-carousel-card { padding: 24px 28px; }
   .card-bar-label { min-width: 95px; font-size: 11px; }
@@ -1307,7 +1314,7 @@ body {
 @media (max-width: 800px) {
   .cold-hero-inner {
     grid-template-columns: 1fr;
-    padding: 60px 32px 40px;
+    padding: 48px 32px 120px;
     gap: 48px;
   }
   .cold-h1 { font-size: clamp(36px, 10vw, 56px); }
@@ -1330,7 +1337,7 @@ body {
 
 /* ── Small Mobile ── */
 @media (max-width: 480px) {
-  .cold-hero-inner { padding: 48px 20px 32px; }
+  .cold-hero-inner { padding: 40px 20px 120px; }
   .cold-carousel-card { padding: 18px 16px; }
   .card-bar-label { min-width: 75px; font-size: 10px; }
   .card-bar-value { font-size: 10px; }
