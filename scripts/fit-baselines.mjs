@@ -74,7 +74,7 @@ console.log(`Rows with tag coverage: ${rows.length}`);
 if (rows.length < 50) {
   console.log('Insufficient data for meaningful baselines. Writing empty baseline.');
   writeFileSync(
-    join(ROOT, 'src/data/pooled-baselines.json'),
+    join(ROOT, 'public/data/pooled-baselines.json'),
     JSON.stringify({ version: '1.0', status: 'insufficient_data', total_rows: rows.length, categories: {} }, null, 2)
   );
   process.exit(0);
@@ -131,7 +131,7 @@ for (const cat of CATS) {
 }
 
 // 4. Write output
-const outPath = join(ROOT, 'src/data/pooled-baselines.json');
+const outPath = join(ROOT, 'public/data/pooled-baselines.json');
 writeFileSync(outPath, JSON.stringify(baselines));
 console.log(`\nWritten: ${outPath}`);
 

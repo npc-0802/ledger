@@ -252,7 +252,10 @@ export function updateEffectiveWeights() {
 
   // Deferred archetype reveal: users who completed the new guided onboarding
   // (no quiz reveal) see their archetype for the first time at 8+ films.
-  if (filmsRated >= 8 && !currentUser.archetype_revealed) {
+  // Old quiz users have non-uniform quiz_weights — skip the reveal for them.
+  const qw = currentUser.quiz_weights;
+  const isNewOnboarding = qw && Object.values(qw).every(v => v === 2.5);
+  if (filmsRated >= 8 && !currentUser.archetype_revealed && isNewOnboarding) {
     setCurrentUser({ ...currentUser, archetype_revealed: true });
     saveUserLocally();
     setTimeout(() => showArchetypeReveal(classification), 600);

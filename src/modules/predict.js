@@ -1482,7 +1482,7 @@ async function runPrediction(film) {
             const resp = await fetch('/data/pooled-baselines.json');
             if (resp.ok) pooledBaselines = await resp.json();
           } catch {}
-          if (pooledBaselines) {
+          if (pooledBaselines?.status === 'ok' && pooledBaselines.categories) {
             // Build filmCoords map from loaded PCA coords (or bundles as fallback)
             const useBundle = bundlesLoaded() && !pcaCoordsLoaded();
             const filmCoords = {};
@@ -1501,7 +1501,7 @@ async function runPrediction(film) {
                   const basePred = {};
                   const cats = ['story','craft','performance','world','experience','hold','ending','singularity'];
                   for (const cat of cats) {
-                    const bl = pooledBaselines[cat];
+                    const bl = pooledBaselines.categories[cat];
                     if (!bl) continue;
                     let p = bl.intercept || 0;
                     for (let j = 0; j < filmTagVec.values.length && j < (bl.coefficients?.length || 0); j++) {
