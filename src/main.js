@@ -396,7 +396,18 @@ function buildCarouselCards() {
   if (card2) card2.innerHTML = `
     <div class="card-foryou-label">— for you —</div>
     <div class="card-foryou-context">Based on your palate: Studied Narrativist · story-driven · high hold</div>
-    <div class="card-rec-grid">${recCards}</div>`;
+    <div class="card-rec-grid">${recCards}</div>
+    <div class="carousel-foryou-detail">
+      <div class="carousel-foryou-detail-label">Why we picked <em>The Handmaiden</em> for you</div>
+      <div class="carousel-foryou-detail-bars">
+        <div class="carousel-foryou-bar"><span class="carousel-foryou-bar-label">World</span><div class="carousel-foryou-bar-track"><div class="carousel-foryou-bar-fill" style="width:93%"></div></div><span class="carousel-foryou-bar-value">93</span></div>
+        <div class="carousel-foryou-bar"><span class="carousel-foryou-bar-label">Singularity</span><div class="carousel-foryou-bar-track"><div class="carousel-foryou-bar-fill" style="width:89%"></div></div><span class="carousel-foryou-bar-value">89</span></div>
+        <div class="carousel-foryou-bar"><span class="carousel-foryou-bar-label">Craft</span><div class="carousel-foryou-bar-track"><div class="carousel-foryou-bar-fill" style="width:85%"></div></div><span class="carousel-foryou-bar-value">85</span></div>
+        <div class="carousel-foryou-bar"><span class="carousel-foryou-bar-label">Story</span><div class="carousel-foryou-bar-track"><div class="carousel-foryou-bar-fill" style="width:81%"></div></div><span class="carousel-foryou-bar-value">81</span></div>
+        <div class="carousel-foryou-bar"><span class="carousel-foryou-bar-label">Experience</span><div class="carousel-foryou-bar-track"><div class="carousel-foryou-bar-fill" style="width:78%"></div></div><span class="carousel-foryou-bar-value">78</span></div>
+      </div>
+      <div class="carousel-foryou-detail-reason">Your palate rewards immersive worlds and one-of-a-kind films. This has both.</div>
+    </div>`;
 }
 
 function buildSystemVisuals() {
