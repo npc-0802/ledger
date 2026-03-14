@@ -430,8 +430,8 @@ body {
 .cold-hero-inner {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(320px, 0.75fr) 1fr;
-  gap: 80px;
+  grid-template-columns: minmax(280px, 0.55fr) 1fr;
+  gap: 56px;
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
@@ -672,12 +672,12 @@ body {
 .card-rule {
   height: 1px;
   background: rgba(244, 239, 230, 0.08);
-  margin: 20px 0;
+  margin: 14px 0;
 }
 .card-bars {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
 }
 .card-bar-row {
   display: flex;
@@ -1120,7 +1120,7 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 .carousel-foryou-bar-label {
   font-family: 'DM Mono', monospace;
@@ -1465,10 +1465,10 @@ body {
 /* ── Tablet ── */
 @media (max-width: 1024px) {
   .cold-hero-inner {
-    gap: 48px;
+    gap: 40px;
     padding: 60px 48px 120px;
   }
-  .cold-carousel-card { padding: 24px 28px; }
+  .cold-carousel-card { padding: 20px 24px; }
   .card-bar-label { min-width: 95px; font-size: 11px; }
   .cold-system-inner { padding: 0 48px; }
 }
