@@ -111,79 +111,184 @@ function posterImg(url, title, w, h) {
   return `<img src="${url}" alt="${title}" loading="lazy" style="width:${w}px;height:${h}px;object-fit:cover;display:block" onerror="this.outerHTML='<div style=\\'width:${w}px;height:${h}px;background:#1a1a18;display:flex;align-items:center;justify-content:center;padding:4px\\'><span style=\\'font-family:Playfair Display,serif;font-style:italic;font-size:10px;color:#888;text-align:center\\'>${safeTitle}</span></div>'">`;
 }
 
-function initTableau() {
-  const tableau = document.getElementById('cold-tableau');
-  if (!tableau) return;
+// ── Carousel state ──
+let carouselIndex = 0;
+let carouselInterval = null;
+const CAROUSEL_DURATION = 5000;
 
-  tableau.innerHTML = buildProductCard();
-  buildSystemVisuals();
+window.goToCardManual = function(n) {
+  clearInterval(carouselInterval);
+  goToCard(n);
+  carouselInterval = setInterval(() => {
+    carouselIndex = (carouselIndex + 1) % 3;
+    goToCard(carouselIndex);
+  }, CAROUSEL_DURATION);
+};
 
+function goToCard(n) {
+  carouselIndex = n;
+  const track = document.getElementById('cold-carousel-track');
+  if (track) track.style.transform = `translateX(-${n * 100}%)`;
+  document.querySelectorAll('.cold-carousel-dot').forEach((dot, i) => {
+    dot.classList.toggle('active', i === n);
+  });
+  animateCard(n);
+}
+
+function animateCard(n) {
+  const card = document.getElementById(`carousel-card-${n}`);
+  if (!card) return;
   const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Reset fills to 0 for re-animation
+  const fills = card.querySelectorAll('.card-bar-fill, .card-contrast-bar-fill');
+  const values = card.querySelectorAll('.card-bar-value');
+  const reveals = card.querySelectorAll('.card-archetype, .card-total, .card-pred-score, .card-insight');
+
+  fills.forEach(f => { f.style.width = '0%'; });
+  values.forEach(v => v.classList.remove('visible'));
+  reveals.forEach(r => r.classList.remove('visible'));
+
   if (prefersReduced) {
-    tableau.querySelectorAll('.hero-bar-value').forEach(v => v.classList.add('visible'));
-    const arch = tableau.querySelector('.hero-archetype');
-    if (arch) arch.classList.add('visible');
-    const score = tableau.querySelector('.hero-total-score');
-    if (score) score.classList.add('visible');
+    fills.forEach(f => { f.style.width = f.dataset.target + '%'; });
+    values.forEach(v => v.classList.add('visible'));
+    reveals.forEach(r => r.classList.add('visible'));
     return;
   }
 
-  // Animate bars from 0% to target, staggered
-  const fills = tableau.querySelectorAll('.hero-bar-fill');
-  const values = tableau.querySelectorAll('.hero-bar-value');
-  fills.forEach((fill, i) => {
-    const target = fill.style.width;
-    fill.style.width = '0%';
+  const delay = n === 0 && !card.dataset.animated ? 300 : 100;
+  card.dataset.animated = '1';
+
+  fills.forEach((f, i) => {
     setTimeout(() => {
-      fill.style.width = target;
-      setTimeout(() => values[i]?.classList.add('visible'), 400);
-    }, 300 + i * 80);
+      f.style.width = f.dataset.target + '%';
+      if (values[i]) setTimeout(() => values[i].classList.add('visible'), 300);
+    }, delay + i * 80);
   });
 
-  // Archetype + total score appear after bars
-  const arch = tableau.querySelector('.hero-archetype');
-  const totalScore = tableau.querySelector('.hero-total-score');
-  if (arch) setTimeout(() => arch.classList.add('visible'), 1200);
-  if (totalScore) setTimeout(() => totalScore.classList.add('visible'), 1300);
+  const revealStart = delay + fills.length * 80 + 400;
+  reveals.forEach((r, i) => {
+    setTimeout(() => r.classList.add('visible'), revealStart + i * 150);
+  });
 }
 
-function buildProductCard() {
-  const poster = 'https://image.tmdb.org/t/p/w154/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg';
-  const cats = [
+function initTableau() {
+  buildCarouselCards();
+  buildSystemVisuals();
+  // Start carousel
+  animateCard(0);
+  carouselInterval = setInterval(() => {
+    carouselIndex = (carouselIndex + 1) % 3;
+    goToCard(carouselIndex);
+  }, CAROUSEL_DURATION);
+}
+
+function buildCarouselCards() {
+  const posters = {
+    parasite: 'https://image.tmdb.org/t/p/w154/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg',
+    lost: 'https://image.tmdb.org/t/p/w154/4GDy0PHYX3VRXUtwK5ysFbg3kEx.jpg',
+    blade: 'https://image.tmdb.org/t/p/w154/gajva2L0rPYkEWjzgFlBXCAVBE5.jpg',
+  };
+
+  // ── Card 1: Score ──
+  const scoreCats = [
     ['The Story', 92], ['The Craft', 88], ['The Performances', 80], ['The World', 70],
     ['The Experience', 85], ['The Hold', 90], ['The Ending', 97], ['The Singularity', 82]
   ];
-
-  const bars = cats.map(([label, val]) => `
-    <div class="hero-bar-row">
-      <span class="hero-bar-label">${label}</span>
-      <div class="hero-bar-track"><div class="hero-bar-fill" style="width:${val}%"></div></div>
-      <span class="hero-bar-value">${val}</span>
+  const scoreBars = scoreCats.map(([l, v]) => `
+    <div class="card-bar-row">
+      <span class="card-bar-label">${l}</span>
+      <div class="card-bar-track"><div class="card-bar-fill" data-target="${v}" style="width:0%"></div></div>
+      <span class="card-bar-value">${v}</span>
     </div>`).join('');
 
-  return `
-    <div class="hero-product-card">
-      <div class="hero-film-header">
-        <img class="hero-film-poster" src="${poster}" alt="Parasite" loading="lazy">
-        <div>
-          <div class="hero-film-title">Parasite</div>
-          <div class="hero-film-meta">2019 · Bong Joon-ho</div>
-        </div>
+  const card0 = document.getElementById('carousel-card-0');
+  if (card0) card0.innerHTML = `
+    <div class="card-film-header">
+      <img class="card-poster" src="${posters.parasite}" alt="Parasite" width="80" height="120" loading="lazy">
+      <div>
+        <div class="card-film-title">Parasite</div>
+        <div class="card-film-meta">2019 · Bong Joon-ho</div>
       </div>
-      <div class="hero-rule"></div>
-      <div class="hero-bars">${bars}</div>
-      <div class="hero-rule"></div>
-      <div class="hero-summary">
-        <div>
-          <div class="hero-archetype">Studied Narrativist</div>
-          <div class="hero-tags">story-driven · high hold · atmospheric</div>
-        </div>
-        <div style="text-align:right">
-          <div class="hero-total-score">86</div>
-          <div class="hero-total-label">weighted total</div>
-        </div>
+    </div>
+    <div class="card-rule"></div>
+    <div class="card-bars">${scoreBars}</div>
+    <div class="card-rule"></div>
+    <div class="card-summary">
+      <div>
+        <div class="card-archetype">Studied Narrativist</div>
+        <div class="card-tags">story-driven · high hold · atmospheric</div>
+      </div>
+      <div style="text-align:right">
+        <div class="card-total">86</div>
+        <div class="card-total-label">weighted total</div>
       </div>
     </div>`;
+
+  // ── Card 2: Contrast ──
+  const abbr = ['Story','Craft','Perf','World','Exp','Hold','End','Sing'];
+  const parasiteVals = [92,88,80,70,85,90,97,82];
+  const bladeVals = [55,95,65,98,72,88,60,90];
+  const leftBars = abbr.map((l, i) => `
+    <div class="card-contrast-bar">
+      <span class="card-contrast-bar-label">${l}</span>
+      <div class="card-contrast-bar-track"><div class="card-contrast-bar-fill" data-target="${parasiteVals[i]}" style="width:0%;background:#3D5A80"></div></div>
+    </div>`).join('');
+  const rightBars = abbr.map((l, i) => `
+    <div class="card-contrast-bar">
+      <span class="card-contrast-bar-label">${l}</span>
+      <div class="card-contrast-bar-track"><div class="card-contrast-bar-fill" data-target="${bladeVals[i]}" style="width:0%;background:#D4A84B"></div></div>
+    </div>`).join('');
+
+  const card1 = document.getElementById('carousel-card-1');
+  if (card1) card1.innerHTML = `
+    <div class="card-section-label">Your taste isn't one thing</div>
+    <div class="card-contrast-grid">
+      <div class="card-contrast-col">
+        <img class="card-contrast-poster" src="${posters.parasite}" alt="Parasite" loading="lazy">
+        <div class="card-contrast-title">Parasite</div>
+        ${leftBars}
+        <div class="card-contrast-mode" style="color:#3D5A80">story-driven</div>
+      </div>
+      <div class="card-contrast-divider"></div>
+      <div class="card-contrast-col">
+        <img class="card-contrast-poster" src="${posters.blade}" alt="Blade Runner 2049" loading="lazy">
+        <div class="card-contrast-title">Blade Runner 2049</div>
+        ${rightBars}
+        <div class="card-contrast-mode" style="color:#D4A84B">world-driven</div>
+      </div>
+    </div>
+    <div class="card-insight">Two films you love. Two completely different engines.</div>`;
+
+  // ── Card 3: Prediction ──
+  const predCats = [
+    ['Story', 62], ['Craft', 79], ['Performances', 71], ['World', 91],
+    ['Experience', 78], ['Hold', 75], ['Ending', 68], ['Singularity', 81]
+  ];
+  const predBars = predCats.map(([l, v]) => `
+    <div class="card-bar-row">
+      <span class="card-bar-label">${l}</span>
+      <div class="card-bar-track"><div class="card-bar-fill predicted" data-target="${v}" style="width:0%"></div></div>
+      <span class="card-bar-value">${v}</span>
+    </div>`).join('');
+
+  const card2 = document.getElementById('carousel-card-2');
+  if (card2) card2.innerHTML = `
+    <div class="card-section-label">— We predict you'd give this —</div>
+    <div class="card-film-header">
+      <img class="card-poster" src="${posters.lost}" alt="Lost in Translation" width="80" height="120" loading="lazy">
+      <div>
+        <div class="card-film-title">Lost in Translation</div>
+        <div class="card-film-meta">2003 · Sofia Coppola</div>
+      </div>
+    </div>
+    <div style="margin-top:16px">
+      <div class="card-pred-score">78</div>
+      <div class="card-pred-label">predicted score</div>
+    </div>
+    <div class="card-rule"></div>
+    <div class="card-bars">${predBars}</div>
+    <div class="card-insight">Strong World match — you love atmospheric, melancholic films. Lower Story — you need more narrative drive.</div>`;
 }
 
 function buildSystemVisuals() {
