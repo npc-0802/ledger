@@ -145,6 +145,8 @@ function animateCard(n) {
   const card = document.getElementById(`carousel-card-${n}`);
   if (!card) return;
   const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const headline = card.querySelector('.carousel-headline');
+  if (headline) headline.classList.remove('visible');
 
   if (n === 1) {
     // Card 2: Friends Overlap — animate radar polygons
@@ -171,17 +173,17 @@ function animateCard(n) {
       if (stats) stats.style.opacity = '1';
       corated.forEach(c => c.style.opacity = '1');
       if (insight) insight.classList.add('visible');
+      if (headline) headline.classList.add('visible');
       return;
     }
 
     setTimeout(() => { if (compat) compat.classList.add('visible'); }, 300);
-    // Animate you polygon
     if (youPoly) animatePolygon(youPoly, 500, 800);
-    // Animate sarah polygon after
     if (sarahPoly) animatePolygon(sarahPoly, 1300, 800);
     setTimeout(() => { if (stats) stats.style.transition = 'opacity 0.5s ease'; stats.style.opacity = '1'; }, 1200);
     corated.forEach((c, i) => setTimeout(() => { c.style.transition = 'opacity 0.5s ease'; c.style.opacity = '1'; }, 1400 + i * 100));
     setTimeout(() => { if (insight) insight.classList.add('visible'); }, 1600);
+    setTimeout(() => { if (headline) headline.classList.add('visible'); }, 1900);
     return;
   }
 
@@ -192,12 +194,14 @@ function animateCard(n) {
 
     if (prefersReduced) {
       recCards.forEach(c => c.classList.add('visible'));
+      if (headline) headline.classList.add('visible');
       return;
     }
 
     recCards.forEach((c, i) => {
       setTimeout(() => c.classList.add('visible'), 300 + i * 150);
     });
+    setTimeout(() => { if (headline) headline.classList.add('visible'); }, 300 + 4 * 150 + 200);
     return;
   }
 
@@ -214,6 +218,7 @@ function animateCard(n) {
     fills.forEach(f => { f.style.width = f.dataset.target + '%'; });
     values.forEach(v => v.classList.add('visible'));
     reveals.forEach(r => r.classList.add('visible'));
+    if (headline) headline.classList.add('visible');
     return;
   }
 
@@ -231,6 +236,7 @@ function animateCard(n) {
   reveals.forEach((r, i) => {
     setTimeout(() => r.classList.add('visible'), revealStart + i * 150);
   });
+  setTimeout(() => { if (headline) headline.classList.add('visible'); }, revealStart + reveals.length * 150 + 300);
 }
 
 function animatePolygon(poly, startDelay, duration) {
@@ -379,7 +385,10 @@ function buildCarouselCards() {
       <div class="card-insight">You both care about performances. You disagree on whether craft alone is enough.</div>
       <div class="carousel-overlap-predict">
         <div class="carousel-overlap-predict-label">— overlap predict —</div>
-        <div class="carousel-overlap-predict-film">Oppenheimer</div>
+        <div class="carousel-overlap-predict-header">
+          <img src="https://image.tmdb.org/t/p/w154/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg" alt="Oppenheimer" class="carousel-overlap-predict-poster">
+          <div class="carousel-overlap-predict-film">Oppenheimer</div>
+        </div>
         <div class="carousel-overlap-predict-scores">
           <div class="carousel-overlap-predict-user"><span class="carousel-overlap-predict-name">You'd give it</span><span class="carousel-overlap-predict-score" style="color:var(--blue)">84</span></div>
           <div class="carousel-overlap-predict-user"><span class="carousel-overlap-predict-name">Sarah'd give it</span><span class="carousel-overlap-predict-score" style="color:#D4A84B">71</span></div>
