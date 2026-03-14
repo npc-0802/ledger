@@ -95,125 +95,15 @@ export function resetStorage() {
 export function showColdLanding() {
   const el = document.getElementById('cold-landing');
   if (el) {
-    el.style.display = 'flex';
+    el.style.display = 'block';
     track('landing_view', { referrer: document.referrer });
-    initColdDemo();
+    initTableau();
   } else {
     launchOnboarding();
   }
 }
 
-// ── Cold landing demo ──
-let _coldDemoInterval = null;
-let _coldCurrentSlide = 0;
-
-function initColdDemo() {
-  const demo = document.getElementById('cold-demo');
-  if (!demo) return;
-
-  const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const slides = buildDemoSlides();
-
-  if (prefersReduced) {
-    demo.innerHTML = slides.map((s, i) => `<div class="cold-demo-slide active" id="cold-ds-${i + 1}">${s}</div>`).join('');
-    return;
-  }
-
-  demo.innerHTML = slides.map((s, i) =>
-    `<div class="cold-demo-slide" id="cold-ds-${i + 1}">${s}</div>`
-  ).join('');
-
-  // Show first slide, then auto-advance once through all 5
-  showColdSlide(demo, 0);
-  _coldDemoInterval = setInterval(() => {
-    _coldCurrentSlide = (_coldCurrentSlide + 1) % slides.length;
-    showColdSlide(demo, _coldCurrentSlide);
-    // Stop after one full cycle (back to slide 0)
-    if (_coldCurrentSlide === 0) {
-      clearInterval(_coldDemoInterval);
-      _coldDemoInterval = null;
-    }
-  }, 6000);
-}
-
-// Manual nav dot click — stops autoplay
-window.goToSlide = function(n) {
-  if (_coldDemoInterval) {
-    clearInterval(_coldDemoInterval);
-    _coldDemoInterval = null;
-  }
-  const demo = document.getElementById('cold-demo');
-  if (demo) showColdSlide(demo, n);
-};
-
-function showColdSlide(demo, n) {
-  _coldCurrentSlide = n;
-  // Hide all slides
-  demo.querySelectorAll('.cold-demo-slide').forEach(s => {
-    s.classList.remove('active');
-    s.style.opacity = '0';
-  });
-  // Update nav dots
-  document.querySelectorAll('.cold-demo-dot').forEach((d, i) => {
-    d.classList.toggle('active', i === n);
-  });
-  // Brief black pause, then show new slide
-  setTimeout(() => {
-    const slide = document.getElementById(`cold-ds-${n + 1}`);
-    if (slide) {
-      slide.classList.add('active');
-      slide.style.opacity = '1';
-    }
-    animateDemoSlide(demo, n);
-  }, 200);
-}
-
-function animateDemoSlide(demo, idx) {
-  const slide = demo.querySelectorAll('.cold-demo-slide')[idx];
-  if (!slide) return;
-
-  if (idx === 0) {
-    // Slide 1: Bars fill staggered
-    const bars = slide.querySelectorAll('.demo-bar-fill');
-    bars.forEach((b, i) => {
-      b.style.width = '0%';
-      setTimeout(() => { b.style.width = b.dataset.target + '%'; }, 70 * i);
-    });
-    const nums = slide.querySelectorAll('.demo-bar-num');
-    nums.forEach((n, i) => {
-      n.style.opacity = '0';
-      setTimeout(() => { n.style.opacity = '1'; }, 300 + 70 * i);
-    });
-  } else if (idx === 1) {
-    // Slide 2: Score fades in at 400ms, reasoning at 900ms
-    const score = slide.querySelector('.ds2-score');
-    const reason = slide.querySelector('.ds2-reason');
-    if (score) { score.style.opacity = '0'; setTimeout(() => { score.style.opacity = '1'; }, 400); }
-    if (reason) { reason.style.opacity = '0'; setTimeout(() => { reason.style.opacity = '1'; }, 900); }
-  } else if (idx === 2) {
-    // Slide 3: Insight fades in at 700ms
-    const insight = slide.querySelector('.ds3-insight');
-    if (insight) { insight.style.opacity = '0'; setTimeout(() => { insight.style.opacity = '1'; }, 700); }
-  } else if (idx === 3) {
-    // Slide 4: Cards slide up staggered by 150ms
-    const cards = slide.querySelectorAll('.cold-ds4-card');
-    cards.forEach((c, i) => {
-      c.style.opacity = '0'; c.style.transform = 'translateY(10px)';
-      setTimeout(() => { c.style.opacity = '1'; c.style.transform = 'translateY(0)'; }, 150 * i);
-    });
-  } else if (idx === 4) {
-    // Slide 5: Compat at 300ms → stats at 700ms → films at 1000ms → insight at 1500ms
-    const compat = slide.querySelector('.ds5-compat');
-    const stats = slide.querySelector('.ds5-stats');
-    const films = slide.querySelector('.ds5-films');
-    const insight = slide.querySelector('.ds5-insight');
-    [compat, stats, films, insight].forEach(el => { if (el) el.style.opacity = '0'; });
-    if (compat) setTimeout(() => { compat.style.opacity = '1'; }, 300);
-    if (stats) setTimeout(() => { stats.style.opacity = '1'; }, 700);
-    if (films) setTimeout(() => { films.style.opacity = '1'; }, 1000);
-    if (insight) setTimeout(() => { insight.style.opacity = '1'; }, 1500);
-  }
-}
+// ── Cold landing product tableau ──
 
 // Poster fallback: if TMDB image fails, show title in serif italic
 function posterImg(url, title, w, h) {
@@ -221,142 +111,203 @@ function posterImg(url, title, w, h) {
   return `<img src="${url}" alt="${title}" loading="lazy" style="width:${w}px;height:${h}px;object-fit:cover;display:block" onerror="this.outerHTML='<div style=\\'width:${w}px;height:${h}px;background:#1a1a18;display:flex;align-items:center;justify-content:center;padding:4px\\'><span style=\\'font-family:Playfair Display,serif;font-style:italic;font-size:10px;color:#888;text-align:center\\'>${safeTitle}</span></div>'">`;
 }
 
-function buildDemoSlides() {
+function initTableau() {
+  const tableau = document.getElementById('cold-tableau');
+  if (!tableau) return;
+
+  const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  tableau.innerHTML = buildTableau();
+  buildSystemVisuals();
+
+  const panels = tableau.querySelectorAll('.tab-panel');
+  if (prefersReduced) {
+    panels.forEach(p => p.classList.add('visible'));
+    animateTableauDetails(tableau);
+    return;
+  }
+
+  // Stagger panel entrances — cinematic, slow, deliberate
+  const delays = [300, 650, 1000, 1300];
+  panels.forEach((p, i) => {
+    setTimeout(() => {
+      p.classList.add('visible');
+      if (i === 0) setTimeout(() => animateTableauDetails(tableau), 500);
+    }, delays[i]);
+  });
+}
+
+function animateTableauDetails(tableau) {
+  // Bars fill with stagger
+  const bars = tableau.querySelectorAll('.tab-bar-fill');
+  bars.forEach((b, i) => {
+    setTimeout(() => { b.style.width = b.dataset.target + '%'; }, 80 * i);
+  });
+  // Score numbers fade in
+  const nums = tableau.querySelectorAll('.tab-bar-num');
+  nums.forEach((n, i) => {
+    setTimeout(() => { n.style.opacity = '1'; }, 250 + 80 * i);
+  });
+  // Total score
+  const total = tableau.querySelector('.tab-total');
+  if (total) setTimeout(() => { total.style.opacity = '1'; }, 900);
+  // Prediction score resolves
+  const predScore = tableau.querySelector('.tab-pred-score');
+  if (predScore) setTimeout(() => { predScore.style.opacity = '1'; }, 1100);
+  // Prediction reasoning
+  const predReason = tableau.querySelector('.tab-pred-reason');
+  if (predReason) setTimeout(() => { predReason.style.opacity = '1'; }, 1600);
+}
+
+function buildTableau() {
   const mono = "font-family:'DM Mono',monospace";
   const sans = "font-family:'DM Sans',sans-serif";
   const serif = "font-family:'Playfair Display',serif;font-style:italic";
   const blue = '#3d5a80';
-  const gold = '#D4A84B';
 
-  // TMDB poster URLs
   const posters = {
     parasite: 'https://image.tmdb.org/t/p/w154/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg',
     lost: 'https://image.tmdb.org/t/p/w154/4GDy0PHYX3VRXUtwK5ysFbg3kEx.jpg',
-    blade: 'https://image.tmdb.org/t/p/w154/gajva2L0rPYkEWjzgFlBXCAVBE5.jpg',
     handmaiden: 'https://image.tmdb.org/t/p/w154/dLlH4aNHdnmf62umnInL8xPlPzw.jpg',
-    arrival: 'https://image.tmdb.org/t/p/w154/x2FJsf1ElAgr63Y3PNPtJrcmpoe.jpg',
-    mood: 'https://image.tmdb.org/t/p/w154/iYypPT4bhqXfq1b6EnmxvRt6b2Y.jpg',
-    moonlight: 'https://image.tmdb.org/t/p/w154/qLnfEmPrDjJfPyyddLJPkXmshkp.jpg',
   };
 
-  // Slide 1: Score Breakdown
-  const s1cats = [
+  const cats = [
     ['Story', 92], ['Craft', 88], ['Performances', 80], ['World', 70],
     ['Experience', 85], ['Hold', 90], ['Ending', 97], ['Singularity', 82]
   ];
-  const s1bars = s1cats.map(([cat, val]) => `
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-      <div style="${mono};font-size:7px;color:#666;width:65px;text-align:right;letter-spacing:0.3px">${cat}</div>
-      <div style="flex:1;height:3px;background:#1a1a18;position:relative">
-        <div class="demo-bar-fill" data-target="${val}" style="position:absolute;left:0;top:0;height:100%;width:0%;background:${blue};transition:width 0.6s ease"></div>
+
+  const bars = cats.map(([cat, val]) => `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <div style="${mono};font-size:8px;color:#555;width:74px;text-align:right;letter-spacing:0.3px">${cat}</div>
+      <div style="flex:1;height:2px;background:#1a1a18;position:relative">
+        <div class="tab-bar-fill" data-target="${val}" style="position:absolute;left:0;top:0;height:100%;width:0%;background:${blue};transition:width 0.9s cubic-bezier(0.16,1,0.3,1)"></div>
       </div>
-      <div class="demo-bar-num" style="${mono};font-size:9px;color:#888;width:18px;text-align:right;opacity:0;transition:opacity 0.3s ease">${val}</div>
+      <div class="tab-bar-num" style="${mono};font-size:9px;color:#777;width:20px;text-align:right;opacity:0;transition:opacity 0.4s ease">${val}</div>
     </div>`).join('');
-  const slide1 = `
-    <div style="${mono};font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:#555;margin-bottom:12px">your breakdown</div>
-    <div style="display:flex;gap:20px;align-items:flex-start;flex:1">
-      <div style="flex-shrink:0">
-        ${posterImg(posters.parasite, 'Parasite', 100, 150)}
-        <div style="${serif};font-size:13px;color:#e8e2d6;margin-top:6px">Parasite</div>
-        <div style="${mono};font-size:9px;color:#666">2019 · Bong Joon-ho</div>
-      </div>
-      <div style="flex:1;padding-top:4px">${s1bars}</div>
-    </div>`;
 
-  // Slide 2: Prediction (poster left, score+reasoning right)
-  const slide2 = `
-    <div style="${mono};font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:#555;margin-bottom:12px">— we predict you'd give this —</div>
-    <div style="display:flex;gap:24px;align-items:flex-start;flex:1">
-      <div style="flex-shrink:0">
-        ${posterImg(posters.lost, 'Lost in Translation', 100, 150)}
-        <div style="${serif};font-size:13px;color:#e8e2d6;margin-top:6px">Lost in Translation</div>
-        <div style="${mono};font-size:9px;color:#666">2003 · Sofia Coppola</div>
-      </div>
-      <div style="flex:1;text-align:center;padding-top:8px">
-        <div class="ds2-score" style="${serif};font-weight:900;font-size:52px;color:${blue};line-height:1;letter-spacing:-3px;margin-bottom:6px;transition:opacity 0.5s ease">78</div>
-        <div style="${mono};font-size:10px;color:#666;margin-bottom:14px">predicted score</div>
-        <div class="ds2-reason" style="${sans};font-size:12px;line-height:1.55;color:#888;max-width:300px;margin:0 auto;transition:opacity 0.5s ease">Strong World match — you love atmospheric, melancholic films. Lower Story — you need more narrative drive.</div>
-      </div>
-    </div>`;
-
-  // Slide 3: Taste Contrast
-  const s3all = ['Story','Craft','Perf','World','Exp','Hold','End','Sing'];
-  const s3L = [92,88,80,70,85,90,97,82];
-  const s3R = [55,95,65,98,72,88,60,90];
-  const mkBars3 = (vals, color) => s3all.map((cat, i) => `
-    <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">
-      <div style="${mono};font-size:7px;color:#555;width:30px;text-align:right">${cat}</div>
-      <div style="flex:1;height:3px;background:#1a1a18"><div style="height:100%;width:${vals[i]}%;background:${color}"></div></div>
-    </div>`).join('');
-  const slide3 = `
-    <div style="${mono};font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:#555;margin-bottom:14px;text-align:center">your taste isn't one thing</div>
-    <div style="display:flex;gap:32px;flex:1">
-      <div style="flex:1;text-align:center">
-        <div style="margin:0 auto 6px">${posterImg(posters.parasite, 'Parasite', 56, 84)}</div>
-        <div style="${mono};font-size:8px;color:#888;margin-bottom:2px">Parasite</div>
-        ${mkBars3(s3L, blue)}
-        <div style="${mono};font-size:9px;color:${blue};margin-top:4px">story-driven</div>
-      </div>
-      <div style="width:0.5px;background:#333"></div>
-      <div style="flex:1;text-align:center">
-        <div style="margin:0 auto 6px">${posterImg(posters.blade, 'Blade Runner 2049', 56, 84)}</div>
-        <div style="${mono};font-size:8px;color:#888;margin-bottom:2px">Blade Runner 2049</div>
-        ${mkBars3(s3R, gold)}
-        <div style="${mono};font-size:9px;color:${gold};margin-top:4px">world-driven</div>
-      </div>
-    </div>
-    <div class="ds3-insight" style="${sans};font-size:12px;line-height:1.55;color:#888;text-align:center;margin-top:14px;transition:opacity 0.5s ease">Two films you love. Two completely different engines.</div>`;
-
-  // Slide 4: For You
-  const recs = [
-    { title: 'The Handmaiden', year: '2016', score: 87, badge: true, reason: 'World + Singularity', poster: posters.handmaiden },
-    { title: 'Arrival', year: '2016', score: 84, badge: false, reason: 'Director affinity', poster: posters.arrival },
-    { title: 'In the Mood for Love', year: '2000', score: 82, badge: false, reason: 'High predicted Hold', poster: posters.mood },
-    { title: 'Moonlight', year: '2016', score: 89, badge: false, reason: 'Performance match', poster: posters.moonlight },
-  ];
-  const recCards = recs.map((r) => `
-    <div class="cold-ds4-card" style="flex:1;min-width:0;transition:all 0.4s ease">
-      <div style="position:relative;margin-bottom:6px">
-        <img src="${r.poster}" alt="${r.title}" loading="lazy" style="width:100%;aspect-ratio:2/3;object-fit:cover;display:block" onerror="this.style.background='#1a1a18';this.style.minHeight='120px'">
-        <div style="position:absolute;top:4px;right:4px;${mono};font-size:9px;color:${blue};background:rgba(0,0,0,0.7);border:0.5px solid rgba(61,90,128,0.4);padding:2px 5px">${r.score}</div>
-        ${r.badge ? `<div style="position:absolute;top:4px;left:4px;display:flex;align-items:center;gap:2px;background:rgba(0,0,0,0.75);padding:2px 5px"><svg width="8" height="8" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5" stroke="#6dbf8b" stroke-width="1.2"/><path d="M7 2.5L8 5.5L11 7L8 8.5L7 11.5L6 8.5L3 7L6 5.5z" fill="#6dbf8b" opacity="0.7"/></svg><span style="${mono};font-size:7px;color:#6dbf8b;letter-spacing:0.5px">NEW</span></div>` : ''}
-      </div>
-      <div style="${mono};font-size:7px;color:#666;line-height:1.4">${r.title}</div>
-      <div style="${mono};font-size:7px;color:#444;line-height:1.4">${r.reason}</div>
-    </div>`).join('');
-  const slide4 = `
-    <div style="${mono};font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:#555;margin-bottom:14px;text-align:center">— for you —</div>
-    <div style="display:flex;gap:8px;flex:1;align-items:flex-start">${recCards}</div>`;
-
-  // Slide 5: Friends Compatibility
-  const slide5 = `
-    <div style="text-align:center;display:flex;flex-direction:column;align-items:center;flex:1;justify-content:center">
-      <div style="${mono};font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:#555;margin-bottom:18px">— taste overlap —</div>
-      <div class="ds5-compat" style="display:flex;align-items:center;justify-content:center;gap:20px;margin-bottom:14px;transition:opacity 0.4s ease">
-        <div>
-          <div style="width:32px;height:32px;border-radius:50%;border:0.5px solid #555;display:flex;align-items:center;justify-content:center;margin:0 auto 4px"><span style="${mono};font-size:10px;color:#999">Y</span></div>
-          <div style="${mono};font-size:10px;color:#999">You</div>
+  // ── Main panel: Score breakdown ──
+  const main = `
+    <div class="tab-panel tab-main">
+      <div style="${mono};font-size:8px;letter-spacing:2px;text-transform:uppercase;color:#444;margin-bottom:18px">Your breakdown</div>
+      <div style="display:flex;gap:16px;margin-bottom:20px">
+        <div style="flex-shrink:0">
+          ${posterImg(posters.parasite, 'Parasite', 80, 120)}
         </div>
-        <div><span style="${serif};font-weight:900;font-size:42px;color:${blue};letter-spacing:-2px">73</span><span style="${serif};font-size:20px;color:#555">%</span></div>
         <div>
-          <div style="width:32px;height:32px;border-radius:50%;border:0.5px solid #555;display:flex;align-items:center;justify-content:center;margin:0 auto 4px"><span style="${mono};font-size:10px;color:#666">S</span></div>
-          <div style="${mono};font-size:9px;color:#666">Sarah</div>
+          <div style="${serif};font-size:17px;color:#e8e2d6;margin-bottom:3px">Parasite</div>
+          <div style="${mono};font-size:9px;color:#555">2019 · Bong Joon-ho</div>
         </div>
       </div>
-      <div class="ds5-stats" style="${mono};font-size:9px;color:#666;margin-bottom:12px;transition:opacity 0.4s ease">Weights: 81% · Scores: 64%</div>
-      <div class="ds5-films" style="max-width:220px;margin:0 auto 14px;transition:opacity 0.4s ease">
-        <div style="display:flex;justify-content:space-between;${mono};font-size:9px;color:#666;margin-bottom:4px"><span>Moonlight</span><span>You: <span style="color:${blue}">88</span> · Sarah: <span style="color:${gold}">91</span></span></div>
-        <div style="display:flex;justify-content:space-between;${mono};font-size:9px;color:#666"><span>Tenet</span><span>You: <span style="color:${blue}">52</span> · Sarah: <span style="color:${gold}">78</span></span></div>
+      ${bars}
+      <div style="border-top:1px solid #1a1a18;margin-top:14px;padding-top:12px;display:flex;justify-content:space-between;align-items:baseline">
+        <div style="${mono};font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#444">Total</div>
+        <div class="tab-total" style="${serif};font-weight:900;font-size:32px;color:${blue};letter-spacing:-1px;opacity:0;transition:opacity 0.5s ease">86</div>
       </div>
-      <div class="ds5-insight" style="${sans};font-size:11px;line-height:1.55;color:#777;max-width:250px;transition:opacity 0.4s ease">You both care about performances. You disagree on whether craft alone is enough.</div>
     </div>`;
 
-  return [slide1, slide2, slide3, slide4, slide5];
+  // ── Prediction panel ──
+  const predict = `
+    <div class="tab-panel tab-predict">
+      <div style="${mono};font-size:7px;letter-spacing:1.5px;text-transform:uppercase;color:#444;margin-bottom:14px">We predict you'd give</div>
+      <div style="display:flex;gap:14px;align-items:flex-start">
+        <div style="flex-shrink:0">
+          ${posterImg(posters.lost, 'Lost in Translation', 64, 96)}
+        </div>
+        <div style="flex:1">
+          <div style="${serif};font-size:14px;color:#e8e2d6;margin-bottom:2px">Lost in Translation</div>
+          <div style="${mono};font-size:8px;color:#555;margin-bottom:14px">2003 · Sofia Coppola</div>
+          <div class="tab-pred-score" style="${serif};font-weight:900;font-size:44px;color:${blue};letter-spacing:-2px;line-height:1;opacity:0;transition:opacity 0.7s ease">78</div>
+          <div style="${mono};font-size:8px;color:#555;margin-top:3px">predicted score</div>
+        </div>
+      </div>
+      <div class="tab-pred-reason" style="${sans};font-size:11px;line-height:1.5;color:#666;margin-top:14px;border-top:1px solid #1a1a18;padding-top:12px;opacity:0;transition:opacity 0.6s ease">Strong World match — you love atmospheric, melancholic films. Lower Story score likely.</div>
+    </div>`;
+
+  // ── Recommendation card ──
+  const reco = `
+    <div class="tab-panel tab-reco">
+      <div style="position:relative">
+        ${posterImg(posters.handmaiden, 'The Handmaiden', 148, 222)}
+        <div style="position:absolute;top:8px;right:8px;${mono};font-size:10px;color:${blue};background:rgba(0,0,0,0.8);border:0.5px solid rgba(61,90,128,0.35);padding:3px 8px;letter-spacing:0.5px">87</div>
+        <div style="position:absolute;bottom:0;left:0;right:0;padding:12px;background:linear-gradient(transparent,rgba(0,0,0,0.9))">
+          <div style="${mono};font-size:7px;letter-spacing:1.5px;text-transform:uppercase;color:${blue};margin-bottom:3px">For you</div>
+          <div style="${mono};font-size:9px;color:#999">The Handmaiden</div>
+        </div>
+      </div>
+    </div>`;
+
+  // ── Taste insight chip ──
+  const insight = `
+    <div class="tab-panel tab-insight">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:6px;height:6px;border-radius:50%;background:${blue}"></div>
+        <div style="${mono};font-size:10px;color:#e8e2d6;letter-spacing:0.3px">Studied Narrativist</div>
+      </div>
+      <div style="${mono};font-size:8px;color:#555;margin-top:5px;padding-left:14px">story-driven · high hold · atmospheric</div>
+    </div>`;
+
+  return main + predict + reco + insight;
+}
+
+function buildSystemVisuals() {
+  const mono = "font-family:'DM Mono',monospace";
+  const blue = '#3d5a80';
+
+  const posters = {
+    parasite: 'https://image.tmdb.org/t/p/w154/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg',
+    lost: 'https://image.tmdb.org/t/p/w154/4GDy0PHYX3VRXUtwK5ysFbg3kEx.jpg',
+    handmaiden: 'https://image.tmdb.org/t/p/w154/dLlH4aNHdnmf62umnInL8xPlPzw.jpg',
+    arrival: 'https://image.tmdb.org/t/p/w154/x2FJsf1ElAgr63Y3PNPtJrcmpoe.jpg',
+    mood: 'https://image.tmdb.org/t/p/w154/iYypPT4bhqXfq1b6EnmxvRt6b2Y.jpg',
+  };
+
+  // Beat 1: Rate — poster thumbnails
+  const rateEl = document.getElementById('cold-beat-rate');
+  if (rateEl) {
+    const films = [
+      { src: posters.parasite, t: 'Parasite' },
+      { src: posters.lost, t: 'Lost in Translation' },
+      { src: posters.handmaiden, t: 'The Handmaiden' },
+      { src: posters.arrival, t: 'Arrival' },
+      { src: posters.mood, t: 'In the Mood for Love' },
+    ];
+    rateEl.innerHTML = `<div style="display:flex;gap:6px">${films.map(f =>
+      `<div style="flex:1;min-width:0">${posterImg(f.src, f.t, 60, 90)}</div>`
+    ).join('')}</div>`;
+  }
+
+  // Beat 2: Map — category bars
+  const mapEl = document.getElementById('cold-beat-map');
+  if (mapEl) {
+    const cats = [['Story',92],['Craft',88],['Perf',80],['World',70],['Exp',85],['Hold',90],['End',97],['Sing',82]];
+    mapEl.innerHTML = cats.map(([c, v]) => `
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+        <div style="${mono};font-size:7px;color:#777;width:32px;text-align:right">${c}</div>
+        <div style="flex:1;height:2px;background:#2a2a28"><div style="height:100%;width:${v}%;background:${blue}"></div></div>
+        <div style="${mono};font-size:8px;color:#666;width:16px;text-align:right">${v}</div>
+      </div>`).join('');
+  }
+
+  // Beat 3: Discover — prediction + recommendation
+  const discEl = document.getElementById('cold-beat-discover');
+  if (discEl) {
+    discEl.innerHTML = `
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <div style="flex:1;background:#1a1a18;padding:14px;border:1px solid #2a2a28">
+          <div style="${mono};font-size:7px;letter-spacing:1px;text-transform:uppercase;color:#555;margin-bottom:8px">Predicted</div>
+          <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:32px;color:${blue};letter-spacing:-1px;line-height:1">78</div>
+          <div style="${mono};font-size:8px;color:#555;margin-top:4px">Lost in Translation</div>
+        </div>
+        <div style="flex:1">
+          ${posterImg(posters.arrival, 'Arrival', 80, 120)}
+          <div style="${mono};font-size:7px;color:${blue};letter-spacing:0.5px;margin-top:6px;text-transform:uppercase;letter-spacing:1px">For you</div>
+          <div style="${mono};font-size:8px;color:#777;margin-top:2px">Arrival · 84</div>
+        </div>
+      </div>`;
+  }
 }
 
 function exitColdLanding(el) {
   if (!el) return;
-  if (_coldDemoInterval) { clearInterval(_coldDemoInterval); _coldDemoInterval = null; }
   el.classList.add('exiting');
   el.addEventListener('animationend', () => {
     el.style.display = 'none';
