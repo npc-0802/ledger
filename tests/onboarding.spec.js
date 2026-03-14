@@ -25,21 +25,15 @@ test.describe('Onboarding flow', () => {
     await expect(page.locator('#guided-search-input')).toBeVisible({ timeout: 5000 });
   });
 
-  test('guided flow skip to app works', async ({ page }) => {
+  test('guided flow has no skip on first film', async ({ page }) => {
     await page.goto('/');
     await page.waitForTimeout(500);
     await page.evaluate(() => window._testSkipToQuiz('Skip Test'));
 
-    // Should see search input and skip link
     await expect(page.locator('#guided-search-input')).toBeVisible({ timeout: 5000 });
 
-    // Click skip link
-    await page.locator('text=I\'d rather explore on my own →').click();
-
-    // Onboarding overlay should be exiting/gone
-    await page.waitForFunction(() => {
-      const overlay = document.getElementById('onboarding-overlay');
-      return !overlay || overlay.style.display === 'none' || overlay.classList.contains('exiting');
-    }, { timeout: 5000 });
+    // No skip or save-and-finish on step 1 (no films rated yet)
+    await expect(page.locator('text=explore on my own')).not.toBeVisible();
+    await expect(page.locator('text=Save and finish later')).not.toBeVisible();
   });
 });

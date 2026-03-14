@@ -91,13 +91,10 @@ test.describe('Guided onboarding flow', () => {
     await expect(page.locator('button:has-text("Rate →")')).toBeVisible();
   });
 
-  test('skip link exits onboarding', async ({ page }) => {
+  test('no skip link on first film', async ({ page }) => {
     await skipToGuided(page);
-    await page.locator('text=I\'d rather explore on my own →').click();
-    // Onboarding should exit
-    await page.waitForFunction(() => {
-      const overlay = document.getElementById('onboarding-overlay');
-      return !overlay || overlay.style.display === 'none' || overlay.classList.contains('exiting');
-    }, { timeout: 5000 });
+    // Should NOT see "explore on my own" or "Save and finish later" on step 1
+    await expect(page.locator('text=explore on my own')).not.toBeVisible();
+    await expect(page.locator('text=Save and finish later')).not.toBeVisible();
   });
 });

@@ -427,10 +427,9 @@ function renderGuidedStep() {
         <div id="guided-search-results" style="margin-top:8px"></div>
       </div>
 
-      <div style="text-align:center;margin-top:32px;opacity:0;animation:fadeIn 0.3s ease 1s both">
-        <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);cursor:pointer;letter-spacing:0.5px;text-decoration:underline;text-underline-offset:2px" onclick="guidedSkip()">
-          ${guidedFilms.length > 0 ? 'Done for now →' : "I'd rather explore on my own →"}
-        </span>
+      <div style="display:flex;justify-content:center;gap:24px;margin-top:32px;opacity:0;animation:fadeIn 0.3s ease 1s both">
+        ${guidedStep > 1 ? `<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);cursor:pointer;letter-spacing:0.5px;text-decoration:underline;text-underline-offset:2px" onclick="guidedBack()">← Back</span>` : ''}
+        ${guidedFilms.length >= 1 ? `<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);cursor:pointer;letter-spacing:0.5px;text-decoration:underline;text-underline-offset:2px" onclick="guidedSaveAndFinish()">Save and finish later</span>` : ''}
       </div>
     </div>
   `;
@@ -970,7 +969,26 @@ window.guidedShowWeights = function() {
   renderObStep();
 };
 
-window.guidedSkip = function() {
+window.guidedBack = function() {
+  if (guidedStep <= 1) return;
+  // Remove the last rated film if going back from a search screen
+  if (guidedFilms.length >= guidedStep) {
+    const removed = guidedFilms.pop();
+    // Also remove from MOVIES
+    const idx = MOVIES.findIndex(m => String(m.tmdbId) === String(removed.tmdbId));
+    if (idx !== -1) MOVIES.splice(idx, 1);
+  }
+  guidedStep--;
+  guidedSelectedFilm = null;
+  guidedScores = {};
+  guidedSliderStage = 'gut';
+  guidedInsight = null;
+  obStep = 'guided';
+  renderObStep();
+};
+
+window.guidedSaveAndFinish = function() {
+  if (guidedFilms.length < 1) return;
   guidedFinishWithDefaults();
 };
 
