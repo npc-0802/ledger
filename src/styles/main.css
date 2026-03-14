@@ -409,6 +409,20 @@ body {
   gap: 56px;
   align-items: start;
 }
+/* ── Cold Landing: Slide Caption ── */
+.cold-demo-caption {
+  padding: 0 0 16px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: clamp(18px, 2.2vw, 22px);
+  color: var(--dim);
+  line-height: 1.4;
+  min-height: 32px;
+}
+.cold-demo-caption span {
+  display: inline-block;
+  transition: opacity 0.35s ease;
+}
+
 /* ── Cold Landing: Demo ── */
 .cold-demo {
   background: #0c0b09;
