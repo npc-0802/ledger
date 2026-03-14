@@ -589,7 +589,7 @@ body {
   position: relative;
   overflow: hidden;
   border-radius: 8px;
-  min-height: 420px;
+  min-height: 360px;
   box-shadow:
     0 1px 2px rgba(0,0,0,0.06),
     0 8px 24px rgba(0,0,0,0.1),
@@ -601,7 +601,7 @@ body {
 }
 .cold-carousel-card {
   min-width: 100%;
-  min-height: 420px;
+  min-height: 360px;
   box-sizing: border-box;
   background: #0c0b09;
   padding: 32px 36px 28px;
