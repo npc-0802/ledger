@@ -193,30 +193,40 @@ function buildTableau() {
   // ══ PRIMARY: Your Palate — dominant luxury surface ══
   const main = `
     <div class="tab-panel tab-main">
-      <div style="${mono};font-size:8px;letter-spacing:2.5px;text-transform:uppercase;color:#555;margin-bottom:6px">Your palate</div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+        <div style="${mono};font-size:8px;letter-spacing:2.5px;text-transform:uppercase;color:#555">Your palate</div>
+        <div style="${mono};font-size:7px;color:#333;letter-spacing:0.5px">12 films rated</div>
+      </div>
       <div style="border-top:1px solid #1e1e1c;margin-bottom:22px"></div>
       ${bars}
-      <div style="border-top:1px solid #1e1e1c;margin-top:16px;padding-top:16px;display:flex;justify-content:space-between;align-items:flex-end">
+      <div style="border-top:1px solid #1e1e1c;margin-top:16px;padding-top:20px;display:flex;justify-content:space-between;align-items:flex-end">
         <div>
-          <div class="tab-palate-type" style="${serif};font-size:16px;color:#e8e2d6;margin-bottom:5px;opacity:0;transition:opacity 0.6s ease">Studied Narrativist</div>
+          <div class="tab-palate-type" style="${serif};font-size:18px;color:#e8e2d6;margin-bottom:6px;opacity:0;transition:opacity 0.6s ease">Studied Narrativist</div>
           <div style="${mono};font-size:8px;color:#555;letter-spacing:0.3px">story-driven · high hold · atmospheric</div>
         </div>
         <div style="text-align:right">
-          <div class="tab-total" style="${serif};font-weight:900;font-size:52px;color:${blue};letter-spacing:-3px;line-height:0.85;opacity:0;transition:opacity 0.7s ease">86</div>
-          <div style="${mono};font-size:7px;color:#444;letter-spacing:1px;text-transform:uppercase;margin-top:6px">weighted total</div>
+          <div class="tab-total" style="${serif};font-weight:900;font-size:64px;color:${blue};letter-spacing:-4px;line-height:0.8;opacity:0;transition:opacity 0.7s ease">86</div>
+          <div style="${mono};font-size:7px;color:#444;letter-spacing:1px;text-transform:uppercase;margin-top:8px">weighted total</div>
         </div>
       </div>
-      <div style="border-top:1px solid #1e1e1c;margin-top:14px"></div>
-      <div class="tab-insight-line" style="${sans};font-size:11px;color:#666;margin-top:14px;line-height:1.55;opacity:0;transition:opacity 0.6s ease">You care most about Story and Hold. You forgive a lot when Experience is high.</div>
+      <div style="border-top:1px solid #1e1e1c;margin-top:16px"></div>
+      <div class="tab-insight-line" style="${sans};font-size:11.5px;color:#666;margin-top:16px;line-height:1.55;opacity:0;transition:opacity 0.6s ease">You care most about Story and Hold. You forgive a lot when Experience is high.</div>
     </div>`;
 
   // ══ SECONDARY: Prediction — overlapping, cooler surface ══
   const predict = `
     <div class="tab-panel tab-predict">
-      <div style="${mono};font-size:7px;letter-spacing:2px;text-transform:uppercase;color:#555;margin-bottom:6px">Predicted</div>
-      <div style="border-top:1px solid rgba(61,90,128,0.15);margin-bottom:16px"></div>
-      <div style="${serif};font-size:15px;color:#e8e2d6;margin-bottom:2px">Lost in Translation</div>
-      <div style="${mono};font-size:8px;color:#555;margin-bottom:18px">2003 · Sofia Coppola</div>
+      <div style="${mono};font-size:7px;letter-spacing:2px;text-transform:uppercase;color:#555;margin-bottom:6px">Predicted for you</div>
+      <div style="border-top:1px solid rgba(61,90,128,0.15);margin-bottom:14px"></div>
+      <div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:16px">
+        <div style="flex-shrink:0;width:48px;height:72px;overflow:hidden;border-radius:2px;box-shadow:0 2px 8px rgba(0,0,0,0.3)">
+          ${posterImg(posters.lost, 'Lost in Translation', 48, 72)}
+        </div>
+        <div>
+          <div style="${serif};font-size:15px;color:#e8e2d6;margin-bottom:2px">Lost in Translation</div>
+          <div style="${mono};font-size:8px;color:#555">2003 · Sofia Coppola</div>
+        </div>
+      </div>
       <div class="tab-pred-score" style="${serif};font-weight:900;font-size:56px;color:${blue};letter-spacing:-3px;line-height:0.85;opacity:0;transition:opacity 0.8s ease">78</div>
       <div style="${mono};font-size:7px;color:#444;letter-spacing:1px;text-transform:uppercase;margin-top:8px;margin-bottom:16px">predicted score</div>
       <div style="border-top:1px solid rgba(61,90,128,0.15);padding-top:12px">
@@ -246,10 +256,10 @@ function buildTableau() {
   const anchor = `
     <div class="tab-panel tab-anchor">
       <div style="position:relative">
-        ${posterImg(posters.parasite, 'Parasite', 122, 183)}
-        <div style="position:absolute;inset:0;background:linear-gradient(transparent 45%,rgba(0,0,0,0.85));display:flex;flex-direction:column;justify-content:flex-end;padding:10px">
+        ${posterImg(posters.parasite, 'Parasite', 138, 207)}
+        <div style="position:absolute;inset:0;background:linear-gradient(transparent 40%,rgba(0,0,0,0.88));display:flex;flex-direction:column;justify-content:flex-end;padding:10px">
           <div style="${mono};font-size:7px;letter-spacing:1.5px;text-transform:uppercase;color:#888;margin-bottom:3px">Your film</div>
-          <div style="${mono};font-size:8px;color:#ccc">Parasite</div>
+          <div style="${mono};font-size:9px;color:#ccc">Parasite</div>
         </div>
       </div>
     </div>`;
