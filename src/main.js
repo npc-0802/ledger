@@ -92,7 +92,13 @@ export function resetStorage() {
 }
 
 // ── INIT ──
+function removeAppCloak() {
+  const cloak = document.getElementById('app-cloak');
+  if (cloak) cloak.remove();
+}
+
 export function showColdLanding() {
+  removeAppCloak();
   const el = document.getElementById('cold-landing');
   if (el) {
     el.style.display = 'block';
@@ -686,6 +692,7 @@ async function init() {
           localStorage.removeItem('palatemap_pending_name');
           localStorage.removeItem('palatemap_auth_pending');
           window._pendingAuthSession = session;
+          removeAppCloak();
           renderRankings();
           updateStorageStatus();
           launchOnboarding({ skipToGuided: true, name });
@@ -721,6 +728,7 @@ async function init() {
 
   // Legacy user check: if user exists but has no quiz_weights, force re-onboarding
   if (currentUser && !currentUser.quiz_weights) {
+    removeAppCloak();
     renderRankings();
     updateStorageStatus();
     launchOnboarding({ skipToGuided: true, name: currentUser.display_name || '' });
@@ -736,6 +744,7 @@ async function init() {
     localStorage.setItem(blendV2Key, '1');
   }
 
+  removeAppCloak();
   renderRankings();
   updateStorageStatus();
 
