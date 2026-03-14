@@ -702,9 +702,10 @@ body {
 }
 .cold-compare-item {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 6px;
 }
+.cold-compare-item svg { flex-shrink: 0; }
 .cold-compare-name {
   font-family: 'DM Mono', monospace;
   font-size: 10px;
