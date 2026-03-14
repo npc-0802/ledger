@@ -153,11 +153,11 @@ window.startFromLanding = function() {
   launchOnboarding();
 };
 
-// Test helper: skip auth and jump directly to quiz
+// Test helper: skip auth and jump directly to guided flow
 window._testSkipToQuiz = function(name) {
   const el = document.getElementById('cold-landing');
   if (el) el.style.display = 'none';
-  launchOnboarding({ skipToQuiz: true, name: name || 'Test User' });
+  launchOnboarding({ skipToGuided: true, name: name || 'Test User' });
 };
 
 window.landingGoogle = async function() {
@@ -223,7 +223,7 @@ async function init() {
           window._pendingAuthSession = session;
           renderRankings();
           updateStorageStatus();
-          launchOnboarding({ skipToQuiz: true, name });
+          launchOnboarding({ skipToGuided: true, name });
           return;
         } else {
           // Stale session, no profile — show cold landing
@@ -258,7 +258,7 @@ async function init() {
   if (currentUser && !currentUser.quiz_weights) {
     renderRankings();
     updateStorageStatus();
-    launchOnboarding({ skipToQuiz: true, name: currentUser.display_name || '' });
+    launchOnboarding({ skipToGuided: true, name: currentUser.display_name || '' });
     return;
   }
 

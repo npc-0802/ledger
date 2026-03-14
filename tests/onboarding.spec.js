@@ -13,60 +13,33 @@ test.describe('Onboarding flow', () => {
     await expect(page.locator('#cold-landing')).toBeVisible({ timeout: 5000 });
   });
 
-  test('quiz flow → reveal archetype', async ({ page }) => {
+  test('guided flow shows search after skip to guided', async ({ page }) => {
     await page.goto('/');
     await page.waitForTimeout(500);
 
-    // Skip to quiz (bypasses auth)
+    // Skip to guided flow (bypasses auth)
     await page.evaluate(() => window._testSkipToQuiz('Playwright Test'));
     await expect(page.locator('#onboarding-overlay')).toBeVisible();
-    await page.waitForSelector('.ob-option', { timeout: 5000 });
 
-    // Answer questions until reveal appears (adaptive: 3–5 questions)
-    for (let q = 0; q < 6; q++) {
-      const options = page.locator('.ob-option');
-      if (await options.count() === 0) break;
-      await options.first().click();
-      await expect(page.locator('#ob-next-btn')).toBeEnabled({ timeout: 2000 });
-      await page.locator('#ob-next-btn').click({ timeout: 3000 });
-
-      // Wait for either the reveal card or the next set of options
-      await page.waitForFunction(() =>
-        document.querySelector('.ob-reveal-card') ||
-        document.querySelectorAll('.ob-option').length > 0,
-        { timeout: 5000 }
-      );
-
-      // Check if reveal appeared (adaptive stop)
-      if (await page.locator('.ob-reveal-card').count() > 0) break;
-    }
-
-    // Should see reveal screen
-    await expect(page.locator('.ob-reveal-card').first()).toBeVisible({ timeout: 5000 });
+    // Should see the guided film search screen
+    await expect(page.locator('#guided-search-input')).toBeVisible({ timeout: 5000 });
   });
 
-  test('quiz back navigation preserves answers', async ({ page }) => {
+  test('guided flow skip to app works', async ({ page }) => {
     await page.goto('/');
     await page.waitForTimeout(500);
-    await page.evaluate(() => window._testSkipToQuiz('Nav Test'));
-    await page.waitForSelector('.ob-option', { timeout: 5000 });
+    await page.evaluate(() => window._testSkipToQuiz('Skip Test'));
 
-    // Select option B on Q1
-    await page.locator('.ob-option').nth(1).click();
-    await expect(page.locator('.ob-option').nth(1)).toHaveClass(/selected/);
-    await expect(page.locator('#ob-next-btn')).toBeEnabled();
+    // Should see search input and skip link
+    await expect(page.locator('#guided-search-input')).toBeVisible({ timeout: 5000 });
 
-    // Go to Q2
-    await page.locator('#ob-next-btn').click();
-    await page.waitForTimeout(300);
-    await page.waitForSelector('.ob-option', { timeout: 3000 });
+    // Click skip link
+    await page.locator('text=I\'d rather explore on my own →').click();
 
-    // Answer Q2 then go back
-    await page.locator('.ob-option').first().click();
-    await page.locator('.ob-btn-secondary').click();
-    await page.waitForTimeout(300);
-
-    // Q1 should be shown and answer B should be pre-selected
-    await expect(page.locator('.ob-option.selected')).toHaveCount(1, { timeout: 3000 });
+    // Onboarding overlay should be exiting/gone
+    await page.waitForFunction(() => {
+      const overlay = document.getElementById('onboarding-overlay');
+      return !overlay || overlay.style.display === 'none' || overlay.classList.contains('exiting');
+    }, { timeout: 5000 });
   });
 });
