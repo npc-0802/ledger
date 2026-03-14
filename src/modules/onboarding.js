@@ -49,11 +49,7 @@ const FILM_PROMPTS = {
     title: 'Almost there.',
     sub: `Pick a film that's widely loved — one that most people would rate highly — but that you don't particularly like. Or at least, that you like less than the world seems to.\n\nThis one teaches us the most.`,
   },
-  5: {
-    eyebrow: 'palate map · the identity film',
-    title: 'Last one.',
-    sub: `If you had to show someone one film to explain your taste — not your favorite, not the best, but the film that says "this is what I'm about" — what would it be?`,
-  },
+  // Film 5 is dynamic — see getFilm5Prompt()
 };
 
 // Dynamic prompt for Film 2 based on Film 1's scores
@@ -80,9 +76,42 @@ function getFilm2Prompt(film1Scores) {
   };
 }
 
+// Dynamic prompt for Film 5 — find the blind spot in the taste profile so far
+function getFilm5Prompt(films) {
+  const cats = CATEGORIES.map(c => c.key);
+
+  // Compute per-category mean and variance across rated films
+  const means = {};
+  const variances = {};
+  cats.forEach(k => {
+    const vals = films.map(f => f.scores[k] || 50);
+    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+    means[k] = mean;
+    variances[k] = vals.reduce((sum, v) => sum + (v - mean) ** 2, 0) / vals.length;
+  });
+
+  // Find the category with the least variance — we know the least about it
+  const blindSpot = cats.reduce((a, b) => variances[a] < variances[b] ? a : b);
+  const blindLabel = (CAT_LABELS[blindSpot] || blindSpot).replace('The ', '');
+
+  // Build a readable summary of the taste so far for the "we wouldn't guess" framing
+  const sorted = cats.map(k => ({ key: k, mean: means[k] })).sort((a, b) => b.mean - a.mean);
+  const topTwo = sorted.slice(0, 2).map(s => (CAT_LABELS[s.key] || s.key).replace('The ', '').toLowerCase());
+  const tasteShape = topTwo.join(' and ');
+
+  return {
+    eyebrow: 'palate map · the wild card',
+    title: 'Last one. Surprise us.',
+    sub: `So far your taste leans toward ${tasteShape}. Now pick the film we wouldn't guess.\n\nThe weird one. The one that doesn't fit the pattern. Something you love that would make someone who'd only seen your first four picks say "wait, really?"\n\nBonus points if it tells us something about ${blindLabel.toLowerCase()} — that's where your profile has the biggest blind spot.`,
+  };
+}
+
 function getPromptForStep(step) {
   if (step === 2 && guidedFilms.length >= 1) {
     return getFilm2Prompt(guidedFilms[0].scores);
+  }
+  if (step === 5 && guidedFilms.length >= 4) {
+    return getFilm5Prompt(guidedFilms);
   }
   return FILM_PROMPTS[step] || FILM_PROMPTS[1];
 }
