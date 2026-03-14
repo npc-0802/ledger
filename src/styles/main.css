@@ -519,7 +519,7 @@ body {
   flex-direction: column;
   gap: 10px;
   max-width: 300px;
-  margin-bottom: 48px;
+  margin-bottom: 64px;
 }
 .cold-cta-primary {
   font-family: 'DM Mono', monospace;
@@ -610,12 +610,28 @@ body {
   flex-direction: column;
   overflow-y: auto;
 }
+.cold-carousel-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 14px 0 4px;
+}
+.cold-carousel-arrow {
+  background: none;
+  border: none;
+  color: rgba(244, 239, 230, 0.35);
+  font-size: 22px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  transition: color 0.2s;
+}
+.cold-carousel-arrow:hover { color: rgba(244, 239, 230, 0.7); }
 .cold-carousel-dots {
   display: flex;
   justify-content: center;
   gap: 8px;
-  padding: 16px 0 20px;
-  background: #0c0b09;
 }
 .cold-carousel-dot {
   width: 8px;
