@@ -435,7 +435,7 @@ body {
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
-  padding: 60px 80px 140px;
+  padding: 60px 80px 100px;
   align-items: center;
 }
 
@@ -483,7 +483,7 @@ body {
 /* ── Micro-proof strip ── */
 .cold-proof {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   margin: 0 0 36px;
   font-family: 'DM Mono', monospace;
@@ -495,6 +495,10 @@ body {
   font-size: 18px;
   color: var(--ink);
   letter-spacing: -0.5px;
+}
+.cold-proof-inf {
+  font-size: 22px;
+  line-height: 1;
 }
 .cold-proof-label {
   font-size: 10px;
@@ -562,7 +566,9 @@ body {
   font-size: 11px;
   color: var(--dim);
   align-items: center;
-  margin-top: 16px;
+  justify-content: center;
+  max-width: 300px;
+  margin-top: 12px;
 }
 .cold-links a {
   color: var(--dim);
@@ -1303,7 +1309,7 @@ body {
 @media (max-width: 1024px) {
   .cold-hero-inner {
     gap: 48px;
-    padding: 60px 48px 130px;
+    padding: 60px 48px 100px;
   }
   .cold-carousel-card { padding: 24px 28px; }
   .card-bar-label { min-width: 95px; font-size: 11px; }
@@ -1314,7 +1320,7 @@ body {
 @media (max-width: 800px) {
   .cold-hero-inner {
     grid-template-columns: 1fr;
-    padding: 48px 32px 120px;
+    padding: 48px 32px 100px;
     gap: 48px;
   }
   .cold-h1 { font-size: clamp(36px, 10vw, 56px); }
@@ -1337,7 +1343,7 @@ body {
 
 /* ── Small Mobile ── */
 @media (max-width: 480px) {
-  .cold-hero-inner { padding: 40px 20px 120px; }
+  .cold-hero-inner { padding: 40px 20px 100px; }
   .cold-carousel-card { padding: 18px 16px; }
   .card-bar-label { min-width: 75px; font-size: 10px; }
   .card-bar-value { font-size: 10px; }
