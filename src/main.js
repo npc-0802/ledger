@@ -308,6 +308,10 @@ function buildCarouselCards() {
         <div class="card-total">86</div>
         <div class="card-total-label">weighted total</div>
       </div>
+    </div>
+    <div class="carousel-score-explain">
+      <div class="carousel-score-explain-label">How your 86 is calculated</div>
+      <div class="carousel-score-explain-body">Your palate weights Experience and Story highest. This film scores well on both — that's why your total is higher than a straight average of the eight categories.</div>
     </div>`;
 
   // ── Card 2: Friends Overlap ──
@@ -371,7 +375,16 @@ function buildCarouselCards() {
         <span class="card-corated-title">Tenet</span>
         <span>You: <span class="card-corated-you">52</span> Sarah: <span class="card-corated-them">78</span></span>
       </div>
-      <div class="card-insight">You both care about performances. You disagree on whether craft alone is enough.</div>`;
+      <div class="card-insight">You both care about performances. You disagree on whether craft alone is enough.</div>
+      <div class="carousel-overlap-predict">
+        <div class="carousel-overlap-predict-label">— overlap predict —</div>
+        <div class="carousel-overlap-predict-film">Oppenheimer</div>
+        <div class="carousel-overlap-predict-scores">
+          <div class="carousel-overlap-predict-user"><span class="carousel-overlap-predict-name">You'd give it</span><span class="carousel-overlap-predict-score" style="color:var(--blue)">84</span></div>
+          <div class="carousel-overlap-predict-user"><span class="carousel-overlap-predict-name">Sarah'd give it</span><span class="carousel-overlap-predict-score" style="color:#D4A84B">71</span></div>
+        </div>
+        <div class="carousel-overlap-predict-reason">You'd love the Craft and World. Sarah would find it slow — low Experience for her palate.</div>
+      </div>`;
   }
 
   // ── Card 3: For You Recommendations ──

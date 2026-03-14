@@ -1000,6 +1000,80 @@ body {
   margin-top: 2px;
 }
 
+/* Card 1: Score explanation */
+.carousel-score-explain {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 0.5px solid rgba(244, 239, 230, 0.08);
+}
+.carousel-score-explain-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--on-dark-dim);
+  margin-bottom: 8px;
+}
+.carousel-score-explain-body {
+  font-family: 'DM Sans', sans-serif;
+  font-style: italic;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--on-dark-dim);
+}
+
+/* Card 2: Overlap Predict */
+.carousel-overlap-predict {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 0.5px solid rgba(244, 239, 230, 0.08);
+}
+.carousel-overlap-predict-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--on-dark-dim);
+  margin-bottom: 10px;
+}
+.carousel-overlap-predict-film {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--on-dark);
+  margin-bottom: 10px;
+}
+.carousel-overlap-predict-scores {
+  display: flex;
+  gap: 32px;
+  margin-bottom: 12px;
+}
+.carousel-overlap-predict-user {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.carousel-overlap-predict-name {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: var(--on-dark-dim);
+}
+.carousel-overlap-predict-score {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: 28px;
+  letter-spacing: -1px;
+  line-height: 1;
+}
+.carousel-overlap-predict-reason {
+  font-family: 'DM Sans', sans-serif;
+  font-style: italic;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--on-dark-dim);
+}
+
 /* Card 3: For You detail panel */
 .carousel-foryou-detail {
   margin-top: 24px;
