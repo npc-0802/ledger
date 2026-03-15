@@ -23,10 +23,32 @@ const MAX_SKEW_BOOST = 3.0;   // at full skew, decay acts as if 3× fewer films 
 /**
  * Compute a skew coefficient in [0, 1] from the mean total score.
  * 0 = balanced sample (mean ≈ midpoint), 1 = extreme skew.
+ *
+ * Uses confidence-weighted mean so that low-confidence pairwise-inferred
+ * films don't distort the skew calculation. A pairwise film with uncertain
+ * scores shouldn't shift whether the system trusts rating-derived weights.
  */
 function computeSkewCoefficient() {
   if (MOVIES.length < 3) return 0;
-  const meanTotal = MOVIES.reduce((s, m) => s + (m.total || 0), 0) / MOVIES.length;
+  // Weight each film by its average per-category observation confidence.
+  // This is a film-level weight (not per-category), so we average the
+  // category weights to get one number per film.
+  let wSum = 0, wTotal = 0;
+  for (const m of MOVIES) {
+    // Average observation weight across categories for this film
+    let catWSum = 0, catCount = 0;
+    for (const cat of CATEGORIES) {
+      if (m.scores?.[cat.key] != null) {
+        catWSum += getFilmObservationWeight(m, cat.key);
+        catCount++;
+      }
+    }
+    const filmWeight = catCount > 0 ? catWSum / catCount : 1.0;
+    wSum += (m.total || 0) * filmWeight;
+    wTotal += filmWeight;
+  }
+  if (wTotal === 0) return 0;
+  const meanTotal = wSum / wTotal;
   const distance = Math.abs(meanTotal - NEUTRAL_MIDPOINT);
   return Math.min(distance / MAX_SKEW_DISTANCE, 1.0);
 }
@@ -65,7 +87,8 @@ export function recordWeightSnapshot(trigger, opts = {}) {
     snapshot.w[cat.key] = Math.round((weights[cat.key] || 0) * 1000) / 1000;
   }
 
-  // For onboarding, also capture quiz_weights as the baseline
+  // For onboarding, capture quiz_weights (the blend baseline — may be neutral
+  // 2.5 for extended onboarding users, or quiz-derived for old quiz users)
   if (trigger === 'onboarding') {
     snapshot.qw = {};
     const qw = currentUser.quiz_weights || weights;
@@ -228,9 +251,21 @@ export function computeRatingWeights() {
 }
 
 /**
- * Blend quiz weights and rating-derived weights using Bayesian decay.
+ * Blend baseline weights and rating-derived weights using Bayesian decay.
  * Updates currentUser.weights, currentUser.rating_weights, and persists.
  * Call after every film rating or calibration.
+ *
+ * Weight architecture:
+ * - quiz_weights: the prior/baseline. For old quiz users, this is their
+ *   quiz-derived stated preference. For new extended onboarding users,
+ *   this is a neutral 2.5 prior (the shaped onboarding profile is NOT
+ *   stored here to avoid double-counting, since it's derived from the
+ *   same MOVIES data that computeRatingWeights() processes).
+ * - rating_weights: derived from MOVIES via computeRatingWeights().
+ *   Confidence-aware (pairwise films discounted).
+ * - weights (effective): blend of quiz_weights × decay + rating_weights × (1-decay).
+ * - onboarding_profile_weights: diagnostic record of what the taste reveal
+ *   computed (if extended onboarding was used). Not used in blending.
  */
 export function updateEffectiveWeights() {
   if (!currentUser) return;
@@ -290,9 +325,11 @@ export function updateEffectiveWeights() {
   recordWeightSnapshot('rating');
   saveUserLocally();
 
-  // Deferred archetype reveal: users who completed the new guided onboarding
-  // (no quiz reveal) see their archetype for the first time at 8+ films.
-  // Old quiz users have non-uniform quiz_weights — skip the reveal for them.
+  // Deferred archetype reveal: users who completed guided-only onboarding
+  // (no quiz, no extended onboarding) see their archetype for the first time
+  // at 8+ films. Old quiz users have non-uniform quiz_weights — skip.
+  // Extended onboarding users have archetype_revealed=true already (set during
+  // taste reveal), so they won't trigger this either.
   const qw = currentUser.quiz_weights;
   const isNewOnboarding = qw && Object.values(qw).every(v => v === 2.5);
   if (filmsRated >= 8 && !currentUser.archetype_revealed && isNewOnboarding) {

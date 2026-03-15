@@ -1790,6 +1790,16 @@ window.obEnterApp = function() {
       covered_category_fraction: Math.round(coveredFraction * 1000) / 1000,
     };
 
+    // quiz_weights must be a neutral prior (2.5), NOT the shaped onboarding
+    // profile. The shaped profile is already embedded in the MOVIES data that
+    // computeRatingWeights() will process. Storing it as quiz_weights too
+    // would double-count: the same evidence enters as both the "prior" and
+    // the first round of "rating evidence" in the blend formula.
+    //
+    // The shaped weights go into `weights` (the effective weights the user
+    // starts with) and `onboarding_profile_weights` (diagnostic record).
+    const neutralPrior = {};
+    CATEGORIES.forEach(c => { neutralPrior[c.key] = 2.5; });
     obFinish({
       primary: classification.archetype,
       secondary: '',
@@ -1797,7 +1807,8 @@ window.obEnterApp = function() {
       archetypeKey: classification.archetypeKey,
       adjective: classification.adjective,
       fullName: classification.fullName,
-      quiz_weights: { ...weights },
+      quiz_weights: { ...neutralPrior },
+      onboarding_profile_weights: { ...weights },
       quiz_answers: [],
       quiz_log: [],
       _slug: obDisplayName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'user',
@@ -1897,6 +1908,7 @@ async function obFinish(reveal, opts = {}) {
     full_archetype_name: fullName,
     weights: { ...weights },
     quiz_weights: reveal.quiz_weights,
+    ...(reveal.onboarding_profile_weights ? { onboarding_profile_weights: reveal.onboarding_profile_weights } : {}),
     quiz_answers: reveal.quiz_answers,
     quiz_log: reveal.quiz_log,
     email: session?.user?.email || existing?.email || null,
@@ -1905,6 +1917,9 @@ async function obFinish(reveal, opts = {}) {
     ...(existing?.watchlist ? { watchlist: existing.watchlist } : {}),
     ...(existing?.predictions ? { predictions: existing.predictions } : {}),
     ...(existing?.harmony_sensitivity != null ? { harmony_sensitivity: existing.harmony_sensitivity } : {}),
+    // Extended onboarding users already saw their archetype in the taste reveal,
+    // so mark as revealed to prevent the deferred reveal popup at 8+ films.
+    ...(reveal.onboarding_profile_weights ? { archetype_revealed: true } : {}),
     // Beta instrumentation: calibration trace and profile confidence
     ...(_tasteRevealData?.calibration_log ? { onboarding_calibration_log: _tasteRevealData.calibration_log } : {}),
     ...(_tasteRevealData?.onboarding_profile_confidence ? { onboarding_profile_confidence: _tasteRevealData.onboarding_profile_confidence } : {}),
