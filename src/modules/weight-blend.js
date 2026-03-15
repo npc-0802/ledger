@@ -111,6 +111,11 @@ export function recordWeightSnapshot(trigger, opts = {}) {
  *    telling us that axis matters to their experience — even if
  *    the absolute range is narrow (sampling bias).
  *
+ * Both signals are confidence-weighted: pairwise-inferred films contribute
+ * proportionally to their per-category calibration confidence, so noisy
+ * inferred scores don't distort the weight vector. Manual/slider-scored
+ * films always contribute at full weight (1.0).
+ *
  * The two signals are normalized to [0, 1] and blended 50/50,
  * then mapped to the 1.5–4.5 weight range.
  *
@@ -119,15 +124,34 @@ export function recordWeightSnapshot(trigger, opts = {}) {
 export function computeRatingWeights() {
   if (MOVIES.length < 3) return null;
 
-  // ── Signal 1: Variance ──
+  // ── Signal 1: Weighted variance ──
+  // Weighted mean then weighted variance, so low-confidence pairwise scores
+  // don't inflate or deflate variance for categories they barely measured.
   const variances = {};
   const catMeans = {};
   for (const cat of CATEGORIES) {
-    const scores = MOVIES.map(m => m.scores?.[cat.key]).filter(s => s != null);
-    if (scores.length < 3) continue;
-    const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
+    let wSum = 0, wTotal = 0;
+    for (const m of MOVIES) {
+      const s = m.scores?.[cat.key];
+      if (s == null) continue;
+      const w = getFilmObservationWeight(m, cat.key);
+      wSum += s * w;
+      wTotal += w;
+    }
+    // Need effective weight of at least 3 full observations
+    if (wTotal < 3) continue;
+    const mean = wSum / wTotal;
     catMeans[cat.key] = mean;
-    variances[cat.key] = scores.reduce((a, s) => a + (s - mean) ** 2, 0) / scores.length;
+
+    // Weighted variance: Σ w_i * (x_i - mean)² / Σ w_i
+    let varNum = 0;
+    for (const m of MOVIES) {
+      const s = m.scores?.[cat.key];
+      if (s == null) continue;
+      const w = getFilmObservationWeight(m, cat.key);
+      varNum += w * (s - mean) ** 2;
+    }
+    variances[cat.key] = varNum / wTotal;
   }
 
   const varVals = Object.values(variances);
@@ -136,12 +160,17 @@ export function computeRatingWeights() {
   const maxVar = Math.max(...varVals, 0.01);
   const minVar = Math.min(...varVals);
 
-  // ── Signal 2: Mean deviation ──
+  // ── Signal 2: Weighted mean deviation ──
   // For each film, compute the film's average score across all categories,
   // then measure how far each category deviates from that film average.
   // A consistently elevated category = the user values it.
-  const deviations = {};
-  for (const cat of CATEGORIES) deviations[cat.key] = [];
+  // Each film/category contribution is weighted by observation confidence.
+  const deviationWeightedSums = {};
+  const deviationWeights = {};
+  for (const cat of CATEGORIES) {
+    deviationWeightedSums[cat.key] = 0;
+    deviationWeights[cat.key] = 0;
+  }
 
   for (const m of MOVIES) {
     if (!m.scores) continue;
@@ -150,18 +179,18 @@ export function computeRatingWeights() {
     const filmMean = filmScores.reduce((a, b) => a + b, 0) / filmScores.length;
     for (const cat of CATEGORIES) {
       const s = m.scores[cat.key];
-      if (s != null) deviations[cat.key].push(s - filmMean);
+      if (s == null) continue;
+      const w = getFilmObservationWeight(m, cat.key);
+      deviationWeightedSums[cat.key] += w * (s - filmMean);
+      deviationWeights[cat.key] += w;
     }
   }
 
-  // Mean absolute deviation from the per-film average
+  // Weighted mean absolute deviation from the per-film average
   const meanDevs = {};
   for (const cat of CATEGORIES) {
-    const devs = deviations[cat.key];
-    if (devs.length < 3) continue;
-    // Use absolute value: both "always scores high" and "always scores low"
-    // on a category indicate it's a meaningful differentiator
-    meanDevs[cat.key] = Math.abs(devs.reduce((a, b) => a + b, 0) / devs.length);
+    if (deviationWeights[cat.key] < 3) continue;
+    meanDevs[cat.key] = Math.abs(deviationWeightedSums[cat.key] / deviationWeights[cat.key]);
   }
 
   const devVals = Object.values(meanDevs);
@@ -362,15 +391,25 @@ function showArchetypeReveal(classification) {
 }
 
 // ── Confidence-aware observation helpers ──
-// Reusable helpers for downstream systems to weight films by source/confidence.
-// Not wired everywhere yet — available for future aggregation passes.
+//
+// Philosophy:
+// - Manual ratings (slider-scored) and guided onboarding films are high-trust
+//   observations — the user deliberately set 8 category sliders. Weight = 1.0.
+// - Pairwise onboarding films are useful bootstrap data. They let us place
+//   films in the user's rankings from just a few quick A/B taps. But the
+//   inferred scores are noisier than slider scores — some categories may have
+//   had zero comparisons and were filled in from the user's prior average.
+//   These films should contribute to aggregates, but not dominate them.
+// - Legacy films (no rating_source field) predate the source-tracking system.
+//   All such films were slider-scored, so they default to full trust (1.0).
+//   On new code paths, missing rating_source should be treated as a bug.
 
 const PAIRWISE_FALLBACK_WEIGHT = 0.25;
 
 /**
- * Get the observation weight for a film's score in a given category.
- * - guided_slider / manual_rating → 1.0
- * - onboarding_pairwise → calibration_confidence[categoryKey] or fallback
+ * Canonical source of truth for how much a film's category score counts
+ * in any aggregate computation (weights, archetype, taste profile, etc.).
+ *
  * @param {object} film - film object from MOVIES
  * @param {string} categoryKey - e.g. 'story', 'craft'
  * @returns {number} weight in [0, 1]
@@ -380,7 +419,8 @@ export function getFilmObservationWeight(film, categoryKey) {
   if (film.rating_source === 'onboarding_pairwise') {
     return film.calibration_confidence?.[categoryKey] ?? PAIRWISE_FALLBACK_WEIGHT;
   }
-  return 1.0; // guided_slider, manual_rating, or untagged legacy films
+  // guided_slider, manual_rating, or legacy films without rating_source
+  return 1.0;
 }
 
 /**
@@ -390,4 +430,27 @@ export function getFilmObservationWeight(film, categoryKey) {
  */
 export function isInferredOnboardingFilm(film) {
   return film?.rating_source === 'onboarding_pairwise';
+}
+
+/**
+ * Compute confidence-weighted category averages across all MOVIES.
+ * Uses getFilmObservationWeight() so pairwise-inferred films are discounted.
+ * Returns { story: 72.3, craft: 68.1, ... } or null if no valid data.
+ */
+export function computeWeightedCategoryAverages(movies = MOVIES) {
+  if (!movies || movies.length === 0) return null;
+  const avgs = {};
+  for (const cat of CATEGORIES) {
+    let weightedSum = 0;
+    let totalWeight = 0;
+    for (const m of movies) {
+      const s = m.scores?.[cat.key];
+      if (s == null) continue;
+      const w = getFilmObservationWeight(m, cat.key);
+      weightedSum += s * w;
+      totalWeight += w;
+    }
+    avgs[cat.key] = totalWeight > 0 ? weightedSum / totalWeight : 50;
+  }
+  return avgs;
 }

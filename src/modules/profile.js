@@ -8,6 +8,7 @@ import { shouldShowHint, renderHint } from './hints.js';
 import { on } from '../events.js';
 import { loadTagVectors, getTagVector, tagVectorsLoaded, getAdmissibleTags } from './tag-genome.js';
 import { computeCategoryFingerprints, getTopCategoryTags, getCoverageCount } from './tag-profile.js';
+import { getFilmObservationWeight } from './weight-blend.js';
 import { evaluatePredictions } from './eval-framework.js';
 
 let profileImportedMovies = null;
@@ -122,8 +123,15 @@ function scoreBars(movies) {
   const expKeys   = ['experience','hold','ending','singularity'];
   function barGroup(keys) {
     return keys.map(c => {
-      const scored = movies.filter(m => m.scores?.[c] != null);
-      const avg = scored.length ? scored.reduce((s, m) => s + m.scores[c], 0) / scored.length : null;
+      let wSum = 0, wTotal = 0;
+      for (const m of movies) {
+        const s = m.scores?.[c];
+        if (s == null) continue;
+        const w = getFilmObservationWeight(m, c);
+        wSum += s * w;
+        wTotal += w;
+      }
+      const avg = wTotal > 0 ? wSum / wTotal : null;
       const display = avg != null ? avg.toFixed(1) : '—';
       const pct = avg != null ? avg : 0;
       return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
@@ -176,8 +184,9 @@ function signatureFilms(movies) {
 function tasteNoteCard(user, movies, archInfo) {
   const avgTotal = movies.length ? (movies.reduce((s, m) => s + m.total, 0) / movies.length).toFixed(1) : '—';
   const catAvgs = CATS.map(c => {
-    const vals = movies.filter(m => m.scores?.[c] != null);
-    return { c, avg: vals.length ? vals.reduce((s, m) => s + m.scores[c], 0) / vals.length : 0 };
+    let wS = 0, wT = 0;
+    for (const m of movies) { const s = m.scores?.[c]; if (s == null) continue; const w = getFilmObservationWeight(m, c); wS += s * w; wT += w; }
+    return { c, avg: wT > 0 ? wS / wT : 0 };
   });
   const topCat = movies.length ? [...catAvgs].sort((a,b) => b.avg - a.avg)[0] : null;
   return `
@@ -443,8 +452,9 @@ export function renderProfile() {
   const movies = MOVIES;
 
   const catAvgs = CATS.map(c => {
-    const scored = movies.filter(m => m.scores?.[c] != null);
-    return { c, avg: scored.length ? scored.reduce((s, m) => s + m.scores[c], 0) / scored.length : 0 };
+    let wS = 0, wT = 0;
+    for (const m of movies) { const s = m.scores?.[c]; if (s == null) continue; const w = getFilmObservationWeight(m, c); wS += s * w; wT += w; }
+    return { c, avg: wT > 0 ? wS / wT : 0 };
   });
   const topCat = movies.length ? [...catAvgs].sort((a,b) => b.avg - a.avg)[0] : null;
   const avgTotal = movies.length ? (movies.reduce((s, m) => s + m.total, 0) / movies.length).toFixed(1) : '—';

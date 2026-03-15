@@ -1,13 +1,19 @@
 import { MOVIES, CATEGORIES } from '../state.js';
 import { renderExploreIndex } from './explore.js';
 import { shouldShowHint, renderHint } from './hints.js';
+import { getFilmObservationWeight } from './weight-blend.js';
 
 export function renderAnalysis() {
-  const avg = arr => arr.length ? Math.round(arr.reduce((s,v) => s+v, 0) / arr.length * 100) / 100 : null;
-
   const catAvgs = CATEGORIES.map(cat => {
-    const vals = MOVIES.map(m => m.scores[cat.key]).filter(v => v != null);
-    return { ...cat, avg: avg(vals) };
+    let wSum = 0, wTotal = 0;
+    for (const m of MOVIES) {
+      const s = m.scores?.[cat.key];
+      if (s == null) continue;
+      const w = getFilmObservationWeight(m, cat.key);
+      wSum += s * w;
+      wTotal += w;
+    }
+    return { ...cat, avg: wTotal > 0 ? Math.round(wSum / wTotal * 100) / 100 : null };
   });
 
   function scoreBadgeColor(v) {

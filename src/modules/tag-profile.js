@@ -2,6 +2,8 @@
 // Computes independent fingerprints per scoring category, enabling
 // "you like atmospheric worlds but not atmospheric experiences"
 
+import { getFilmObservationWeight } from './weight-blend.js';
+
 const CATS = ['story', 'craft', 'performance', 'world', 'experience', 'hold', 'ending', 'singularity'];
 
 /**
@@ -36,8 +38,11 @@ export function computeCategoryFingerprints(movies, tagVectorFn) {
     CATS.forEach(cat => {
       const score = m.scores?.[cat];
       if (score == null) return;
-      // Weight = normalized score (0-1 range)
-      const w = score / 100;
+      // Weight = normalized score (0-1) × observation confidence.
+      // Pairwise-inferred films contribute less to tag fingerprints
+      // than slider-scored films, proportional to calibration confidence.
+      const obsWeight = getFilmObservationWeight(m, cat);
+      const w = (score / 100) * obsWeight;
       catWeightSums[cat] += w;
       for (let i = 0; i < n; i++) {
         fingerprints[cat][i] += vec.values[i] * w;

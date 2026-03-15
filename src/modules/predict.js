@@ -3,6 +3,7 @@ import { syncToSupabase, saveUserLocally, logPrediction } from './supabase.js';
 import { ARCHETYPES } from '../data/archetypes.js';
 import { classifyArchetype } from './quiz-engine.js';
 import { track } from '../analytics.js';
+import { getFilmObservationWeight } from './weight-blend.js';
 
 function renderWelcomeBanner() {
   const el = document.getElementById('foryou-welcome-banner');
@@ -729,12 +730,31 @@ Interpret these films in context: the anchor defines baseline, the contrast reve
 function buildTasteProfile() {
   const cats = ['story','craft','performance','world','experience','hold','ending','singularity'];
   const stats = {};
+  // Use confidence-weighted means/std so pairwise-inferred films don't
+  // distort the taste profile sent to Claude for predictions.
   cats.forEach(cat => {
-    const vals = MOVIES.filter(m => m.scores[cat] != null).map(m => m.scores[cat]);
-    if (!vals.length) { stats[cat] = { mean: 70, std: 10, min: 0, max: 100 }; return; }
-    const mean = vals.reduce((s,v)=>s+v,0) / vals.length;
-    const std = Math.sqrt(vals.reduce((s,v)=>s+(v-mean)**2,0) / vals.length);
-    stats[cat] = { mean: Math.round(mean*10)/10, std: Math.round(std*10)/10, min: Math.min(...vals), max: Math.max(...vals) };
+    let wSum = 0, wTotal = 0, minVal = 100, maxVal = 0;
+    for (const m of MOVIES) {
+      const s = m.scores?.[cat];
+      if (s == null) continue;
+      const w = getFilmObservationWeight(m, cat);
+      wSum += s * w;
+      wTotal += w;
+      if (s < minVal) minVal = s;
+      if (s > maxVal) maxVal = s;
+    }
+    if (wTotal === 0) { stats[cat] = { mean: 70, std: 10, min: 0, max: 100 }; return; }
+    const mean = wSum / wTotal;
+    // Weighted std
+    let varSum = 0;
+    for (const m of MOVIES) {
+      const s = m.scores?.[cat];
+      if (s == null) continue;
+      const w = getFilmObservationWeight(m, cat);
+      varSum += w * (s - mean) ** 2;
+    }
+    const std = Math.sqrt(varSum / wTotal);
+    stats[cat] = { mean: Math.round(mean*10)/10, std: Math.round(std*10)/10, min: minVal, max: maxVal };
   });
 
   const sorted = [...MOVIES].sort((a,b) => b.total - a.total);

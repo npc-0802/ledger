@@ -1,4 +1,5 @@
 import { MOVIES, CATEGORIES, currentUser } from '../state.js';
+import { getFilmObservationWeight } from './weight-blend.js';
 
 const PROXY_URL = 'https://palate-map-proxy.noahparikhcott.workers.dev';
 const CACHE_KEY = 'palate_insights_v1';
@@ -29,8 +30,15 @@ function isFilmStale(entry, total) {
 function buildOverallStats() {
   const stats = {};
   CATEGORIES.forEach(cat => {
-    const vals = MOVIES.filter(m => m.scores[cat.key] != null).map(m => m.scores[cat.key]);
-    stats[cat.key] = vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) : null;
+    let wSum = 0, wTotal = 0;
+    for (const m of MOVIES) {
+      const s = m.scores?.[cat.key];
+      if (s == null) continue;
+      const w = getFilmObservationWeight(m, cat.key);
+      wSum += s * w;
+      wTotal += w;
+    }
+    stats[cat.key] = wTotal > 0 ? Math.round(wSum / wTotal) : null;
   });
   return stats;
 }

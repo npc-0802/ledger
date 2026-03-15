@@ -6,7 +6,7 @@ import { renderRankings } from './rankings.js';
 import { sb, syncToSupabase, saveUserLocally, signInWithGoogle, sendMagicLink } from './supabase.js';
 import { fetchTmdbMovieBundle } from './tmdb-movie.js';
 import { track } from '../analytics.js';
-import { recordWeightSnapshot } from './weight-blend.js';
+import { recordWeightSnapshot, computeWeightedCategoryAverages } from './weight-blend.js';
 import { SELECTION_FILMS } from '../data/selection-films.js';
 
 const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
@@ -1870,18 +1870,16 @@ async function obFinish(reveal, opts = {}) {
   let weights = { ...reveal.weights };
 
   if (MOVIES.length >= 5) {
-    // Compute rating-derived weights
+    // Compute confidence-weighted category averages so pairwise-inferred
+    // films don't dominate the weight vector at onboarding completion.
     const catKeys = CATEGORIES.map(c => c.key);
-    const avgScores = {};
-    catKeys.forEach(c => {
-      avgScores[c] = MOVIES.reduce((s, m) => s + (m.scores?.[c] || 50), 0) / MOVIES.length;
-    });
+    const avgScores = computeWeightedCategoryAverages(MOVIES) || {};
     // Normalize to weight-like scale (1-5)
     const maxAvg = Math.max(...Object.values(avgScores));
     const minAvg = Math.min(...Object.values(avgScores));
     const range = maxAvg - minAvg || 1;
     catKeys.forEach(c => {
-      weights[c] = 1 + ((avgScores[c] - minAvg) / range) * 4;
+      weights[c] = 1 + (((avgScores[c] ?? 50) - minAvg) / range) * 4;
     });
 
     const classification = classifyArchetype(weights);
