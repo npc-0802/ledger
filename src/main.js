@@ -573,30 +573,28 @@ function buildSystemVisuals() {
     discEl.innerHTML = `
       <div class="sys-discover-stack">
         <div class="sys-discover-card">
-          <div class="sys-discover-label">Predicted</div>
-          <div style="display:flex;align-items:flex-end;gap:12px;margin-bottom:8px">
-            <div style="${serif};font-weight:900;font-size:36px;color:${blue};letter-spacing:-1px;line-height:1">78</div>
-            <div>
-              <div style="${sans};font-size:13px;color:#e8e2d6">Lost in Translation</div>
-              <div style="${mono};font-size:8px;color:#555;margin-top:2px">2003 · Sofia Coppola</div>
-            </div>
+          <div class="sys-discover-card-title">
+            <span class="sys-discover-card-film">Lost in Translation</span>
+            <span class="sys-discover-card-score">78</span>
           </div>
+          <div class="sys-discover-card-meta">2003 · Sofia Coppola</div>
           <div class="sys-discover-reason">Strong World match. Lower Story — you need more narrative drive.</div>
         </div>
         <div class="sys-discover-card">
-          <div class="sys-discover-label">For you</div>
-          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px">
-            <div style="${sans};font-size:13px;color:#e8e2d6">Arrival</div>
-            <div style="${mono};font-size:10px;color:${blue}">· 84</div>
+          <div class="sys-discover-card-title">
+            <span class="sys-discover-card-film">Arrival</span>
+            <span class="sys-discover-card-score">84</span>
           </div>
-          <div class="sys-discover-reason">Director affinity — Denis Villeneuve films match your Craft + World profile.</div>
+          <div class="sys-discover-card-meta">2016 · Denis Villeneuve</div>
+          <div class="sys-discover-reason">Villeneuve films match your Craft + World profile.</div>
         </div>
-        <div class="sys-discover-card sys-discover-territory">
-          <div class="sys-discover-label"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" style="vertical-align:-1px;margin-right:4px"><circle cx="8" cy="8" r="6" stroke="#b8860b" stroke-width="1.2" fill="none"/><polygon points="8,3 9.5,7 8,6 6.5,7" fill="#b8860b" opacity="0.7"/><polygon points="8,13 6.5,9 8,10 9.5,9" fill="#b8860b" opacity="0.4"/></svg>New territory</div>
-          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px">
-            <div style="${sans};font-size:13px;color:#e8e2d6">The Handmaiden</div>
-            <div style="${mono};font-size:10px;color:#b8860b">· 87</div>
+        <div class="sys-discover-card">
+          <div class="sys-discover-card-badge"><svg width="10" height="10" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5" stroke="#6dbf8b" stroke-width="1.2"/><path d="M7 2.5L8 5.5L11 7L8 8.5L7 11.5L6 8.5L3 7L6 5.5z" fill="#6dbf8b" opacity="0.7"/></svg>New territory</div>
+          <div class="sys-discover-card-title">
+            <span class="sys-discover-card-film">The Handmaiden</span>
+            <span class="sys-discover-card-score">87</span>
           </div>
+          <div class="sys-discover-card-meta">2016 · Park Chan-wook</div>
           <div class="sys-discover-reason">Outside your usual — high Singularity match from a genre you haven't explored.</div>
         </div>
       </div>`;

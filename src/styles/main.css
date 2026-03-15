@@ -1368,12 +1368,12 @@ body {
 .sys-discover-stack {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 0;
 }
 .sys-discover-card {
-  background: #1a1916;
-  padding: 16px 20px;
-  border: 1px solid rgba(255,255,255,0.04);
+  background: var(--surface-dark-2, #1a1916);
+  padding: 18px 20px;
+  margin-bottom: 10px;
   opacity: 0;
   transform: translateY(12px);
   transition: opacity 0.6s ease, transform 0.6s ease;
@@ -1382,22 +1382,46 @@ body {
   opacity: 1;
   transform: translateY(0);
 }
-.sys-discover-label {
+.sys-discover-card-badge {
   font-family: 'DM Mono', monospace;
   font-size: 9px;
-  letter-spacing: 1.5px;
+  letter-spacing: 1px;
   text-transform: uppercase;
-  color: var(--blue);
-  margin-bottom: 10px;
+  color: #6dbf8b;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
-.sys-discover-territory .sys-discover-label {
-  color: var(--discover);
+.sys-discover-card-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+.sys-discover-card-film {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: 16px;
+  color: var(--on-dark, #f4efe6);
+}
+.sys-discover-card-score {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: 16px;
+  color: var(--blue, #3d5a80);
+}
+.sys-discover-card-meta {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  color: var(--on-dark-dim, #777);
+  margin-bottom: 10px;
 }
 .sys-discover-reason {
   font-family: 'DM Sans', sans-serif;
-  font-size: 11.5px;
-  color: #777;
-  line-height: 1.55;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--on-dark-dim, #777);
 }
 
 /* ── System CTA ── */
