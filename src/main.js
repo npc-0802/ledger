@@ -439,10 +439,10 @@ function buildCarouselCards() {
 
   // ── Card 3: For You Recommendations ──
   const recs = [
-    { title: 'The Handmaiden', poster: 'https://image.tmdb.org/t/p/w342/dLlH4aNHdnmf62umnInL8xPlPzw.jpg', score: 87, reason: 'Strong World + Singularity match — a genre you haven\'t explored.', isNew: true },
-    { title: 'Arrival', poster: 'https://image.tmdb.org/t/p/w342/pEzNVQfdzYDzVK0XqxERIw2x2se.jpg', score: 84, reason: 'Villeneuve films match your Craft + World profile.' },
-    { title: 'In the Mood for Love', poster: 'https://image.tmdb.org/t/p/w342/iYypPT4bhqXfq1b6EnmxvRt6b2Y.jpg', score: 82, reason: 'Atmospheric films with high Hold score well for you.' },
-    { title: 'Moonlight', poster: 'https://image.tmdb.org/t/p/w342/qLnfEmPrDjJfPyyddLJPkXmshkp.jpg', score: 89, reason: 'You care deeply about Performance + Ending. This has both.' },
+    { title: 'The Handmaiden', poster: 'https://image.tmdb.org/t/p/w342/dLlH4aNHdnmf62umnInL8xPlPzw.jpg', score: 87, reason: 'Your two strongest categories in one film — World at 93, Singularity at 89. You\'ve never rated a Korean thriller.', isNew: true },
+    { title: 'Arrival', poster: 'https://image.tmdb.org/t/p/w342/pEzNVQfdzYDzVK0XqxERIw2x2se.jpg', score: 84, reason: 'Villeneuve\'s Craft scores track 12 points above your average. This one also lands on Ending — your most decisive category.' },
+    { title: 'In the Mood for Love', poster: 'https://image.tmdb.org/t/p/w342/iYypPT4bhqXfq1b6EnmxvRt6b2Y.jpg', score: 82, reason: 'Atmospheric films with low plot drive but high Hold are your sweet spot. You\'d rewatch this before most 90s.' },
+    { title: 'Moonlight', poster: 'https://image.tmdb.org/t/p/w342/qLnfEmPrDjJfPyyddLJPkXmshkp.jpg', score: 89, reason: 'Performance-driven films with strong Endings are where your scores spike hardest. This is both — your predicted highest of the four.' },
   ];
   const recItems = recs.map(r => `
     <div class="carousel-foryou-item">

@@ -17,7 +17,8 @@ test.describe('Cold landing page', () => {
     await expect(page.locator('.cold-cta-google')).toBeVisible();
   });
 
-  test('carousel renders 3 cards with dots', async ({ page }) => {
+  test('carousel renders 3 cards with dots', async ({ page, browserName }, testInfo) => {
+    test.skip(testInfo.project.name === 'mobile', 'Carousel hidden on mobile');
     const dots = page.locator('.cold-carousel-dot');
     await expect(dots).toHaveCount(3);
     // First dot is active by default
@@ -26,7 +27,8 @@ test.describe('Cold landing page', () => {
     await expect(page.locator('#carousel-card-0 .card-bar-fill').first()).toBeVisible({ timeout: 3000 });
   });
 
-  test('carousel dot navigation updates active state', async ({ page }) => {
+  test('carousel dot navigation updates active state', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === 'mobile', 'Carousel hidden on mobile');
     // Call goToCardManual directly — inline onclick may not fire reliably on mobile
     await page.evaluate(() => window.goToCardManual(1));
     await expect(page.locator('.cold-carousel-dot').nth(1)).toHaveClass(/active/);
@@ -36,7 +38,8 @@ test.describe('Cold landing page', () => {
     expect(transform).toContain('-100%');
   });
 
-  test('carousel card 3 has recommendation content', async ({ page }) => {
+  test('carousel card 3 has recommendation content', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === 'mobile', 'Carousel hidden on mobile');
     // Verify card 3 was populated by JS (content exists even if off-screen)
     const headline = page.locator('#carousel-card-2 .carousel-headline');
     await expect(headline).toHaveCount(1);
