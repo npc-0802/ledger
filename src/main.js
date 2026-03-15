@@ -770,6 +770,7 @@ async function init() {
           window._pendingAuthSession = session;
           setCloudStatus('local');
           setTimeout(() => showColdLanding(), 400);
+          return;
         }
       }
     }
@@ -784,6 +785,7 @@ async function init() {
     } else {
       setCloudStatus('local');
       setTimeout(() => showColdLanding(), 400);
+      return;
     }
   }
 
