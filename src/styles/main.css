@@ -437,7 +437,7 @@ body {
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
-  padding: 48px 80px 20px;
+  padding: 48px 80px 56px;
   align-items: center;
 }
 
@@ -519,7 +519,6 @@ body {
   flex-direction: column;
   gap: 10px;
   max-width: 300px;
-  margin-bottom: 80px;
 }
 .cold-cta-primary {
   font-family: 'DM Mono', monospace;
@@ -588,6 +587,7 @@ body {
 .cold-carousel {
   position: relative;
   border-radius: 8px;
+  overflow: hidden;
   min-height: 0;
   max-height: min(560px, calc(100vh - 240px));
   display: flex;
