@@ -321,6 +321,9 @@ function renderObStep() {
         <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);letter-spacing:1px">On Letterboxd? &nbsp;</span>
         <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);letter-spacing:1px;cursor:pointer;text-decoration:underline" onclick="obShowImport()">Import your ratings →</span>
       </div>
+      <div style="text-align:center;margin-top:24px">
+        <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);letter-spacing:1px;cursor:pointer" onclick="obBackToLanding()">← Back</span>
+      </div>
     `;
     setTimeout(() => document.getElementById('ob-ml-name')?.focus(), 50);
 
@@ -689,6 +692,12 @@ window.obResendMagicLink = async function() {
 };
 
 window.obShowReturning = function() { obStep = 'returning'; renderObStep(); };
+window.obBackToLanding = function() {
+  const overlay = document.getElementById('onboarding-overlay');
+  if (overlay) overlay.remove();
+  const landing = document.getElementById('cold-landing');
+  if (landing) landing.style.display = 'block';
+};
 
 window.obSignOut = async function() {
   const { signOutUser } = await import('./supabase.js');

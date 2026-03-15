@@ -301,7 +301,7 @@ function buildCarouselCards() {
 
   const card0 = document.getElementById('carousel-card-0');
   if (card0) card0.innerHTML = `
-    <div class="carousel-headline">See exactly how a film hits you — not one number, eight.</div>
+    <div class="carousel-headline">You already know what you love. This shows you why.</div>
     <div class="card1-layout">
       <div class="card1-left">
         <img class="card-poster" src="${posters.parasite}" alt="Parasite" width="64" height="96" loading="lazy">
