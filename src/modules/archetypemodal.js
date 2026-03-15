@@ -78,8 +78,8 @@ export function resetArchetypeWeights() {
   previewWeight();
 }
 
-function detectArchetype(weights) {
-  const classification = classifyArchetype(weights);
+function detectArchetype(weights, priorKey = null) {
+  const classification = classifyArchetype(weights, priorKey);
   return {
     primary: classification.archetype,
     secondary: classification.secondary || '',
@@ -98,7 +98,7 @@ export function saveArchetypeWeights() {
   });
 
   const prevArchetype = currentUser.archetype;
-  const detected = detectArchetype(newWeights);
+  const detected = detectArchetype(newWeights, currentUser.archetype_key || null);
 
   currentUser.weights = newWeights;
   currentUser.archetype = detected.primary;

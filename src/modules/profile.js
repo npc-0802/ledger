@@ -30,8 +30,9 @@ function getArchetypeInfo(user) {
     const key = user.archetype_key || 'balanced';
     const desc = ARCHETYPE_DESCRIPTIONS[key] || ARCHETYPE_DESCRIPTIONS.balanced || {};
     const adj = user.adjective ? (ADJECTIVE_DESCRIPTIONS[user.adjective] || '') : '';
-    // Recompute from current weights for live updates
-    const live = user.weights ? classifyArchetype(user.weights) : null;
+    // Recompute from current weights for live updates (with hysteresis from stored key)
+    const priorKey = user.archetype_key || null;
+    const live = user.weights ? classifyArchetype(user.weights, priorKey) : null;
     const archName = live?.archetype || user.archetype || desc.name || 'Holist';
     const fullName = live?.fullName || user.full_archetype_name || archName;
     const color = live?.color || '#3d5a80';

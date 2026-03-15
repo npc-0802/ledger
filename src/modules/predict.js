@@ -398,7 +398,7 @@ export function initPredict() {
 
 function getArchetypeColor() {
   if (currentUser?.weights) {
-    try { return classifyArchetype(currentUser.weights).color; } catch {}
+    try { return classifyArchetype(currentUser.weights, currentUser.archetype_key || null).color; } catch {}
   }
   const archetype = currentUser?.archetype;
   return (archetype && ARCHETYPES[archetype]) ? ARCHETYPES[archetype].palette : null;

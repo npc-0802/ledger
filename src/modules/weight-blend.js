@@ -303,8 +303,9 @@ export function updateEffectiveWeights() {
     }
   }
 
-  // Recompute archetype from effective weights
-  const classification = classifyArchetype(effective);
+  // Recompute archetype from effective weights (with hysteresis from prior)
+  const priorKey = currentUser.archetype_key || null;
+  const classification = classifyArchetype(effective, priorKey);
   const prevArchetype = currentUser.archetype;
 
   // Update user
