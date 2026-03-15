@@ -60,6 +60,133 @@ const BEAT_CATS = ['craft', 'world', 'ending', 'singularity'];
 const CAT_LABELS = {};
 CATEGORIES.forEach(c => { CAT_LABELS[c.key] = c.fullLabel || c.label; });
 
+// ── AUTOSAVE & RESUME ──
+const OB_SAVE_KEY = 'palatemap_onboarding_state';
+const OB_SAVE_VERSION = 1;
+const OB_SAVE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+function getCurrentOnboardingProgressPercent() {
+  if (obStep === 'taste-reveal') return 100;
+  if (obStep === 'ob-absolute') return 85 + (_absoluteIndex / Math.max(selectSelectedFilms.length, 1)) * 15;
+  if (obStep === 'ob-calibrate' && obCalComparisons.length > 0) return 65 + (obCalIndex / obCalComparisons.length) * 20;
+  if (obStep === 'select' || obStep === 'transition') return 60;
+  if (obStep === 'guided' || obStep === 'guided-score' || obStep === 'guided-insight' || obStep === 'guided-weights') return Math.min(guidedFilms.length * 12, 60);
+  return 0;
+}
+
+function buildOnboardingState() {
+  return {
+    version: OB_SAVE_VERSION,
+    savedAt: Date.now(),
+    obStep, obDisplayName, obImportedMovies, obMagicLinkEmail,
+    obStartTime: _obStartTime,
+    guidedStep, guidedFilms, guidedSelectedFilm, guidedScores,
+    guidedSliderStage, guidedInsight,
+    selectSelectedFilms, selectVisibleCount, selectSearchAdded,
+    obCalComparisons, obCalIndex, obCalResults,
+    calStartTimestamp: _calStartTimestamp, calCompTimestamps: _calCompTimestamps,
+    absoluteIndex: _absoluteIndex, absoluteResponses: _absoluteResponses,
+    absoluteStartTimestamp: _absoluteStartTimestamp,
+    tasteRevealData: _tasteRevealData,
+    progressPercent: getCurrentOnboardingProgressPercent(),
+    pendingAuthSession: window._pendingAuthSession ? {
+      userId: window._pendingAuthSession.user?.id || null,
+      email: window._pendingAuthSession.user?.email || null,
+    } : null,
+  };
+}
+
+function saveOnboardingState() {
+  try {
+    localStorage.setItem(OB_SAVE_KEY, JSON.stringify(buildOnboardingState()));
+  } catch (e) {
+    console.warn('Onboarding autosave failed:', e);
+  }
+}
+
+function loadOnboardingState() {
+  try {
+    const raw = localStorage.getItem(OB_SAVE_KEY);
+    if (!raw) return null;
+    const state = JSON.parse(raw);
+    if (state.version !== OB_SAVE_VERSION) { clearOnboardingState(); return null; }
+    if (Date.now() - state.savedAt > OB_SAVE_EXPIRY_MS) { clearOnboardingState(); return null; }
+    return state;
+  } catch (e) {
+    clearOnboardingState();
+    return null;
+  }
+}
+
+function clearOnboardingState() {
+  localStorage.removeItem(OB_SAVE_KEY);
+}
+
+function restoreOnboardingState(state) {
+  obStep = state.obStep || 'name';
+  obDisplayName = state.obDisplayName || '';
+  obImportedMovies = state.obImportedMovies || null;
+  obMagicLinkEmail = state.obMagicLinkEmail || '';
+  _obStartTime = state.obStartTime || Date.now();
+
+  guidedStep = state.guidedStep || 1;
+  guidedFilms = state.guidedFilms || [];
+  guidedSelectedFilm = state.guidedSelectedFilm || null;
+  guidedScores = state.guidedScores || {};
+  guidedSliderStage = state.guidedSliderStage || 'gut';
+  guidedInsight = state.guidedInsight || null;
+
+  selectSelectedFilms = state.selectSelectedFilms || [];
+  selectVisibleCount = state.selectVisibleCount || 15;
+  selectSearchAdded = state.selectSearchAdded || [];
+  selectSearchResults = null;
+
+  obCalComparisons = state.obCalComparisons || [];
+  obCalIndex = state.obCalIndex || 0;
+  obCalResults = state.obCalResults || [];
+  _calStartTimestamp = state.calStartTimestamp || null;
+  _calCompTimestamps = state.calCompTimestamps || [];
+
+  _absoluteIndex = state.absoluteIndex || 0;
+  _absoluteResponses = state.absoluteResponses || {};
+  _absoluteStartTimestamp = state.absoluteStartTimestamp || null;
+
+  _tasteRevealData = state.tasteRevealData || null;
+
+  if (state.pendingAuthSession && !window._pendingAuthSession) {
+    window._pendingAuthSession = { user: { id: state.pendingAuthSession.userId, email: state.pendingAuthSession.email } };
+  }
+
+  // Restore guided films into MOVIES without duplication
+  const movieIds = new Set(MOVIES.map(m => String(m.tmdbId)));
+  for (const gf of guidedFilms) {
+    if (!movieIds.has(String(gf.tmdbId))) {
+      MOVIES.push({
+        title: gf.title, year: gf.year,
+        director: gf.director || '', writer: '', cast: '',
+        productionCompanies: '', poster: gf.poster,
+        overview: '', tmdbId: gf.tmdbId,
+        scores: { ...gf.scores }, total: gf.total,
+        rating_source: 'guided_slider',
+        onboarding_role: gf.onboarding_role || 'anchor',
+      });
+      movieIds.add(String(gf.tmdbId));
+    }
+  }
+}
+
+function getResumeSummary(state) {
+  const step = state.obStep;
+  if (step === 'guided' || step === 'guided-score' || step === 'guided-insight' || step === 'guided-weights')
+    return `${state.guidedFilms?.length || 0} of 5 films scored`;
+  if (step === 'transition') return 'ready for the next round';
+  if (step === 'select') return `${state.selectSelectedFilms?.length || 0} of 5 calibration films selected`;
+  if (step === 'ob-calibrate') return `${state.obCalIndex || 0} of ${state.obCalComparisons?.length || 30} comparisons done`;
+  if (step === 'ob-absolute') return `${Object.keys(state.absoluteResponses || {}).length} of ${state.selectSelectedFilms?.length || 5} final placements done`;
+  if (step === 'taste-reveal') return 'your palate is ready';
+  return 'in progress';
+}
+
 // ── PROGRESS BAR ──
 const PROGRESS_LABELS = {
   0:   'Getting to know you',
@@ -365,6 +492,10 @@ export function launchOnboarding(opts = {}) {
   obCalComparisons = [];
   obCalIndex = 0;
   obCalResults = [];
+  _absoluteIndex = 0;
+  _absoluteResponses = {};
+  _absoluteStartTimestamp = null;
+  clearOnboardingState();
   if (opts.skipToGuided) {
     obDisplayName = opts.name || '';
     obStep = 'guided';
@@ -374,6 +505,132 @@ export function launchOnboarding(opts = {}) {
   }
   renderObStep();
 }
+
+// Check for saved onboarding state and return it if valid.
+// Called from main.js init() to decide whether to show resume prompt.
+export function checkOnboardingResume() {
+  return loadOnboardingState();
+}
+
+// Launch onboarding with a resume prompt showing saved progress.
+export function showResumePrompt(savedState) {
+  const overlay = document.getElementById('onboarding-overlay');
+  overlay.style.display = 'flex';
+  overlay.classList.remove('starters-mode');
+  const card = document.getElementById('ob-card-content');
+  const summary = getResumeSummary(savedState);
+  const pct = Math.round(savedState.progressPercent || 0);
+
+  card.innerHTML = `
+    <div style="max-width:420px;margin:0 auto;padding:80px 24px 40px;text-align:center">
+      <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:28px;color:var(--on-dark);margin-bottom:12px;opacity:0;animation:fadeIn 0.4s ease 0.2s both">Welcome back.</div>
+      <div style="font-family:'DM Sans',sans-serif;font-size:15px;color:var(--on-dark-dim);line-height:1.6;margin-bottom:8px;opacity:0;animation:fadeIn 0.4s ease 0.4s both">
+        You have an onboarding session in progress — ${summary}.
+      </div>
+      <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);opacity:0.6;margin-bottom:36px;opacity:0;animation:fadeIn 0.3s ease 0.5s both">${pct}% complete</div>
+      <div style="display:flex;flex-direction:column;gap:12px;max-width:300px;margin:0 auto;opacity:0;animation:fadeIn 0.4s ease 0.6s both">
+        <button class="ob-btn" style="background:var(--action)" onclick="obResumeSession()">Continue where I left off</button>
+        <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="obStartOver()">Start over</span>
+      </div>
+    </div>
+  `;
+
+  // Render topbar
+  const topbar = document.getElementById('ob-topbar');
+  if (topbar) {
+    const userLabel = savedState.obDisplayName || '';
+    topbar.innerHTML = `
+      <span class="ob-topbar-wordmark">palate map</span>
+      ${userLabel ? `<span class="ob-topbar-user">${userLabel}</span>` : ''}
+    `;
+  }
+
+  track('onboarding_resume_prompt_shown', {
+    saved_step: savedState.obStep,
+    guided_films_count: savedState.guidedFilms?.length || 0,
+    selected_films_count: savedState.selectSelectedFilms?.length || 0,
+    comparisons_answered: savedState.obCalIndex || 0,
+    absolute_answered: Object.keys(savedState.absoluteResponses || {}).length,
+    progress_percent: pct,
+  });
+}
+
+window.obResumeSession = function() {
+  const savedState = loadOnboardingState();
+  if (!savedState) { launchOnboarding(); return; }
+
+  track('onboarding_resume_continue', {
+    saved_step: savedState.obStep,
+    progress_percent: Math.round(savedState.progressPercent || 0),
+  });
+
+  restoreOnboardingState(savedState);
+
+  // Animate progress bar from 0 to saved percentage (400ms CSS transition)
+  ensureProgressBar();
+  const fill = document.getElementById('ob-progress-fill');
+  if (fill) {
+    fill.style.transition = 'none';
+    fill.style.width = '0%';
+    fill.offsetWidth; // force reflow
+    fill.style.transition = '';  // restore CSS transition
+  }
+  updateProgress(savedState.progressPercent || 0);
+
+  // Add starters-mode class for guided/selection/calibrate/absolute screens
+  const overlay = document.getElementById('onboarding-overlay');
+  if (['guided', 'guided-score', 'guided-insight', 'guided-weights', 'select', 'ob-calibrate', 'ob-absolute', 'taste-reveal', 'transition'].includes(obStep)) {
+    overlay.classList.add('starters-mode');
+  }
+
+  renderObStep();
+};
+
+window.obStartOver = function() {
+  track('onboarding_resume_start_over');
+  clearOnboardingState();
+  // Remove any guided films that were restored to MOVIES
+  const guidedIds = new Set((guidedFilms || []).map(f => String(f.tmdbId)));
+  if (guidedIds.size > 0) {
+    const filtered = MOVIES.filter(m => !guidedIds.has(String(m.tmdbId)));
+    setMovies(filtered);
+  }
+  launchOnboarding();
+};
+
+window.saveAndExitOnboarding = function() {
+  saveOnboardingState();
+  track('onboarding_save_and_exit', {
+    saved_step: obStep,
+    progress_percent: Math.round(getCurrentOnboardingProgressPercent()),
+  });
+
+  // Save any committed film objects through normal persistence
+  if (guidedFilms.length > 0) {
+    saveToStorage();
+  }
+
+  const card = document.getElementById('ob-card-content');
+  if (card) {
+    card.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;opacity:0;animation:fadeIn 0.3s ease both">
+        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:24px;color:var(--on-dark);margin-bottom:12px">Saved.</div>
+        <div style="font-family:'DM Sans',sans-serif;font-size:14px;color:var(--on-dark-dim);line-height:1.6;text-align:center;max-width:300px">Come back anytime — we'll pick up where you left off.</div>
+      </div>`;
+  }
+  hideProgressBar();
+
+  setTimeout(() => {
+    const overlay = document.getElementById('onboarding-overlay');
+    if (overlay) {
+      overlay.classList.add('exiting');
+      overlay.addEventListener('animationend', () => {
+        overlay.style.display = 'none';
+        overlay.classList.remove('exiting', 'starters-mode');
+      }, { once: true });
+    }
+  }, 1500);
+};
 
 function renderObStep() {
   const card = document.getElementById('ob-card-content');
@@ -544,7 +801,7 @@ function renderGuidedStep() {
 
       <div style="display:flex;justify-content:center;gap:24px;margin-top:32px;opacity:0;animation:fadeIn 0.3s ease 1s both">
         ${guidedStep > 1 ? `<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);cursor:pointer;letter-spacing:0.5px;text-decoration:underline;text-underline-offset:2px" onclick="guidedBack()">← Back</span>` : ''}
-        ${guidedFilms.length >= 1 ? `<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);cursor:pointer;letter-spacing:0.5px;text-decoration:underline;text-underline-offset:2px" onclick="guidedSaveAndFinish()">Save and finish later</span>` : ''}
+        ${guidedFilms.length >= 1 ? `<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);cursor:pointer;letter-spacing:0.5px;text-decoration:underline;text-underline-offset:2px" onclick="saveAndExitOnboarding()">Save and finish later</span>` : ''}
       </div>
     </div>
   `;
@@ -1068,6 +1325,8 @@ window.guidedRateFilm = async function() {
   updateProgress(Math.min(guidedFilms.length * 12, 60));
 
   obStep = 'guided-insight';
+  saveOnboardingState();
+  saveToStorage(); // persist committed film object
   renderObStep();
 
   // Lazy-load full TMDB metadata in background
@@ -1242,6 +1501,7 @@ window.obSelectSearchResult = function(tmdbId, title, year, poster) {
     }
   }
   selectSearchResults = null;
+  saveOnboardingState();
   renderSelectScreen();
 };
 
@@ -1254,6 +1514,7 @@ window.obToggleSelectFilm = function(tmdbId) {
     const film = available.find(f => String(f.tmdbId) === String(tmdbId));
     if (film) selectSelectedFilms.push(film);
   }
+  saveOnboardingState();
   renderSelectScreen();
 };
 
@@ -1307,6 +1568,7 @@ window.obConfirmSelection = async function() {
     selected_films_count: selectSelectedFilms.length,
   });
   obStep = 'ob-calibrate';
+  saveOnboardingState();
   renderObStep();
 };
 
@@ -1414,6 +1676,8 @@ window.obCalPick = function(choice) {
     elapsed_ms: elapsedMs,
   });
 
+  saveOnboardingState();
+
   // Visual feedback
   const matchup = document.querySelector('.ob-calibrate-matchup');
   if (matchup) {
@@ -1442,6 +1706,7 @@ window.obCalTie = function() {
     comparison_index: obCalIndex,
     elapsed_ms: elapsedMs,
   });
+  saveOnboardingState();
 
   obCalIndex++;
   if (obCalIndex >= obCalComparisons.length) {
@@ -1537,6 +1802,7 @@ window.obAbsolutePick = function(bucketKey) {
     bucket: bucket.key,
     targetTotal: bucket.target,
   };
+  saveOnboardingState();
 
   _absoluteIndex++;
   if (_absoluteIndex >= selectSelectedFilms.length) {
@@ -1783,6 +2049,7 @@ function renderTasteReveal() {
 
   // Persist for obEnterApp so obFinish uses shaped weights, not flat defaults
   _tasteRevealData = { weights, classification };
+  saveOnboardingState();
 
   // Track taste reveal
   const calibratedMovies = MOVIES.filter(m => m.rating_source === 'onboarding_pairwise');
@@ -2028,6 +2295,7 @@ function guidedFinishWithDefaults() {
 }
 
 async function obFinish(reveal, opts = {}) {
+  clearOnboardingState();
   // Preserve existing user identity for re-onboarding; generate new id only for fresh sign-ups
   const existing = currentUser;
   const id = existing?.id || crypto.randomUUID();

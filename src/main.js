@@ -8,7 +8,7 @@ import { renderExploreIndex, exploreEntity } from './modules/explore.js';
 import { renderAnalysis } from './modules/analysis.js';
 import { initPredict, predictSearch, predictSearchDebounce, predictSelectFilm, predictAddToList, predictFresh } from './modules/predict.js';
 import { startCalibration, selectCalCat, selectCalInt, applyCalibration, resetCalibration } from './modules/calibrate.js';
-import { launchOnboarding } from './modules/onboarding.js';
+import { launchOnboarding, checkOnboardingResume, showResumePrompt } from './modules/onboarding.js';
 import { syncToSupabase, loadFromSupabase, saveUserLocally, loadUserLocally, getAuthSession, loadFromSupabaseByAuth, sb } from './modules/supabase.js';
 import { saveToStorage, loadFromStorage, runMigrations } from './modules/storage.js';
 import {
@@ -682,7 +682,12 @@ window.startFromLanding = function() {
   track('cold_landing_email');
   const el = document.getElementById('cold-landing');
   exitColdLanding(el);
-  launchOnboarding();
+  const savedOb = checkOnboardingResume();
+  if (savedOb) {
+    showResumePrompt(savedOb);
+  } else {
+    launchOnboarding();
+  }
 };
 
 // Test helper: skip auth and jump directly to guided flow
@@ -761,12 +766,18 @@ async function init() {
           launchOnboarding({ skipToGuided: true, name });
           return;
         } else {
-          // Stale session, no profile — show cold landing
+          // Stale session, no profile — check for saved onboarding or show cold landing
           if (currentUser && !currentUser.quiz_weights) {
             setCurrentUser(null);
             setMovies([]);
           }
           window._pendingAuthSession = session;
+          const savedOb = checkOnboardingResume();
+          if (savedOb) {
+            removeAppCloak();
+            showResumePrompt(savedOb);
+            return;
+          }
           setCloudStatus('local');
           setTimeout(() => showColdLanding(), 400);
           return;
@@ -782,6 +793,13 @@ async function init() {
       applyUserWeights();
       loadFromSupabase(currentUser.id).catch(() => setCloudStatus('error'));
     } else {
+      // Check for saved onboarding progress before showing cold landing
+      const savedOb = checkOnboardingResume();
+      if (savedOb) {
+        removeAppCloak();
+        showResumePrompt(savedOb);
+        return;
+      }
       setCloudStatus('local');
       setTimeout(() => showColdLanding(), 400);
       return;
