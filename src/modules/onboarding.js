@@ -500,6 +500,10 @@ export function launchOnboarding(opts = {}) {
     obDisplayName = opts.name || '';
     obStep = 'guided';
     track('onboarding_start', { method: 'google' });
+  } else if (opts.skipToImport) {
+    obStep = 'import';
+    obImportedMovies = null;
+    track('onboarding_start', { method: 'letterboxd_import' });
   } else {
     obStep = 'name';
   }
@@ -529,8 +533,8 @@ export function showResumePrompt(savedState) {
       </div>
       <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);opacity:0.6;margin-bottom:36px;opacity:0;animation:fadeIn 0.3s ease 0.5s both">${pct}% complete</div>
       <div style="display:flex;flex-direction:column;gap:12px;max-width:300px;margin:0 auto;opacity:0;animation:fadeIn 0.4s ease 0.6s both">
-        <button class="ob-btn" style="background:var(--action)" onclick="obResumeSession()">Continue where I left off</button>
-        <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="obStartOver()">Start over</span>
+        <button class="ob-btn" data-testid="resume-continue" style="background:var(--action)" onclick="obResumeSession()">Continue where I left off</button>
+        <span data-testid="resume-start-over" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="obStartOver()">Start over</span>
       </div>
     </div>
   `;
@@ -631,6 +635,33 @@ window.saveAndExitOnboarding = function() {
     }
   }, 1500);
 };
+
+// ── TEST HELPER ──
+// Exposes internal onboarding state for Playwright tests.
+// Only attached in dev/test environments.
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, '__pmOnboardingDebug', {
+    get() {
+      return {
+        obStep,
+        guidedStep,
+        guidedFilms: guidedFilms.map(f => ({ tmdbId: f.tmdbId, title: f.title, total: f.total, scores: { ...f.scores } })),
+        guidedSelectedFilm,
+        guidedSliderStage,
+        selectSelectedFilms: selectSelectedFilms.map(f => ({ tmdbId: f.tmdbId, title: f.title })),
+        obCalIndex,
+        obCalComparisons: obCalComparisons.length,
+        obCalResults: obCalResults.length,
+        absoluteIndex: _absoluteIndex,
+        absoluteResponses: { ..._absoluteResponses },
+        progressPercent: getCurrentOnboardingProgressPercent(),
+        savedState: loadOnboardingState(),
+        estimateCategoryScore,
+        ABSOLUTE_BUCKETS,
+      };
+    }
+  });
+}
 
 function renderObStep() {
   const card = document.getElementById('ob-card-content');
@@ -793,7 +824,7 @@ function renderGuidedStep() {
       ${prompt.reason ? `<div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim);opacity:0.7;margin-bottom:24px;opacity:0;animation:fadeIn 0.3s ease 0.8s both">${prompt.reason}</div>` : '<div style="margin-bottom:24px"></div>'}
 
       <div style="position:relative;opacity:0;animation:fadeIn 0.4s ease 0.8s both">
-        <input id="guided-search-input" type="text" placeholder="Search for a film..."
+        <input id="guided-search-input" data-testid="guided-search" type="text" placeholder="Search for a film..."
           style="width:100%;box-sizing:border-box;background:rgba(244,239,230,0.06);border:1px solid rgba(244,239,230,0.15);color:var(--on-dark);font-family:'DM Sans',sans-serif;font-size:16px;padding:14px 16px;border-radius:3px;outline:none"
           oninput="guidedSearchFilm(this.value)">
         <div id="guided-search-results" style="margin-top:8px"></div>
@@ -801,7 +832,7 @@ function renderGuidedStep() {
 
       <div style="display:flex;justify-content:center;gap:24px;margin-top:32px;opacity:0;animation:fadeIn 0.3s ease 1s both">
         ${guidedStep > 1 ? `<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);cursor:pointer;letter-spacing:0.5px;text-decoration:underline;text-underline-offset:2px" onclick="guidedBack()">← Back</span>` : ''}
-        ${guidedFilms.length >= 1 ? `<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);cursor:pointer;letter-spacing:0.5px;text-decoration:underline;text-underline-offset:2px" onclick="saveAndExitOnboarding()">Save and finish later</span>` : ''}
+        ${guidedFilms.length >= 1 ? `<span data-testid="save-exit" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);cursor:pointer;letter-spacing:0.5px;text-decoration:underline;text-underline-offset:2px" onclick="saveAndExitOnboarding()">Save and finish later</span>` : ''}
       </div>
     </div>
   `;
@@ -1383,7 +1414,7 @@ function renderTransition() {
         <span style="color:var(--on-dark)">Same precision. Much faster.</span>
       </p>
       <div style="opacity:0;animation:fadeIn 0.3s ease 1s both">
-        <button class="ob-btn" style="max-width:300px;background:var(--action)" onclick="obStartSelection()">Let's go →</button>
+        <button class="ob-btn" data-testid="transition-continue" style="max-width:300px;background:var(--action)" onclick="obStartSelection()">Let's go →</button>
       </div>
     </div>
   `;
@@ -1645,20 +1676,20 @@ function renderObCalibrate() {
 
   card.innerHTML = `
     <div style="max-width:480px;margin:0 auto;padding:60px 24px 40px;text-align:center">
-      <div class="ob-calibrate-question">${CAT_QUESTIONS[comp.category]}</div>
+      <div class="ob-calibrate-question" data-testid="cal-question">${CAT_QUESTIONS[comp.category]}</div>
       <div class="ob-calibrate-matchup">
-        <div class="ob-calibrate-film" onclick="obCalPick('a')">
+        <div class="ob-calibrate-film" data-testid="cal-pick-a" onclick="obCalPick('a')">
           <img src="https://image.tmdb.org/t/p/w154${comp.filmA.poster}" alt="${comp.filmA.title}">
           <div class="ob-calibrate-film-title">${comp.filmA.title}</div>
         </div>
-        <div class="ob-calibrate-film" onclick="obCalPick('b')">
+        <div class="ob-calibrate-film" data-testid="cal-pick-b" onclick="obCalPick('b')">
           <img src="https://image.tmdb.org/t/p/w154${comp.filmB.poster}" alt="${comp.filmB.title}">
           <div class="ob-calibrate-film-title">${comp.filmB.title}</div>
         </div>
       </div>
       <div class="ob-calibrate-count">Question ${obCalIndex + 1} of ${total}</div>
       <div style="margin-top:20px">
-        <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="obCalTie()">Too close to call</span>
+        <span data-testid="cal-tie" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="obCalTie()">Too close to call</span>
       </div>
     </div>
   `;
@@ -1761,7 +1792,7 @@ function renderAbsolutePass() {
   updateProgress(pct);
 
   const buttonsHTML = ABSOLUTE_BUCKETS.map(b =>
-    `<button class="ob-absolute-btn" onclick="obAbsolutePick('${b.key}')" style="
+    `<button class="ob-absolute-btn" data-testid="absolute-${b.key}" onclick="obAbsolutePick('${b.key}')" style="
       display:block;width:100%;padding:14px 20px;margin-bottom:10px;
       background:rgba(244,239,230,0.04);border:1px solid rgba(244,239,230,0.12);
       color:var(--on-dark);font-family:'DM Sans',sans-serif;font-size:15px;

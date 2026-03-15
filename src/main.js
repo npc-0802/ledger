@@ -160,10 +160,10 @@ function animateCard(n) {
     const insight = card.querySelector('.carousel-friends-insight');
     const center = youPoly ? youPoly.getAttribute('points').split(' ').slice(0, 8).join(' ') : '';
 
-    // Reset
+    // Reset — polygons start invisible and collapsed to center
     if (compat) compat.classList.remove('visible');
-    if (youPoly) youPoly.setAttribute('points', center);
-    if (sarahPoly) sarahPoly.setAttribute('points', center);
+    if (youPoly) { youPoly.setAttribute('points', center); youPoly.setAttribute('opacity', '0'); }
+    if (sarahPoly) { sarahPoly.setAttribute('points', center); sarahPoly.setAttribute('opacity', '0'); }
     if (stats) stats.style.opacity = '0';
     corated.forEach(c => c.style.opacity = '0');
     if (insight) insight.style.opacity = '0';
@@ -172,8 +172,8 @@ function animateCard(n) {
 
     if (prefersReduced) {
       if (compat) compat.classList.add('visible');
-      if (youPoly) youPoly.setAttribute('points', youPoly.dataset.target);
-      if (sarahPoly) sarahPoly.setAttribute('points', sarahPoly.dataset.target);
+      if (youPoly) { youPoly.setAttribute('points', youPoly.dataset.target); youPoly.setAttribute('opacity', '1'); }
+      if (sarahPoly) { sarahPoly.setAttribute('points', sarahPoly.dataset.target); sarahPoly.setAttribute('opacity', '1'); }
       if (stats) stats.style.opacity = '1';
       corated.forEach(c => c.style.opacity = '1');
       if (insight) insight.style.opacity = '1';
@@ -183,13 +183,15 @@ function animateCard(n) {
     }
 
     setTimeout(() => { if (compat) compat.classList.add('visible'); }, 300);
-    if (youPoly) animatePolygon(youPoly, 500, 800);
-    if (sarahPoly) animatePolygon(sarahPoly, 1300, 800);
-    setTimeout(() => { if (stats) stats.style.transition = 'opacity 0.5s ease'; stats.style.opacity = '1'; }, 1200);
-    corated.forEach((c, i) => setTimeout(() => { c.style.transition = 'opacity 0.5s ease'; c.style.opacity = '1'; }, 1400 + i * 100));
-    setTimeout(() => { if (insight) insight.style.transition = 'opacity 0.5s ease'; insight.style.opacity = '1'; }, 1600);
-    setTimeout(() => { if (predict) predict.style.transition = 'opacity 0.6s ease'; predict.style.opacity = '1'; }, 1700);
-    setTimeout(() => { if (headline) headline.classList.add('visible'); }, 2000);
+    // Blue polygon fades in and grows from center first
+    if (youPoly) { setTimeout(() => youPoly.setAttribute('opacity', '1'), 500); animatePolygon(youPoly, 500, 800); }
+    // Gold dashed polygon follows 400ms later
+    if (sarahPoly) { setTimeout(() => sarahPoly.setAttribute('opacity', '1'), 900); animatePolygon(sarahPoly, 900, 800); }
+    setTimeout(() => { if (stats) stats.style.transition = 'opacity 0.5s ease'; stats.style.opacity = '1'; }, 1400);
+    corated.forEach((c, i) => setTimeout(() => { c.style.transition = 'opacity 0.5s ease'; c.style.opacity = '1'; }, 1600 + i * 100));
+    setTimeout(() => { if (insight) insight.style.transition = 'opacity 0.5s ease'; insight.style.opacity = '1'; }, 1800);
+    setTimeout(() => { if (predict) predict.style.transition = 'opacity 0.6s ease'; predict.style.opacity = '1'; }, 1900);
+    setTimeout(() => { if (headline) headline.classList.add('visible'); }, 2200);
     return;
   }
 
@@ -397,8 +399,8 @@ function buildCarouselCards() {
           <div class="card-overlap-radar">
             <svg viewBox="-24 -14 248 228" width="160" height="160" class="card-overlap-svg">
               ${oRings}${oAxes}${oLabels}
-              <polygon class="card-overlap-you" points="${youCenter}" data-target="${youTarget}" fill="rgba(61,90,128,0.12)" stroke="#3d5a80" stroke-width="1.5"/>
-              <polygon class="card-overlap-sarah" points="${youCenter}" data-target="${sarahTarget}" fill="rgba(212,168,75,0.12)" stroke="#D4A84B" stroke-width="1.5" stroke-dasharray="4 3"/>
+              <polygon class="card-overlap-you" points="${youCenter}" data-target="${youTarget}" fill="rgba(61,90,128,0.12)" stroke="#3d5a80" stroke-width="1.5" opacity="0"/>
+              <polygon class="card-overlap-sarah" points="${youCenter}" data-target="${sarahTarget}" fill="rgba(212,168,75,0.12)" stroke="#D4A84B" stroke-width="1.5" stroke-dasharray="4 3" opacity="0"/>
             </svg>
           </div>
         </div>
@@ -589,7 +591,7 @@ function buildSystemVisuals() {
           <div class="sys-discover-reason">Villeneuve films match your Craft + World profile.</div>
         </div>
         <div class="sys-discover-card">
-          <div class="sys-discover-card-badge"><svg width="10" height="10" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5" stroke="#6dbf8b" stroke-width="1.2"/><path d="M7 2.5L8 5.5L11 7L8 8.5L7 11.5L6 8.5L3 7L6 5.5z" fill="#6dbf8b" opacity="0.7"/></svg>New territory</div>
+          <div class="sys-discover-card-badge"><svg width="10" height="10" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5" stroke="#b8860b" stroke-width="1.2"/><path d="M7 2.5L8 5.5L11 7L8 8.5L7 11.5L6 8.5L3 7L6 5.5z" fill="#b8860b" opacity="0.7"/></svg>New territory</div>
           <div class="sys-discover-card-title">
             <span class="sys-discover-card-film">The Handmaiden</span>
             <span class="sys-discover-card-score">87</span>
@@ -686,6 +688,13 @@ window.startFromLanding = function() {
   } else {
     launchOnboarding();
   }
+};
+
+window.startFromLandingImport = function() {
+  track('cold_landing_letterboxd');
+  const el = document.getElementById('cold-landing');
+  exitColdLanding(el);
+  launchOnboarding({ skipToImport: true });
 };
 
 // Test helper: skip auth and jump directly to guided flow
