@@ -390,7 +390,6 @@ function buildCarouselCards() {
         <div class="card-compat-score">73<span class="card-compat-pct">%</span></div>
         <div class="card-avatar-wrap">
           <div class="card-avatar"><span class="card-avatar-letter">S</span></div>
-          <div class="card-avatar-name">Sarah</div>
         </div>
       </div>
       <div class="carousel-friends-top">
