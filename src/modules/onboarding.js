@@ -62,6 +62,7 @@ CATEGORIES.forEach(c => { CAT_LABELS[c.key] = c.fullLabel || c.label; });
 
 // ── AUTOSAVE & RESUME ──
 const OB_SAVE_KEY = 'palatemap_onboarding_state';
+const OB_WRITE_TOKEN_KEY = 'palatemap_ob_write_token';
 const OB_SAVE_VERSION = 1;
 const OB_SAVE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -97,10 +98,54 @@ function buildOnboardingState() {
 }
 
 function saveOnboardingState() {
+  const state = buildOnboardingState();
   try {
-    localStorage.setItem(OB_SAVE_KEY, JSON.stringify(buildOnboardingState()));
+    localStorage.setItem(OB_SAVE_KEY, JSON.stringify(state));
   } catch (e) {
     console.warn('Onboarding autosave failed:', e);
+  }
+  // Fire-and-forget server save when email is known
+  const email = (obMagicLinkEmail || '').toLowerCase().trim();
+  if (email) {
+    saveOnboardingStateToServer(email, state).catch(() => {});
+  }
+}
+
+async function saveOnboardingStateToServer(email, state) {
+  try {
+    const existingToken = localStorage.getItem(OB_WRITE_TOKEN_KEY) || null;
+    const { data, error } = await sb.rpc('save_onboarding_state', {
+      p_email: email,
+      p_display_name: state.obDisplayName || null,
+      p_state: state,
+      p_write_token: existingToken,
+    });
+    if (error) {
+      console.warn('Server onboarding save failed:', error.message);
+      return;
+    }
+    // RPC returns the write token on success, null on token mismatch
+    if (data) {
+      localStorage.setItem(OB_WRITE_TOKEN_KEY, data);
+    }
+  } catch (e) {
+    console.warn('Server onboarding save error:', e);
+  }
+}
+
+export async function loadOnboardingStateFromServer(email) {
+  try {
+    const { data, error } = await sb.from('onboarding_autosave')
+      .select('state')
+      .eq('email', email.toLowerCase().trim())
+      .single();
+    if (error || !data) return null;
+    const state = data.state;
+    if (state.version !== OB_SAVE_VERSION) return null;
+    if (Date.now() - state.savedAt > OB_SAVE_EXPIRY_MS) return null;
+    return state;
+  } catch {
+    return null;
   }
 }
 
@@ -120,6 +165,12 @@ function loadOnboardingState() {
 
 function clearOnboardingState() {
   localStorage.removeItem(OB_SAVE_KEY);
+  localStorage.removeItem(OB_WRITE_TOKEN_KEY);
+  // Also clear server-side if email is known (fire-and-forget, works when authenticated)
+  const email = (obMagicLinkEmail || '').toLowerCase().trim();
+  if (email) {
+    sb.from('onboarding_autosave').delete().eq('email', email).then(() => {}).catch(() => {});
+  }
 }
 
 function restoreOnboardingState(state) {
@@ -496,6 +547,8 @@ export function launchOnboarding(opts = {}) {
   _absoluteResponses = {};
   _absoluteStartTimestamp = null;
   clearOnboardingState();
+  // Capture email for server-side autosave (e.g. from Google auth session)
+  if (opts.email) obMagicLinkEmail = opts.email;
   if (opts.skipToGuided) {
     obDisplayName = opts.name || '';
     obStep = 'guided';
@@ -638,8 +691,8 @@ window.saveAndExitOnboarding = function() {
 
 // ── TEST HELPER ──
 // Exposes internal onboarding state for Playwright tests.
-// Only attached in dev/test environments.
-if (typeof window !== 'undefined') {
+// Gated behind import.meta.env.DEV — stripped from production builds by Vite.
+if (import.meta.env.DEV && typeof window !== 'undefined') {
   Object.defineProperty(window, '__pmOnboardingDebug', {
     get() {
       return {
@@ -657,6 +710,7 @@ if (typeof window !== 'undefined') {
         progressPercent: getCurrentOnboardingProgressPercent(),
         savedState: loadOnboardingState(),
         estimateCategoryScore,
+        applyAbsoluteAdjustment,
         ABSOLUTE_BUCKETS,
       };
     }
@@ -1917,6 +1971,41 @@ function estimateCategoryScore({ prior, comparisons, categoryRank }) {
   return { score, alpha, compCount, raw, lowerBound, upperBound };
 }
 
+// Pure helper: apply absolute-level elevation adjustment to a score vector.
+// Extracted for testability. Used by finishCalibration().
+// scores: { story: N, ... } (mutated in place)
+// calibrationConfidence: { story: alpha, ... }
+// targetTotal: number (from absolute bucket)
+// calcTotalFn: (scores) => weighted total
+// Returns metadata object describing what was applied.
+function applyAbsoluteAdjustment(scores, calibrationConfidence, targetTotal, calcTotalFn) {
+  const catKeys = Object.keys(scores);
+  const pairwiseTotal = calcTotalFn(scores);
+  const rawDelta = targetTotal - pairwiseTotal;
+
+  const avgConfidence = catKeys.reduce((s, c) => s + (calibrationConfidence[c] || 0), 0) / catKeys.length;
+  let absoluteWeight;
+  if (avgConfidence >= 0.55) absoluteWeight = 0.6;
+  else if (avgConfidence >= 0.35) absoluteWeight = 0.75;
+  else absoluteWeight = 0.9;
+
+  const adjustment = absoluteWeight * rawDelta;
+  catKeys.forEach(c => {
+    scores[c] = Math.round(Math.min(98, Math.max(20, scores[c] + adjustment)));
+  });
+
+  const postAdjustmentTotal = calcTotalFn(scores);
+  return {
+    pairwiseTotal,
+    rawDelta: Math.round(rawDelta * 100) / 100,
+    avgConfidence: Math.round(avgConfidence * 100) / 100,
+    absoluteWeight,
+    adjustment: Math.round(adjustment * 100) / 100,
+    postAdjustmentTotal,
+    discrepancy: Math.round((postAdjustmentTotal - targetTotal) * 100) / 100,
+  };
+}
+
 function finishCalibration() {
   const catKeys = CATEGORIES.map(c => c.key);
   const anchors = guidedFilms;
@@ -1986,30 +2075,14 @@ function finishCalibration() {
     const absoluteData = _absoluteResponses[String(nf.tmdbId)];
     let absoluteMeta = {};
     if (absoluteData) {
-      const pairwiseTotal = calcTotal(scores);
-      const targetTotal = absoluteData.targetTotal;
-      const rawDelta = targetTotal - pairwiseTotal;
-
-      // Confidence-modulated adjustment: weaker pairwise evidence → more absolute authority
-      const avgConfidence = catKeys.reduce((s, c) => s + (calibrationConfidence[c] || 0), 0) / catKeys.length;
-      let absoluteWeight;
-      if (avgConfidence >= 0.55) absoluteWeight = 0.6;
-      else if (avgConfidence >= 0.35) absoluteWeight = 0.75;
-      else absoluteWeight = 0.9;
-
-      const adjustment = absoluteWeight * rawDelta;
-      catKeys.forEach(c => {
-        scores[c] = Math.round(Math.min(98, Math.max(20, scores[c] + adjustment)));
-      });
-
-      const postAdjustmentTotal = calcTotal(scores);
+      const result = applyAbsoluteAdjustment(scores, calibrationConfidence, absoluteData.targetTotal, calcTotal);
       absoluteMeta = {
         absolute_bucket: absoluteData.bucket,
-        absolute_target_total: targetTotal,
-        absolute_adjustment_delta: Math.round(rawDelta * 100) / 100,
-        absolute_adjustment_applied: Math.round(adjustment * 100) / 100,
-        post_adjustment_total: postAdjustmentTotal,
-        post_adjustment_discrepancy: Math.round((postAdjustmentTotal - targetTotal) * 100) / 100,
+        absolute_target_total: absoluteData.targetTotal,
+        absolute_adjustment_delta: result.rawDelta,
+        absolute_adjustment_applied: result.adjustment,
+        post_adjustment_total: result.postAdjustmentTotal,
+        post_adjustment_discrepancy: result.discrepancy,
       };
     }
 

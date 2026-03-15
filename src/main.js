@@ -8,7 +8,7 @@ import { renderExploreIndex, exploreEntity } from './modules/explore.js';
 import { renderAnalysis } from './modules/analysis.js';
 import { initPredict, predictSearch, predictSearchDebounce, predictSelectFilm, predictAddToList, predictFresh } from './modules/predict.js';
 import { startCalibration, selectCalCat, selectCalInt, applyCalibration, resetCalibration } from './modules/calibrate.js';
-import { launchOnboarding, checkOnboardingResume, showResumePrompt } from './modules/onboarding.js';
+import { launchOnboarding, checkOnboardingResume, showResumePrompt, loadOnboardingStateFromServer } from './modules/onboarding.js';
 import { syncToSupabase, loadFromSupabase, saveUserLocally, loadUserLocally, getAuthSession, loadFromSupabaseByAuth, sb } from './modules/supabase.js';
 import { saveToStorage, loadFromStorage, runMigrations } from './modules/storage.js';
 import {
@@ -770,7 +770,7 @@ async function init() {
           removeAppCloak();
           renderRankings();
           updateStorageStatus();
-          launchOnboarding({ skipToGuided: true, name });
+          launchOnboarding({ skipToGuided: true, name, email: session.user.email });
           return;
         } else {
           // Stale session, no profile — check for saved onboarding or show cold landing
@@ -779,7 +779,11 @@ async function init() {
             setMovies([]);
           }
           window._pendingAuthSession = session;
-          const savedOb = checkOnboardingResume();
+          // Check localStorage first, then server by email
+          let savedOb = checkOnboardingResume();
+          if (!savedOb && session.user?.email) {
+            savedOb = await loadOnboardingStateFromServer(session.user.email);
+          }
           if (savedOb) {
             removeAppCloak();
             showResumePrompt(savedOb);
