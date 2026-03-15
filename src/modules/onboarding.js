@@ -7,6 +7,7 @@ import { sb, syncToSupabase, saveUserLocally, signInWithGoogle, sendMagicLink } 
 import { fetchTmdbMovieBundle } from './tmdb-movie.js';
 import { track } from '../analytics.js';
 import { recordWeightSnapshot } from './weight-blend.js';
+import { SELECTION_FILMS } from '../data/selection-films.js';
 
 const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
 
@@ -25,12 +26,80 @@ let guidedScores = {};        // current film's scores being edited
 let guidedSliderStage = 'gut'; // 'gut' or 'all' (Film 1 only)
 let guidedInsight = null;     // insight text after rating
 
+// Phase 2 state
+let selectSelectedFilms = [];   // films selected in the grid
+let selectVisibleCount = 15;    // how many grid items shown
+let selectSearchResults = null;  // TMDB search results
+let selectSearchAdded = [];      // films added from search (prepended to grid)
+
+// Calibration state
+let obCalComparisons = [];
+let obCalIndex = 0;
+let obCalResults = [];
+let _tasteRevealData = null; // computed weights/archetype from taste reveal, used by obEnterApp
+
 // Category grouping for staged sliders
 const GUT_CATS = ['experience', 'story', 'performance', 'hold'];
 const BEAT_CATS = ['craft', 'world', 'ending', 'singularity'];
 
 const CAT_LABELS = {};
 CATEGORIES.forEach(c => { CAT_LABELS[c.key] = c.fullLabel || c.label; });
+
+// ── PROGRESS BAR ──
+const PROGRESS_LABELS = {
+  0:   'Getting to know you',
+  25:  'Patterns emerging',
+  50:  'Your palate is taking shape',
+  65:  'Honing in',
+  85:  'Almost there',
+  100: ''
+};
+
+const CAT_QUESTIONS = {
+  story:       'Which film has a better story?',
+  craft:       'Which film is better made?',
+  performance: 'Which film has more compelling people?',
+  world:       'Which film pulls you into its world more?',
+  experience:  'Which film did you enjoy watching more?',
+  hold:        'Which film has more hold on you?',
+  ending:      'Which film has a better ending?',
+  singularity: 'Which film stands more on its own?',
+};
+
+function ensureProgressBar() {
+  if (document.getElementById('ob-progress-global')) return;
+  const bar = document.createElement('div');
+  bar.id = 'ob-progress-global';
+  bar.className = 'ob-progress-global';
+  bar.innerHTML = `
+    <div class="ob-progress-global-fill" id="ob-progress-fill"></div>
+    <div class="ob-progress-global-label" id="ob-progress-label">Getting to know you</div>
+  `;
+  document.body.appendChild(bar);
+  bar.style.display = 'block';
+}
+
+function updateProgress(percent) {
+  const fill = document.getElementById('ob-progress-fill');
+  const label = document.getElementById('ob-progress-label');
+  if (!fill || !label) return;
+  fill.style.width = percent + '%';
+  const thresholds = [100, 85, 65, 50, 25, 0];
+  for (const t of thresholds) {
+    if (percent >= t) {
+      label.textContent = PROGRESS_LABELS[t];
+      break;
+    }
+  }
+  if (percent >= 100) {
+    label.style.display = 'none';
+  }
+}
+
+function hideProgressBar() {
+  const bar = document.getElementById('ob-progress-global');
+  if (bar) bar.style.display = 'none';
+}
 
 // ── PROMPTS ──
 const FILM_PROMPTS = {
@@ -269,6 +338,13 @@ export function launchOnboarding(opts = {}) {
   guidedScores = {};
   guidedSliderStage = 'gut';
   guidedInsight = null;
+  selectSelectedFilms = [];
+  selectVisibleCount = 15;
+  selectSearchResults = null;
+  selectSearchAdded = [];
+  obCalComparisons = [];
+  obCalIndex = 0;
+  obCalResults = [];
   if (opts.skipToGuided) {
     obDisplayName = opts.name || '';
     obStep = 'guided';
@@ -406,6 +482,18 @@ function renderObStep() {
 
   } else if (obStep === 'guided-weights') {
     renderGuidedWeights();
+
+  } else if (obStep === 'transition') {
+    renderTransition();
+
+  } else if (obStep === 'select') {
+    renderSelectScreen();
+
+  } else if (obStep === 'ob-calibrate') {
+    renderObCalibrate();
+
+  } else if (obStep === 'taste-reveal') {
+    renderTasteReveal();
   }
 }
 
@@ -414,6 +502,7 @@ function renderGuidedStep() {
   const card = document.getElementById('ob-card-content');
   const overlay = document.getElementById('onboarding-overlay');
   overlay.classList.add('starters-mode');
+  ensureProgressBar();
   const prompt = getPromptForStep(guidedStep);
 
   card.innerHTML = `
@@ -527,8 +616,8 @@ function renderGuidedInsight() {
 
   const insight = guidedInsight || '';
   const isLast = guidedStep > 5;
-  const buttonText = isLast ? 'See your palate →' : 'Continue →';
-  const buttonAction = isLast ? 'guidedShowWeights()' : 'guidedNextFilm()';
+  const buttonText = isLast ? 'Continue →' : 'Continue →';
+  const buttonAction = isLast ? 'guidedShowTransition()' : 'guidedNextFilm()';
 
   // Build a mini bar chart of the latest film's scores
   const catKeys = CATEGORIES.map(c => c.key);
@@ -949,6 +1038,9 @@ window.guidedRateFilm = async function() {
   guidedSelectedFilm = null;
   guidedScores = {};
 
+  // Update progress bar: each of the 5 films = 12% (total 60%)
+  updateProgress(Math.min(guidedFilms.length * 12, 60));
+
   obStep = 'guided-insight';
   renderObStep();
 
@@ -976,6 +1068,645 @@ window.guidedNextFilm = function() {
 window.guidedShowWeights = function() {
   obStep = 'guided-weights';
   renderObStep();
+};
+
+window.guidedShowTransition = function() {
+  // If re-onboarding with >10 films, skip to taste reveal
+  if (MOVIES.length > 10) {
+    obStep = 'taste-reveal';
+    renderObStep();
+    return;
+  }
+  obStep = 'transition';
+  renderObStep();
+};
+
+// ── TRANSITION SCREEN ──
+function renderTransition() {
+  const card = document.getElementById('ob-card-content');
+  card.innerHTML = `
+    <div style="max-width:480px;margin:0 auto;padding:80px 24px 40px;text-align:center">
+      <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:28px;color:var(--on-dark);margin-bottom:24px;opacity:0;animation:fadeIn 0.4s ease 0.2s both">Good start.</div>
+      <p style="font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.65;color:var(--on-dark-dim);max-width:440px;margin:0 auto 24px;opacity:0;animation:fadeIn 0.4s ease 0.5s both">
+        Now let's go wider. We'll show you some well-known films — pick any 5 you've seen and we'll run through a few quick comparisons to place them in your rankings.
+      </p>
+      <p style="font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.65;color:var(--on-dark-dim);max-width:440px;margin:0 auto 36px;opacity:0;animation:fadeIn 0.4s ease 0.7s both">
+        <span style="color:var(--on-dark)">No sliders</span> — just "which is better?" Pick fast. Trust your gut.
+      </p>
+      <div style="opacity:0;animation:fadeIn 0.3s ease 1s both">
+        <button class="ob-btn" style="max-width:300px;background:var(--action)" onclick="obStartSelection()">Let's go →</button>
+      </div>
+    </div>
+  `;
+}
+
+// ── FILM SELECTION GRID ──
+function getAvailableSelectionFilms() {
+  const ratedIds = new Set([...guidedFilms.map(f => f.tmdbId), ...MOVIES.map(f => f.tmdbId)].map(String));
+  const selectedIds = new Set(selectSelectedFilms.map(f => String(f.tmdbId)));
+  return [...selectSearchAdded, ...SELECTION_FILMS].filter(f => !ratedIds.has(String(f.tmdbId)) && !selectedIds.has(String(f.tmdbId)) || selectedIds.has(String(f.tmdbId)));
+}
+
+function renderSelectScreen() {
+  const card = document.getElementById('ob-card-content');
+  const available = getAvailableSelectionFilms();
+  const visible = available.slice(0, selectVisibleCount);
+  const hasMore = available.length > selectVisibleCount;
+  const selectedIds = new Set(selectSelectedFilms.map(f => String(f.tmdbId)));
+
+  // Bank slots
+  const bankSlots = Array.from({ length: 5 }, (_, i) => {
+    const film = selectSelectedFilms[i];
+    if (film) {
+      return `<div class="ob-select-bank-slot filled"><img src="https://image.tmdb.org/t/p/w92${film.poster}" alt="${film.title}"></div>`;
+    }
+    return `<div class="ob-select-bank-slot"></div>`;
+  }).join('');
+
+  const ready = selectSelectedFilms.length >= 5;
+
+  // Grid items
+  const gridHTML = visible.map(f => {
+    const sel = selectedIds.has(String(f.tmdbId));
+    return `
+      <div class="ob-select-poster ${sel ? 'selected' : ''}" onclick="obToggleSelectFilm(${f.tmdbId})" data-tmdbid="${f.tmdbId}">
+        <img src="https://image.tmdb.org/t/p/w154${f.poster}" alt="${f.title}" loading="lazy">
+        <div class="ob-tap-hint"></div>
+      </div>`;
+  }).join('');
+
+  // Search results
+  let searchHTML = '';
+  if (selectSearchResults && selectSearchResults.length > 0) {
+    searchHTML = `<div class="ob-select-search-results">
+      ${selectSearchResults.slice(0, 5).map(r => {
+        const sel = selectedIds.has(String(r.id));
+        return `<div style="display:flex;align-items:center;gap:12px;padding:8px 0;cursor:pointer;border-bottom:1px solid rgba(244,239,230,0.06)" onclick="obSelectSearchResult(${r.id}, '${(r.title || '').replace(/'/g, "\\'")}', ${r.release_date ? parseInt(r.release_date) : 0}, '${(r.poster_path || '').replace(/'/g, "\\'")}')">
+          ${r.poster_path ? `<img src="https://image.tmdb.org/t/p/w45${r.poster_path}" style="width:30px;height:45px;object-fit:cover;border-radius:1px">` : '<div style="width:30px;height:45px;background:rgba(255,255,255,0.05)"></div>'}
+          <div>
+            <div style="font-family:'DM Sans',sans-serif;font-size:14px;color:var(--on-dark)">${r.title}</div>
+            <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim)">${r.release_date ? r.release_date.slice(0, 4) : ''}</div>
+          </div>
+          ${sel ? '<div style="margin-left:auto;font-family:\'DM Mono\',monospace;font-size:9px;color:var(--blue)">SELECTED</div>' : ''}
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  card.innerHTML = `
+    <div style="max-width:600px;margin:0 auto;padding:20px 24px 40px">
+      <div class="ob-select-bank" id="ob-select-bank">
+        <div class="ob-select-bank-slots">${bankSlots}</div>
+        <div class="ob-select-bank-counter">${selectSelectedFilms.length} of 5</div>
+        <button class="ob-select-bank-btn ${ready ? 'ready' : ''}" onclick="obConfirmSelection()" ${ready ? '' : 'disabled'}>Continue →</button>
+      </div>
+      <div style="margin-top:20px;margin-bottom:8px">
+        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:20px;color:var(--on-dark);margin-bottom:6px">Pick 5 films you've seen.</div>
+        <div style="font-family:'DM Sans',sans-serif;font-size:14px;color:var(--on-dark-dim);margin-bottom:16px">Love them, hate them — doesn't matter.</div>
+      </div>
+      <input class="ob-select-search" type="text" placeholder="Search for a film..." oninput="obSelectSearch(this.value)" id="ob-select-search-input">
+      ${searchHTML}
+      <div class="ob-select-grid" id="ob-select-grid">
+        ${gridHTML}
+      </div>
+      ${hasMore ? `<div class="ob-select-more"><button onclick="obShowMore()">Show me some more</button></div>` : ''}
+      <div style="text-align:center;margin-top:16px">
+        <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);cursor:pointer" onclick="obSkipSelection()">Skip for now →</span>
+      </div>
+    </div>
+  `;
+}
+
+let _selectSearchTimeout = null;
+window.obSelectSearch = function(query) {
+  clearTimeout(_selectSearchTimeout);
+  if (!query || query.length < 2) {
+    selectSearchResults = null;
+    renderSelectScreen();
+    return;
+  }
+  _selectSearchTimeout = setTimeout(async () => {
+    try {
+      const res = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${TMDB_KEY}&query=${encodeURIComponent(query)}&page=1`);
+      const data = await res.json();
+      selectSearchResults = (data.results || []).filter(r => r.poster_path);
+      renderSelectScreen();
+      // Restore search input value and focus
+      const input = document.getElementById('ob-select-search-input');
+      if (input) { input.value = query; input.focus(); }
+    } catch (e) { console.warn('Search failed:', e); }
+  }, 300);
+};
+
+window.obSelectSearchResult = function(tmdbId, title, year, poster) {
+  if (!poster) return;
+  const film = { tmdbId, title, year, poster };
+  const idx = selectSelectedFilms.findIndex(f => String(f.tmdbId) === String(tmdbId));
+  if (idx !== -1) {
+    selectSelectedFilms.splice(idx, 1);
+  } else if (selectSelectedFilms.length < 5) {
+    selectSelectedFilms.push(film);
+    // Add to search-added so it appears in the grid
+    if (!selectSearchAdded.find(f => String(f.tmdbId) === String(tmdbId))) {
+      selectSearchAdded.unshift(film);
+    }
+  }
+  selectSearchResults = null;
+  renderSelectScreen();
+};
+
+window.obToggleSelectFilm = function(tmdbId) {
+  const idx = selectSelectedFilms.findIndex(f => String(f.tmdbId) === String(tmdbId));
+  if (idx !== -1) {
+    selectSelectedFilms.splice(idx, 1);
+  } else if (selectSelectedFilms.length < 5) {
+    const available = getAvailableSelectionFilms();
+    const film = available.find(f => String(f.tmdbId) === String(tmdbId));
+    if (film) selectSelectedFilms.push(film);
+  }
+  renderSelectScreen();
+};
+
+window.obShowMore = function() {
+  selectVisibleCount += 10;
+  renderSelectScreen();
+};
+
+window.obStartSelection = function() {
+  selectSelectedFilms = [];
+  selectVisibleCount = 15;
+  selectSearchResults = null;
+  selectSearchAdded = [];
+  obStep = 'select';
+  renderObStep();
+};
+
+window.obSkipSelection = function() {
+  // Skip selection + calibration, go straight to taste reveal with just the guided films
+  obStep = 'taste-reveal';
+  updateProgress(100);
+  setTimeout(() => renderObStep(), 400);
+};
+
+window.obConfirmSelection = async function() {
+  if (selectSelectedFilms.length < 5) return;
+  updateProgress(65);
+
+  // Fetch TMDB details for selected films in background
+  for (const film of selectSelectedFilms) {
+    try {
+      const res = await fetch(`https://api.themoviedb.org/3/movie/${film.tmdbId}?api_key=${TMDB_KEY}&append_to_response=credits`);
+      const d = await res.json();
+      film.director = d.credits?.crew?.find(c => c.job === 'Director')?.name || '';
+    } catch (e) { film.director = ''; }
+  }
+
+  // Generate comparisons
+  generateObComparisons();
+  obCalIndex = 0;
+  obCalResults = [];
+  obStep = 'ob-calibrate';
+  renderObStep();
+};
+
+// ── PAIRWISE CALIBRATION ──
+// Category selection: by variance (discrimination), not mean.
+// Comparison structure: bracket-style with high + mid anchors on top categories.
+// Score derivation: deterministic interval placement with shrinkage toward user prior.
+function generateObComparisons() {
+  const anchors = guidedFilms;
+  const newFilms = selectSelectedFilms;
+  const catKeys = CATEGORIES.map(c => c.key);
+
+  // PART 1: Select categories by discrimination (variance), not mean
+  const catVariances = {};
+  catKeys.forEach(c => {
+    const vals = anchors.map(f => f.scores[c] || 50);
+    const mean = vals.reduce((s, v) => s + v, 0) / vals.length;
+    catVariances[c] = vals.reduce((s, v) => s + (v - mean) ** 2, 0) / vals.length;
+  });
+  const sortedCats = [...catKeys].sort((a, b) => catVariances[b] - catVariances[a]);
+  const catsToCompare = sortedCats.slice(0, 4);
+
+  // PART 2: Bracket-style anchor selection
+  // Top 2 categories: 2 comparisons (high + mid anchor) per new film
+  // Next 2 categories: 1 comparison (mid anchor) per new film
+  // Total: (2*2 + 2*1) * 5 = 30 comparisons
+  obCalComparisons = [];
+  for (const nf of newFilms) {
+    catsToCompare.forEach((cat, catRank) => {
+      const sorted = [...anchors].sort((a, b) => (a.scores[cat] || 0) - (b.scores[cat] || 0));
+      const highAnchor = sorted[sorted.length - 1];  // highest score
+      const midAnchor = sorted[Math.floor(sorted.length / 2)]; // median
+
+      if (catRank < 2) {
+        // Top 2 categories: bracket with high + mid
+        obCalComparisons.push({
+          filmA: nf, filmB: highAnchor, category: cat,
+          anchorRole: 'high', anchorScore: highAnchor.scores[cat] || 50
+        });
+        // Only add mid if it's a different anchor
+        if (String(midAnchor.tmdbId) !== String(highAnchor.tmdbId)) {
+          obCalComparisons.push({
+            filmA: nf, filmB: midAnchor, category: cat,
+            anchorRole: 'mid', anchorScore: midAnchor.scores[cat] || 50
+          });
+        }
+      } else {
+        // Bottom 2 categories: single comparison against mid
+        obCalComparisons.push({
+          filmA: nf, filmB: midAnchor, category: cat,
+          anchorRole: 'mid', anchorScore: midAnchor.scores[cat] || 50
+        });
+      }
+    });
+  }
+
+  // Shuffle to avoid sequential comparisons for one film
+  for (let i = obCalComparisons.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [obCalComparisons[i], obCalComparisons[j]] = [obCalComparisons[j], obCalComparisons[i]];
+  }
+}
+
+function renderObCalibrate() {
+  const card = document.getElementById('ob-card-content');
+  if (obCalIndex >= obCalComparisons.length) {
+    finishCalibration();
+    return;
+  }
+  const comp = obCalComparisons[obCalIndex];
+  const total = obCalComparisons.length;
+  const pct = 65 + (obCalIndex / total) * 35;
+  updateProgress(pct);
+
+  card.innerHTML = `
+    <div style="max-width:480px;margin:0 auto;padding:60px 24px 40px;text-align:center">
+      <div class="ob-calibrate-question">${CAT_QUESTIONS[comp.category]}</div>
+      <div class="ob-calibrate-matchup">
+        <div class="ob-calibrate-film" onclick="obCalPick('a')">
+          <img src="https://image.tmdb.org/t/p/w154${comp.filmA.poster}" alt="${comp.filmA.title}">
+          <div class="ob-calibrate-film-title">${comp.filmA.title}</div>
+        </div>
+        <div class="ob-calibrate-film" onclick="obCalPick('b')">
+          <img src="https://image.tmdb.org/t/p/w154${comp.filmB.poster}" alt="${comp.filmB.title}">
+          <div class="ob-calibrate-film-title">${comp.filmB.title}</div>
+        </div>
+      </div>
+      <div class="ob-calibrate-count">Question ${obCalIndex + 1} of ${total}</div>
+      <div style="margin-top:20px">
+        <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);cursor:pointer" onclick="obCalSkip()">Skip for now →</span>
+      </div>
+    </div>
+  `;
+}
+
+window.obCalPick = function(choice) {
+  const comp = obCalComparisons[obCalIndex];
+  const winner = choice === 'a' ? 'filmA' : 'filmB';
+  obCalResults.push({
+    filmA: comp.filmA, filmB: comp.filmB, category: comp.category, winner,
+    anchorScore: comp.anchorScore, anchorRole: comp.anchorRole
+  });
+
+  // Visual feedback
+  const matchup = document.querySelector('.ob-calibrate-matchup');
+  if (matchup) {
+    const films = matchup.querySelectorAll('.ob-calibrate-film');
+    films[choice === 'a' ? 1 : 0].style.opacity = '0.3';
+  }
+
+  setTimeout(() => {
+    obCalIndex++;
+    if (obCalIndex >= obCalComparisons.length) {
+      updateProgress(100);
+      track('onboarding_calibration_completed', {
+        comparisons_answered: obCalIndex,
+        comparisons_total: obCalComparisons.length,
+        selected_films_count: selectSelectedFilms.length,
+        skipped_early: false,
+      });
+      setTimeout(() => finishCalibration(), 600);
+    } else {
+      renderObCalibrate();
+    }
+  }, 200);
+};
+
+window.obCalSkip = function() {
+  // Skip remaining calibration, estimate all scores from prior
+  track('onboarding_calibration_completed', {
+    comparisons_answered: obCalIndex,
+    comparisons_total: obCalComparisons.length,
+    selected_films_count: selectSelectedFilms.length,
+    skipped_early: true,
+  });
+  finishCalibration();
+};
+
+// Deterministic score estimation from pairwise comparison evidence.
+// Uses interval placement (bracket bounds) with shrinkage toward the user prior.
+// No randomness. Confidence metadata is attached to each calibrated film.
+function estimateCategoryScore({ prior, comparisons, categoryRank }) {
+  // comparisons: [{ anchorScore, won, anchorRole }]
+  // categoryRank: 0-based index in sorted-by-variance list (lower = more discriminating)
+  // returns { score, alpha, compCount, raw, lowerBound, upperBound }
+  const compCount = comparisons.length;
+
+  if (compCount === 0) {
+    // No evidence — use prior directly
+    return { score: Math.round(Math.min(98, Math.max(20, prior))), alpha: 0, compCount: 0, raw: prior, lowerBound: null, upperBound: null };
+  }
+
+  // Compute bounds from comparison evidence
+  const beatenScores = comparisons.filter(c => c.won).map(c => c.anchorScore);
+  const lostScores = comparisons.filter(c => !c.won).map(c => c.anchorScore);
+
+  const lowerBound = beatenScores.length > 0 ? Math.max(...beatenScores) : null;
+  const upperBound = lostScores.length > 0 ? Math.min(...lostScores) : null;
+
+  let raw;
+  if (lowerBound !== null && upperBound !== null) {
+    // Case 1 & 2: Both bounds exist (may cross if answers are inconsistent)
+    raw = (lowerBound + upperBound) / 2;
+  } else if (lowerBound !== null) {
+    // Case 3: Only lower bound — film beat anchors but lost to none
+    raw = lowerBound + 0.35 * (100 - lowerBound);
+  } else if (upperBound !== null) {
+    // Case 4: Only upper bound — film lost to anchors but beat none
+    raw = upperBound - 0.35 * (upperBound - 20);
+  } else {
+    // Case 5: No bounds (shouldn't happen if compCount > 0, but safety)
+    raw = prior;
+  }
+
+  // Determine alpha based on evidence quality, not just quantity
+  let alpha;
+  if (lowerBound !== null && upperBound !== null) {
+    // True bracket — both bounds exist
+    alpha = 0.7;
+  } else if (compCount >= 2) {
+    // Multiple comparisons but one-sided
+    alpha = 0.55;
+  } else if (compCount === 1) {
+    alpha = 0.35;
+  } else {
+    alpha = 0.0; // prior only
+  }
+
+  // Shrink toward prior
+  const blended = alpha * raw + (1 - alpha) * prior;
+  const score = Math.round(Math.min(98, Math.max(20, blended)));
+
+  return { score, alpha, compCount, raw, lowerBound, upperBound };
+}
+
+function finishCalibration() {
+  const catKeys = CATEGORIES.map(c => c.key);
+  const anchors = guidedFilms;
+
+  // Compute user prior per category (anchor mean)
+  const userAvg = {};
+  catKeys.forEach(c => {
+    userAvg[c] = anchors.reduce((s, f) => s + (f.scores[c] || 50), 0) / anchors.length;
+  });
+
+  // Determine category rank by variance (same ordering as generateObComparisons)
+  const catVariances = {};
+  catKeys.forEach(c => {
+    const vals = anchors.map(f => f.scores[c] || 50);
+    const mean = vals.reduce((s, v) => s + v, 0) / vals.length;
+    catVariances[c] = vals.reduce((s, v) => s + (v - mean) ** 2, 0) / vals.length;
+  });
+  const sortedCats = [...catKeys].sort((a, b) => catVariances[b] - catVariances[a]);
+  const catRankMap = {};
+  sortedCats.forEach((c, i) => { catRankMap[c] = i; });
+
+  // Calibrated films are approximate inferred scores from pairwise comparisons.
+  // They are lower-confidence than slider-scored onboarding anchors.
+  // Confidence metadata is stored so downstream systems can weight accordingly.
+  // These scores serve as bootstrap data, not full-certainty measurements.
+  for (const nf of selectSelectedFilms) {
+    const scores = {};
+    const calibrationConfidence = {};
+    const calibrationCompCount = {};
+
+    // First pass: estimate covered categories
+    catKeys.forEach(c => {
+      const comps = obCalResults
+        .filter(r => String(r.filmA.tmdbId) === String(nf.tmdbId) && r.category === c)
+        .map(r => ({
+          anchorScore: r.anchorScore ?? (r.filmB.scores[c] || 50),
+          won: r.winner === 'filmA',
+          anchorRole: r.anchorRole || 'mid'
+        }));
+
+      const result = estimateCategoryScore({
+        prior: userAvg[c],
+        comparisons: comps,
+        categoryRank: catRankMap[c] ?? 7
+      });
+
+      scores[c] = result.score;
+      calibrationConfidence[c] = result.alpha;
+      calibrationCompCount[c] = result.compCount;
+    });
+
+    // Second pass: for uncovered categories (alpha=0), apply conservative coherence
+    // nudge toward the film's mean inferred score from covered categories
+    const coveredEntries = catKeys.filter(c => calibrationConfidence[c] > 0);
+    if (coveredEntries.length > 0) {
+      const coveredMean = coveredEntries.reduce((s, c) => s + scores[c], 0) / coveredEntries.length;
+      catKeys.forEach(c => {
+        if (calibrationConfidence[c] === 0) {
+          // 90% prior, 10% covered mean — tiny coherence nudge, no randomness
+          scores[c] = Math.round(Math.min(98, Math.max(20, 0.9 * userAvg[c] + 0.1 * coveredMean)));
+        }
+      });
+    }
+
+    const total = calcTotal(scores);
+    const filmObj = {
+      title: nf.title, year: nf.year,
+      director: nf.director || '', writer: '', cast: '',
+      productionCompanies: '', poster: nf.poster,
+      overview: '', tmdbId: nf.tmdbId,
+      scores, total,
+      onboarding_role: 'calibrated',
+      calibration_source: 'pairwise_onboarding_v2',
+      calibration_confidence: calibrationConfidence,
+      calibration_comp_count: calibrationCompCount,
+    };
+    MOVIES.push(filmObj);
+  }
+
+  obStep = 'taste-reveal';
+  renderObStep();
+}
+
+// ── TASTE REVEAL ──
+function renderTasteReveal() {
+  const card = document.getElementById('ob-card-content');
+  updateProgress(100);
+  const catKeys = CATEGORIES.map(c => c.key);
+
+  // Compute confidence-weighted averages across all rated films.
+  // Anchor films (slider-scored) get full weight (1.0).
+  // Calibrated films are weighted by their mean per-category alpha,
+  // so low-confidence inferred scores don't dominate the reveal.
+  const avgScores = {};
+  catKeys.forEach(c => {
+    let weightedSum = 0;
+    let totalWeight = 0;
+    for (const m of MOVIES) {
+      const filmWeight = m.calibration_confidence
+        ? (m.calibration_confidence[c] ?? 0) || 0.15  // UI floor for reveal only — do NOT copy this weighting to other systems
+        : 1.0;  // anchor / slider-scored (full confidence)
+      weightedSum += (m.scores?.[c] || 50) * filmWeight;
+      totalWeight += filmWeight;
+    }
+    avgScores[c] = totalWeight > 0 ? weightedSum / totalWeight : 50;
+  });
+  const maxAvg = Math.max(...Object.values(avgScores));
+  const minAvg = Math.min(...Object.values(avgScores));
+  const range = maxAvg - minAvg || 1;
+  const weights = {};
+  catKeys.forEach(c => {
+    weights[c] = 1 + ((avgScores[c] - minAvg) / range) * 4;
+  });
+
+  const classification = classifyArchetype(weights);
+  const { archetype, adjective, fullName } = classification;
+
+  // Persist for obEnterApp so obFinish uses shaped weights, not flat defaults
+  _tasteRevealData = { weights, classification };
+
+  // Strongest category
+  const sortedCats = [...catKeys].sort((a, b) => avgScores[b] - avgScores[a]);
+  const strongest = sortedCats[0];
+  const strongestLabel = (CAT_LABELS[strongest] || strongest).replace('The ', '');
+  const strongestAvg = Math.round(avgScores[strongest]);
+
+  // Biggest split
+  const weakest = sortedCats[sortedCats.length - 1];
+  const weakestLabel = (CAT_LABELS[weakest] || weakest).replace('The ', '');
+  const gap = Math.round(avgScores[strongest] - avgScores[weakest]);
+
+  // Descriptors
+  const topCats = sortedCats.slice(0, 3).map(c => {
+    const l = (CAT_LABELS[c] || c).replace('The ', '').toLowerCase();
+    if (c === 'story') return 'story-driven';
+    if (c === 'craft') return 'craft-focused';
+    if (c === 'performance') return 'character-drawn';
+    if (c === 'world') return 'atmospheric';
+    if (c === 'experience') return 'thrill-seeking';
+    if (c === 'hold') return 'high hold';
+    if (c === 'ending') return 'ending-obsessed';
+    if (c === 'singularity') return 'originality-hunter';
+    return l;
+  });
+
+  // Split interpretation
+  const splitInterps = {
+    'story-world': 'You follow narrative, not atmosphere.',
+    'story-experience': 'You care about what happens, not how it feels to watch.',
+    'story-craft': 'You watch for story, not spectacle.',
+    'ending-world': 'Conclusions matter more than settings.',
+    'ending-experience': 'How it ends outweighs how it plays.',
+    'craft-experience': 'You admire the work more than the ride.',
+    'hold-world': 'What stays with you matters more than where it takes you.',
+    'performance-world': 'Characters over settings, always.',
+  };
+  const splitKey = `${strongest}-${weakest}`;
+  const splitKeyRev = `${weakest}-${strongest}`;
+  const splitInterp = splitInterps[splitKey] || splitInterps[splitKeyRev] || `${strongestLabel} leads, ${weakestLabel} takes the back seat.`;
+
+  // Archetype description
+  const archData = ARCHETYPES.find(a => a.key === classification.archetypeKey || a.name === archetype);
+  const archDesc = archData?.description || 'Your taste has a clear shape. Every film you add sharpens the picture.';
+
+  // Radar chart SVG
+  const cx = 120, cy = 120, maxR = 90;
+  const radarAxes = catKeys.map((c, i) => {
+    const angle = (Math.PI * 2 * i / catKeys.length) - Math.PI / 2;
+    const ex = cx + maxR * Math.cos(angle);
+    const ey = cy + maxR * Math.sin(angle);
+    return `<line x1="${cx}" y1="${cy}" x2="${ex}" y2="${ey}" stroke="rgba(244,239,230,0.08)" stroke-width="0.5"/>`;
+  }).join('');
+  const radarLabels = catKeys.map((c, i) => {
+    const angle = (Math.PI * 2 * i / catKeys.length) - Math.PI / 2;
+    const lx = cx + (maxR + 18) * Math.cos(angle);
+    const ly = cy + (maxR + 18) * Math.sin(angle);
+    const anchor = lx < cx - 5 ? 'end' : lx > cx + 5 ? 'start' : 'middle';
+    const label = (CAT_LABELS[c] || c).replace('The ', '');
+    return `<text x="${lx}" y="${ly}" text-anchor="${anchor}" dominant-baseline="central" font-family="'DM Mono',monospace" font-size="8" fill="rgba(244,239,230,0.4)">${label}</text>`;
+  }).join('');
+  const radarPts = catKeys.map((c, i) => {
+    const angle = (Math.PI * 2 * i / catKeys.length) - Math.PI / 2;
+    const val = (weights[c] - 1) / 4; // normalize 1-5 to 0-1
+    const r = maxR * Math.max(0.1, val);
+    return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`;
+  }).join(' ');
+  const radarRings = [0.25, 0.5, 0.75, 1].map(level => {
+    const pts = catKeys.map((_, i) => {
+      const angle = (Math.PI * 2 * i / catKeys.length) - Math.PI / 2;
+      return `${cx + maxR * level * Math.cos(angle)},${cy + maxR * level * Math.sin(angle)}`;
+    }).join(' ');
+    return `<polygon points="${pts}" fill="none" stroke="rgba(244,239,230,0.06)" stroke-width="0.5"/>`;
+  }).join('');
+
+  card.innerHTML = `
+    <div class="ob-taste-reveal">
+      <div class="ob-taste-label" style="opacity:0;animation:fadeIn 0.4s ease 0.2s both">Your palate is ready.</div>
+      <div class="ob-taste-radar-wrap" style="opacity:0;animation:fadeIn 0.3s ease 0.4s both">
+        <svg viewBox="-10 -10 260 260" width="220" height="220">
+          ${radarRings}${radarAxes}${radarLabels}
+          <polygon points="${radarPts}" fill="rgba(61,90,128,0.2)" stroke="var(--blue)" stroke-width="1.5"/>
+        </svg>
+      </div>
+      <div class="ob-taste-archetype" style="opacity:0;animation:fadeIn 0.4s ease 0.8s both">${fullName || archetype}</div>
+      <div class="ob-taste-descriptors" style="opacity:0;animation:fadeIn 0.3s ease 1s both">${topCats.join(' · ')}</div>
+      <div class="ob-taste-desc" style="opacity:0;animation:fadeIn 0.4s ease 1.2s both">${archDesc}</div>
+      <div class="ob-taste-stats" style="opacity:0;animation:fadeIn 0.4s ease 1.4s both">
+        <div class="ob-taste-stat">
+          <div class="ob-taste-stat-label">Your strongest category</div>
+          <div class="ob-taste-stat-value">${strongestLabel} — avg ${strongestAvg}</div>
+        </div>
+        <div class="ob-taste-stat">
+          <div class="ob-taste-stat-label">Your biggest split</div>
+          <div class="ob-taste-stat-value">${strongestLabel} vs ${weakestLabel} — ${gap} point gap</div>
+          <div class="ob-taste-stat-sub">${splitInterp}</div>
+        </div>
+      </div>
+      <div class="ob-taste-footer" style="opacity:0;animation:fadeIn 0.3s ease 1.6s both">${MOVIES.length} films rated. Your palate evolves with every film you add.</div>
+      <div style="opacity:0;animation:fadeIn 0.3s ease 1.8s both">
+        <button class="ob-taste-cta" onclick="obEnterApp()">Enter Palate Map →</button>
+      </div>
+    </div>
+  `;
+}
+
+window.obEnterApp = function() {
+  hideProgressBar();
+  if (_tasteRevealData) {
+    // Use the shaped weights/archetype computed during taste reveal,
+    // not the flat 2.5 defaults from guidedFinishWithDefaults()
+    const { weights, classification } = _tasteRevealData;
+    obFinish({
+      primary: classification.archetype,
+      secondary: '',
+      weights: { ...weights },
+      archetypeKey: classification.archetypeKey,
+      adjective: classification.adjective,
+      fullName: classification.fullName,
+      quiz_weights: { ...weights },
+      quiz_answers: [],
+      quiz_log: [],
+      _slug: obDisplayName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'user',
+    });
+  } else {
+    guidedFinishWithDefaults();
+  }
 };
 
 window.guidedBack = function() {
@@ -1104,14 +1835,17 @@ async function obFinish(reveal, opts = {}) {
   if (overlay.classList.contains('exiting')) return;
   document.body.classList.add('app-entering');
   overlay.classList.add('exiting');
+  hideProgressBar();
   overlay.addEventListener('animationend', async () => {
     overlay.style.display = 'none';
     overlay.classList.remove('exiting');
     overlay.classList.remove('starters-mode');
     document.body.classList.remove('app-entering');
+    const { showScreen } = await import('../main.js');
     if (opts.goToAdd) {
-      const { showScreen } = await import('../main.js');
       showScreen('add');
+    } else {
+      showScreen('predict');
     }
   }, { once: true });
 

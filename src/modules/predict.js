@@ -3,6 +3,32 @@ import { syncToSupabase, saveUserLocally, logPrediction } from './supabase.js';
 import { ARCHETYPES } from '../data/archetypes.js';
 import { classifyArchetype } from './quiz-engine.js';
 import { track } from '../analytics.js';
+
+function renderWelcomeBanner() {
+  const el = document.getElementById('foryou-welcome-banner');
+  if (!el) return;
+  if (localStorage.getItem('palatemap_welcome_banner_dismissed')) {
+    el.innerHTML = '';
+    return;
+  }
+  const user = currentUser;
+  if (!user || !user.full_archetype_name) {
+    el.innerHTML = '';
+    return;
+  }
+  el.innerHTML = `
+    <div class="foryou-welcome-banner">
+      <button class="foryou-welcome-banner-dismiss" onclick="document.getElementById('foryou-welcome-banner').innerHTML='';localStorage.setItem('palatemap_welcome_banner_dismissed','1')">×</button>
+      <h3>Welcome, ${user.display_name || 'there'}.</h3>
+      <p>You're a ${user.full_archetype_name}. We've mapped your taste from ${MOVIES.length} films. Here's what we found.</p>
+      <div class="foryou-welcome-chips">
+        <button class="foryou-welcome-chip" onclick="document.querySelector('.nav-btn.action-tab')?.click()">Rate another film</button>
+        <button class="foryou-welcome-chip" onclick="document.getElementById('predict-search')?.focus()">Predict a score</button>
+        <button class="foryou-welcome-chip" onclick="document.getElementById('nav-friends')?.click()">Invite a friend</button>
+      </div>
+    </div>
+  `;
+}
 import { shouldShowHint, renderHint } from './hints.js';
 import { loadTagVectors, getTagVector, tagVectorsLoaded, getAdmissibleTags, findSimilarFilms, loadPcaCoords, getPcaCoords, pcaCoordsLoaded, loadBundleScores, getBundleScores, bundlesLoaded, getBundleIndex, loadPcaFactors, getPcaLoadings } from './tag-genome.js';
 import { computeCategoryFingerprints, categorySimilarity, overallSimilarity, getTopCategoryTags, tagSimilarity, getCoverageCount } from './tag-profile.js';
@@ -184,6 +210,9 @@ function showTenFilmMilestone() {
 }
 
 export function initPredict() {
+  // Welcome banner (first visit after onboarding)
+  renderWelcomeBanner();
+
   const tier = getPredictionTier();
 
   const heroSection = document.getElementById('foryou-hero-section');

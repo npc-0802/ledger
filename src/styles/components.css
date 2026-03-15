@@ -2995,3 +2995,404 @@ input[type="range"]::-webkit-slider-thumb:hover { background: var(--blue-dark); 
 @media (max-width: 768px) {
   .profile-palate-row { flex-direction: column !important; }
 }
+
+/* ═══════════════════════════════════════════════
+   ONBOARDING PHASE 2 + TASTE REVEAL
+═══════════════════════════════════════════════ */
+
+/* ── Progress Bar (global, fixed) ── */
+.ob-progress-global {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10001;
+  background: var(--surface-dark-2);
+  display: none;
+}
+.ob-progress-global-fill {
+  height: 3px;
+  background: var(--blue);
+  width: 0%;
+  transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ob-progress-global-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--on-dark-dim);
+  text-align: center;
+  padding: 6px 0 8px;
+}
+
+/* ── Sticky Selection Bank ── */
+.ob-select-bank {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--surface-dark-2);
+  padding: 12px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border-bottom: 1px solid rgba(244, 239, 230, 0.06);
+}
+.ob-select-bank-slots {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.ob-select-bank-slot {
+  width: 36px;
+  height: 54px;
+  border: 1.5px dashed rgba(244, 239, 230, 0.15);
+  border-radius: 2px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.ob-select-bank-slot.filled {
+  border: 1.5px solid var(--blue);
+}
+.ob-select-bank-slot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ob-select-bank-counter {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--on-dark-dim);
+  letter-spacing: 0.5px;
+  min-width: 40px;
+}
+.ob-select-bank-btn {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  background: var(--action);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  opacity: 0.35;
+  pointer-events: none;
+}
+.ob-select-bank-btn.ready {
+  opacity: 1;
+  pointer-events: auto;
+}
+.ob-select-bank-btn.ready:hover {
+  opacity: 0.85;
+}
+
+/* ── Film Selection Grid ── */
+.ob-select-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  padding: 0 0 16px;
+}
+@media (max-width: 760px) {
+  .ob-select-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+.ob-select-poster {
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+.ob-select-poster img {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  display: block;
+  border-radius: 2px;
+}
+.ob-select-poster .ob-tap-hint {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid rgba(244, 239, 230, 0.4);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  transition: opacity 0.15s;
+}
+.ob-select-poster.selected .ob-tap-hint {
+  background: var(--blue);
+  border-color: var(--blue);
+}
+.ob-select-poster.selected .ob-tap-hint::after {
+  content: '✓';
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+.ob-select-poster.selected {
+  outline: 3px solid var(--blue);
+  outline-offset: -3px;
+}
+.ob-select-poster:active {
+  transform: scale(0.97);
+}
+.ob-select-more {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 12px 0;
+}
+.ob-select-more button {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--on-dark-dim);
+  background: none;
+  border: 1px solid rgba(244, 239, 230, 0.12);
+  padding: 10px 24px;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+.ob-select-more button:hover {
+  border-color: rgba(244, 239, 230, 0.3);
+  color: var(--on-dark);
+}
+
+/* ── Search in selection ── */
+.ob-select-search {
+  width: 100%;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: var(--on-dark);
+  background: rgba(244, 239, 230, 0.06);
+  border: 1px solid rgba(244, 239, 230, 0.1);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.ob-select-search::placeholder {
+  color: var(--on-dark-dim);
+}
+.ob-select-search:focus {
+  border-color: var(--blue);
+}
+.ob-select-search-results {
+  margin-bottom: 12px;
+}
+
+/* ── Pairwise Calibration ── */
+.ob-calibrate-question {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: clamp(18px, 3vw, 24px);
+  color: var(--on-dark);
+  text-align: center;
+  margin-bottom: 32px;
+}
+.ob-calibrate-matchup {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+}
+.ob-calibrate-film {
+  cursor: pointer;
+  text-align: center;
+  transition: transform 0.1s ease, opacity 0.15s ease;
+  max-width: 180px;
+  flex: 1;
+}
+.ob-calibrate-film:hover {
+  transform: scale(1.03);
+}
+.ob-calibrate-film:active {
+  transform: scale(0.97);
+}
+.ob-calibrate-film img {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  display: block;
+  margin-bottom: 8px;
+  border-radius: 2px;
+}
+.ob-calibrate-film-title {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: var(--on-dark);
+}
+.ob-calibrate-count {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--on-dark-dim);
+  text-align: center;
+  margin-top: 24px;
+}
+
+/* ── Taste Reveal ── */
+.ob-taste-reveal {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 40px 24px 48px;
+  text-align: center;
+}
+.ob-taste-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--on-dark-dim);
+  margin-bottom: 24px;
+}
+.ob-taste-radar-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 28px;
+}
+.ob-taste-radar-wrap svg polygon {
+  transform-origin: center;
+  animation: radarGrow 1s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both;
+}
+@keyframes radarGrow {
+  from { transform: scale(0); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.ob-taste-archetype {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-weight: 900;
+  font-size: clamp(32px, 5vw, 44px);
+  color: var(--on-dark);
+  margin-bottom: 8px;
+  letter-spacing: -1px;
+}
+.ob-taste-descriptors {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--on-dark-dim);
+  letter-spacing: 0.5px;
+  margin-bottom: 24px;
+}
+.ob-taste-desc {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--on-dark-dim);
+  font-style: italic;
+  max-width: 440px;
+  margin: 0 auto 28px;
+}
+.ob-taste-stats {
+  border-top: 0.5px solid rgba(244, 239, 230, 0.08);
+  padding-top: 24px;
+  margin-bottom: 28px;
+}
+.ob-taste-stat {
+  margin-bottom: 16px;
+}
+.ob-taste-stat-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--on-dark-dim);
+  margin-bottom: 4px;
+}
+.ob-taste-stat-value {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: 18px;
+  color: var(--on-dark);
+}
+.ob-taste-stat-sub {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: var(--on-dark-dim);
+  margin-top: 2px;
+}
+.ob-taste-footer {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: var(--on-dark-dim);
+  margin-bottom: 28px;
+}
+.ob-taste-cta {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  background: var(--action);
+  color: white;
+  border: none;
+  padding: 18px 48px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.ob-taste-cta:hover {
+  opacity: 0.85;
+}
+
+/* ── Welcome Banner (For You) ── */
+.foryou-welcome-banner {
+  background: var(--surface-dark-3);
+  padding: 28px 32px;
+  margin-bottom: 24px;
+  position: relative;
+}
+.foryou-welcome-banner-dismiss {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  font-family: 'DM Mono', monospace;
+  font-size: 14px;
+  color: var(--on-dark-dim);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 4px;
+  line-height: 1;
+}
+.foryou-welcome-banner h3 {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-weight: 900;
+  font-size: 22px;
+  color: var(--on-dark);
+  margin: 0 0 4px;
+}
+.foryou-welcome-banner p {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: var(--on-dark-dim);
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+.foryou-welcome-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.foryou-welcome-chip {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--on-dark);
+  background: rgba(244, 239, 230, 0.06);
+  border: 1px solid rgba(244, 239, 230, 0.1);
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.foryou-welcome-chip:hover {
+  border-color: rgba(244, 239, 230, 0.3);
+}
