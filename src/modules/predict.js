@@ -299,8 +299,11 @@ export function initPredict() {
   const constrainedLocked = !tier.canConstrain || !constrainedPolicy;
   if (constrainedLocked && constrainedSection) {
     constrainedSection.style.position = 'relative';
-    constrainedSection.style.opacity = '0.4';
     constrainedSection.style.pointerEvents = 'none';
+    // Dim content children only — overlay stays at full opacity
+    for (const child of constrainedSection.children) {
+      if (!child.classList.contains('foryou-lock-overlay')) child.style.opacity = '0.4';
+    }
     let overlay = constrainedSection.querySelector('.foryou-lock-overlay');
     if (!overlay) {
       overlay = document.createElement('div');
@@ -316,7 +319,7 @@ export function initPredict() {
       constrainedSection.appendChild(overlay);
     }
   } else if (constrainedSection) {
-    constrainedSection.style.opacity = '';
+    for (const child of constrainedSection.children) { child.style.opacity = ''; }
     constrainedSection.style.pointerEvents = '';
     const overlay = constrainedSection.querySelector('.foryou-lock-overlay');
     if (overlay) overlay.remove();
@@ -328,8 +331,10 @@ export function initPredict() {
   const discoveryLocked = !tier.canDiscover || !discoveryPolicy;
   if (discoveryLocked && discoverySection) {
     discoverySection.style.position = 'relative';
-    discoverySection.style.opacity = '0.4';
     discoverySection.style.pointerEvents = 'none';
+    for (const child of discoverySection.children) {
+      if (!child.classList.contains('foryou-lock-overlay')) child.style.opacity = '0.4';
+    }
     let dOverlay = discoverySection.querySelector('.foryou-lock-overlay');
     if (!dOverlay) {
       dOverlay = document.createElement('div');
@@ -345,7 +350,7 @@ export function initPredict() {
       discoverySection.appendChild(dOverlay);
     }
   } else if (discoverySection) {
-    discoverySection.style.opacity = '';
+    for (const child of discoverySection.children) { child.style.opacity = ''; }
     discoverySection.style.pointerEvents = '';
     const dOverlay = discoverySection.querySelector('.foryou-lock-overlay');
     if (dOverlay) dOverlay.remove();
@@ -497,23 +502,31 @@ function renderHeroCard(result) {
   const onWl = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(result.tmdbId));
   const tier = getPredictionTier();
 
+  // predictionBacked may be absent on old cached recs — infer from prediction object
+  const hasPrediction = (result.predictionBacked ?? !!result.prediction) && result.predTotal != null;
+
   let scoreHtml;
   if (!tier.showScores) {
-    // Tier 1: qualitative label
+    // Tier 1: qualitative label (no predictions available at this tier)
     const sourceNote = result.source === 'director' ? `You rated ${(result.director || '').split(',')[0]}'s work highly — this shares their signature style.` : '';
     scoreHtml = `
       <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:28px;color:var(--blue);line-height:1.1">Likely a match</div>
       <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim);margin-top:4px">Based on your first ${MOVIES.length} ratings</div>
       ${sourceNote ? `<div class="foryou-hero-reasoning">${sourceNote}</div>` : ''}`;
+  } else if (!hasPrediction) {
+    // Tier 2/3 but no real prediction — qualitative fallback, never show compatScore as a number
+    scoreHtml = `
+      <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:28px;color:var(--blue);line-height:1.1">Strong candidate</div>
+      <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim);margin-top:4px">Matched by taste profile · prediction pending</div>`;
   } else if (tier.rangeWidth > 0) {
-    // Tier 2: range score
+    // Tier 2: range score with real prediction
     scoreHtml = `
       <div class="foryou-hero-score">${formatPredictedScore(total, MOVIES.length)}</div>
       <span class="predict-confidence conf-exploratory">Exploratory</span>
       <div class="foryou-hero-score-label">${getLabel(Math.round(total))}</div>
       ${result.prediction?.reasoning ? `<div class="foryou-hero-reasoning">${result.prediction.reasoning}</div>` : ''}`;
   } else {
-    // Tier 3: exact score
+    // Tier 3: exact score with real prediction
     const totalDisplay = (Math.round(total * 10) / 10).toFixed(1);
     scoreHtml = `
       <div class="foryou-hero-score">~${totalDisplay}</div>
@@ -572,9 +585,11 @@ function renderSecondaryCards(results) {
       : `<div class="foryou-sec-poster" style="width:100%;height:100%;background:var(--rule);display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">${r.title}</div>`;
     const safeTmdbId = parseInt(r.tmdbId);
 
+    const hasRealPred = (r.predictionBacked ?? !!r.prediction) && r.predTotal != null;
     let scoreBadge;
-    if (!tier.showScores) {
-      scoreBadge = `<div class="foryou-sec-score-badge" style="font-size:8px;letter-spacing:0.5px">${getSourceLabel(r)}</div>`;
+    if (!tier.showScores || !hasRealPred) {
+      // No scores at this tier, or heuristic-only — show source label instead of fake number
+      scoreBadge = `<div class="foryou-sec-score-badge" style="font-size:8px;letter-spacing:0.5px">${hasRealPred ? getSourceLabel(r) : 'Match'}</div>`;
     } else if (tier.rangeWidth > 0) {
       scoreBadge = `<div class="foryou-sec-score-badge">${formatPredictedScore(r.predTotal, MOVIES.length)}</div>`;
     } else {
@@ -2071,14 +2086,32 @@ async function findMeAFilm() {
       return;
     }
 
-    // ── Phase 3: Run predictions — max 5 new Claude calls, cache-first ───────
+    // ── Phase 3: Run predictions — wider shortlist, cache-first ─────────────
     const fmTier = getPredictionTier();
-    const top5 = scored.slice(0, 8);
+    // Widen shortlist: take top 15 by heuristic so prediction can surface the true best
+    const shortlist = scored.slice(0, 15);
 
-    // At Tier 1, skip Claude calls entirely — use compatScore as predTotal
+    // Final safety filter: never surface anything already rated or watchlisted
+    const ratedIdsCheck = new Set(MOVIES.map(m => String(m.tmdbId)).filter(Boolean));
+    const ratedTitlesCheck = new Set(MOVIES.map(m => normTitle(m.title)));
+    const wlIdsCheck = new Set((currentUser?.watchlist || []).map(w => String(w.tmdbId)));
+    const wlTitlesCheck = new Set((currentUser?.watchlist || []).map(w => normTitle(w.title)));
+    const alreadyKnown = (c) =>
+      ratedIdsCheck.has(String(c.tmdbId)) ||
+      ratedTitlesCheck.has(normTitle(c.title)) ||
+      wlIdsCheck.has(String(c.tmdbId)) ||
+      wlTitlesCheck.has(normTitle(c.title));
+
+    // Filter before prediction to avoid wasting Claude calls on known films
+    const viable = shortlist
+      .filter(c => !alreadyKnown(c))
+      .filter(c => !previousRecommendationIds.has(String(c.tmdbId)));
+
+    // At Tier 1, skip Claude calls entirely — heuristic-only recommendations
     if (fmTier.canPredict && canRunFreshPrediction('foryou_auto').allowed) {
-      const toPredict = top5.filter(c => !isCacheValid(c.tmdbId));
-      const toCall = toPredict.slice(0, 5);
+      // Predict up to 8 films (increased from 5) — prioritize uncached
+      const toPredict = viable.filter(c => !isCacheValid(c.tmdbId));
+      const toCall = toPredict.slice(0, 8);
 
       await Promise.allSettled(toCall.map(async (c) => {
         const film = {
@@ -2101,38 +2134,25 @@ async function findMeAFilm() {
           setCurrentUser({ ...currentUser, predictions: trimPredictions(newPredictions) });
           saveUserLocally();
           syncToSupabase();
-        } catch { /* prediction failure — candidate excluded from results */ }
+        } catch { /* prediction failure — candidate still viable as heuristic */ }
       }));
     }
 
-    // ── Phase 4: Collect results and render top 3 ────────────────────────────
-    // Final safety filter: never surface anything already rated or watchlisted,
-    // even if it slipped through candidate pool filtering (e.g. missing tmdbId, title mismatch)
-    const ratedIdsCheck = new Set(MOVIES.map(m => String(m.tmdbId)).filter(Boolean));
-    const ratedTitlesCheck = new Set(MOVIES.map(m => normTitle(m.title)));
-    const wlIdsCheck = new Set((currentUser?.watchlist || []).map(w => String(w.tmdbId)));
-    const wlTitlesCheck = new Set((currentUser?.watchlist || []).map(w => normTitle(w.title)));
-    const alreadyKnown = (c) =>
-      ratedIdsCheck.has(String(c.tmdbId)) ||
-      ratedTitlesCheck.has(normTitle(c.title)) ||
-      wlIdsCheck.has(String(c.tmdbId)) ||
-      wlTitlesCheck.has(normTitle(c.title));
+    // ── Phase 4: Collect results — predicted-first ranking ────────────────────
+    // Separate predicted vs heuristic-only candidates, rank predicted by predTotal,
+    // heuristic by compatScore — predicted always rank above heuristic
+    let results = viable.map(c => {
+      const cached = currentUser?.predictions?.[String(c.tmdbId)];
+      if (cached?.prediction) {
+        return { ...c, prediction: cached.prediction, predTotal: calcPredictedTotal(cached.prediction), predictionBacked: true };
+      }
+      // No real prediction — mark as heuristic-only (never display compatScore as predicted score)
+      return { ...c, predTotal: null, prediction: null, predictionBacked: false };
+    });
 
-    // Collect results — prefer Claude predictions when available, fall back to compatScore.
-    // Free tier users won't have foryou_auto predictions; they still get recommendations
-    // ranked by local compatibility scoring (entity overlap, genre, era, tag similarity).
-    let results = top5
-      .filter(c => !alreadyKnown(c))
-      .filter(c => !previousRecommendationIds.has(String(c.tmdbId)))
-      .map(c => {
-        const cached = currentUser?.predictions?.[String(c.tmdbId)];
-        if (cached?.prediction) {
-          return { ...c, prediction: cached.prediction, predTotal: calcPredictedTotal(cached.prediction) };
-        }
-        // No prediction available — use local compatScore as fallback
-        return { ...c, predTotal: c.compatScore, prediction: null };
-      })
-      .sort((a, b) => b.predTotal - a.predTotal);
+    const predicted = results.filter(r => r.predictionBacked).sort((a, b) => b.predTotal - a.predTotal);
+    const heuristicOnly = results.filter(r => !r.predictionBacked).sort((a, b) => b.compatScore - a.compatScore);
+    results = [...predicted, ...heuristicOnly];
 
     // Actor cap: max 1 film per lead actor (first credited cast member)
     const actorSeen = new Set();
@@ -2170,6 +2190,18 @@ async function findMeAFilm() {
     renderHeroCard(finalResults[0]);
     renderSecondaryCards(finalResults.slice(1, 5));
     updateRefreshButtonState();
+
+    // Diagnostics: track prediction coverage in recommendations
+    const predBacked = finalResults.filter(r => r.predictionBacked).length;
+    track('foryou_recommendations_rendered', {
+      total_shown: finalResults.length,
+      prediction_backed: predBacked,
+      heuristic_only: finalResults.length - predBacked,
+      hero_has_prediction: finalResults[0]?.predictionBacked || false,
+      tier: fmTier.tier,
+      films_rated: MOVIES.length,
+      shortlist_size: viable.length,
+    });
 
     // Load discovery as part of the same refresh cycle (requires both tier AND policy)
     if (getPredictionTier().canDiscover && getPredictionPolicy().allow_discovery_auto) {
@@ -2380,17 +2412,18 @@ async function loadDiscoveryRecommendations() {
       } catch { /* skip */ }
     }));
 
-    // Collect results — prefer predictions, fall back to compatScore
-    const results = top4
+    // Collect results — prefer predictions; heuristic-only candidates get null predTotal
+    const dResults = top4
       .map(c => {
         const cached = currentUser?.predictions?.[String(c.tmdbId)];
         if (cached?.prediction) {
-          return { ...c, prediction: cached.prediction, predTotal: calcPredictedTotal(cached.prediction) };
+          return { ...c, prediction: cached.prediction, predTotal: calcPredictedTotal(cached.prediction), predictionBacked: true };
         }
-        return { ...c, predTotal: c.compatScore, prediction: null };
-      })
-      .sort((a, b) => b.predTotal - a.predTotal)
-      .slice(0, 3);
+        return { ...c, predTotal: null, prediction: null, predictionBacked: false };
+      });
+    const dPredicted = dResults.filter(r => r.predictionBacked).sort((a, b) => b.predTotal - a.predTotal);
+    const dHeuristic = dResults.filter(r => !r.predictionBacked).sort((a, b) => b.compatScore - a.compatScore);
+    const results = [...dPredicted, ...dHeuristic].slice(0, 3);
 
     if (!results.length) {
       gridEl.innerHTML = `<div class="discovery-loading">Couldn't chart this territory. <a style="color:var(--discover);cursor:pointer;text-decoration:underline" onclick="loadForYouRecommendations()">Try again</a></div>`;
@@ -2417,16 +2450,18 @@ function renderDiscoveryCards(results) {
     const poster = r.poster
       ? `<img class="discovery-card-poster" src="https://image.tmdb.org/t/p/w92${r.poster}" alt="${r.title}">`
       : `<div class="discovery-card-poster-none"></div>`;
-    const total = (Math.round(r.predTotal * 10) / 10).toFixed(1);
     const safeTmdbId = parseInt(r.tmdbId);
     const onWl = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(r.tmdbId));
+    const scoreDisplay = (r.predictionBacked ?? !!r.prediction) && r.predTotal != null
+      ? formatPredictedScore(r.predTotal, MOVIES.length)
+      : 'Match';
     return `<div class="discovery-card" onclick="openRecommendedDetail(${safeTmdbId})">
       ${poster}
       <div class="discovery-card-body">
         <div class="discovery-card-source">${DISCOVERY_ICON_SVG} New territory</div>
         <div class="discovery-card-title">${r.title}</div>
         <div class="discovery-card-meta">${r.year || ''}${r.director ? ' · ' + r.director.split(',')[0] : ''}</div>
-        <div class="discovery-card-score">${formatPredictedScore(r.predTotal, MOVIES.length)}</div>
+        <div class="discovery-card-score">${scoreDisplay}</div>
       </div>
       <div class="discovery-card-actions" onclick="event.stopPropagation()">
         <button class="discovery-wl-btn${onWl ? ' on-list' : ''}" onclick="toggleRecommendWatchlist('${r.tmdbId}');this.classList.toggle('on-list');this.textContent=this.classList.contains('on-list')?'✓ List':'+ List'">${onWl ? '✓ List' : '+ List'}</button>
@@ -2732,17 +2767,17 @@ async function constrainedSelectEntity(type, tmdbId, name) {
       } catch { /* prediction failure */ }
     }));
 
-    // Step 5: Collect and render top 3 — prefer predictions, fall back to compatScore
-    const results = top5
-      .map(c => {
-        const cached = currentUser?.predictions?.[String(c.tmdbId)];
-        if (cached?.prediction) {
-          return { ...c, prediction: cached.prediction, predTotal: calcPredictedTotal(cached.prediction) };
-        }
-        return { ...c, predTotal: c.compatScore, prediction: null };
-      })
-      .sort((a, b) => b.predTotal - a.predTotal)
-      .slice(0, 3);
+    // Step 5: Collect and render top 3 — predicted first, heuristic fallback honest
+    const csResults = top5.map(c => {
+      const cached = currentUser?.predictions?.[String(c.tmdbId)];
+      if (cached?.prediction) {
+        return { ...c, prediction: cached.prediction, predTotal: calcPredictedTotal(cached.prediction), predictionBacked: true };
+      }
+      return { ...c, predTotal: null, prediction: null, predictionBacked: false };
+    });
+    const csPredicted = csResults.filter(r => r.predictionBacked).sort((a, b) => b.predTotal - a.predTotal);
+    const csHeuristic = csResults.filter(r => !r.predictionBacked).sort((a, b) => b.compatScore - a.compatScore);
+    const results = [...csPredicted, ...csHeuristic].slice(0, 3);
 
     if (!results.length) {
       resultsEl.innerHTML = `
@@ -2789,16 +2824,18 @@ function renderConstrainedResults(name, type, _tmdbId, results) {
     const poster = r.poster
       ? `<img class="constrained-card-poster" src="https://image.tmdb.org/t/p/w92${r.poster}" alt="${r.title}">`
       : `<div class="constrained-card-poster-none"></div>`;
-    const total = (Math.round(r.predTotal * 10) / 10).toFixed(1);
     const safeTmdbId = parseInt(r.tmdbId);
     const onWl = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(r.tmdbId));
+    const csScoreDisplay = (r.predictionBacked ?? !!r.prediction) && r.predTotal != null
+      ? formatPredictedScore(r.predTotal, MOVIES.length)
+      : 'Match';
     return `<div class="constrained-card" onclick="openRecommendedDetail(${safeTmdbId})">
       ${poster}
       <div class="constrained-card-body">
         <div class="constrained-card-source">${getConstrainedSourceLabel(type, name)}</div>
         <div class="constrained-card-title">${r.title}</div>
         <div class="constrained-card-meta">${r.year || ''}${r.director ? ' · ' + r.director.split(',')[0] : ''}</div>
-        <div class="constrained-card-score">${formatPredictedScore(r.predTotal, MOVIES.length)}</div>
+        <div class="constrained-card-score">${csScoreDisplay}</div>
       </div>
       <div class="constrained-card-actions" onclick="event.stopPropagation()">
         <button id="constrained-wl-${safeTmdbId}" class="constrained-wl-btn${onWl ? ' on-list' : ''}" onclick="toggleRecommendWatchlist('${r.tmdbId}');this.classList.toggle('on-list');this.textContent=this.classList.contains('on-list')?'✓ List':'+ List'">${onWl ? '✓ List' : '+ List'}</button>
