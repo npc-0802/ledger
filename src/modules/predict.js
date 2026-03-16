@@ -1098,8 +1098,9 @@ function scoreCandidate(film) {
       });
     });
     const genreAvgs = {};
+    const genreMinCount = MOVIES.length < 15 ? 1 : 2;
     Object.keys(genreScores).forEach(g => {
-      if (genreCounts[g] >= 2) genreAvgs[g] = genreScores[g] / genreCounts[g];
+      if (genreCounts[g] >= genreMinCount) genreAvgs[g] = genreScores[g] / genreCounts[g];
     });
     let genreScore = 0, matched = 0;
     candidateGenres.forEach(g => {
@@ -1122,8 +1123,9 @@ function scoreCandidate(film) {
       decadeCounts[d] = (decadeCounts[d] || 0) + 1;
     });
     let topDecade = null, topDecadeAvg = 0;
+    const decadeMinCount = MOVIES.length < 15 ? 1 : 2;
     Object.keys(decadeScores).forEach(d => {
-      if (decadeCounts[d] >= 2) {
+      if (decadeCounts[d] >= decadeMinCount) {
         const avg = decadeScores[d] / decadeCounts[d];
         if (avg > topDecadeAvg) { topDecadeAvg = avg; topDecade = parseInt(d); }
       }
