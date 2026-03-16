@@ -199,8 +199,8 @@ function renderConfirmationHero() {
     </div>
   `;
 
-  // Details: director, cast chips, studio chips
-  const selectedCast = Object.values(castChecked).filter(v => v.checked).map(v => v.actor.name).slice(0, 6);
+  // Details: director, cast chips (with portraits), studio chips
+  const selectedCastActors = Object.values(castChecked).filter(v => v.checked).map(v => v.actor).slice(0, 6);
   const selectedCompanies = Object.values(companyChecked).filter(v => v.checked).map(v => v.company.name);
   let detailsHtml = '';
   if (directorStr) {
@@ -209,10 +209,15 @@ function renderConfirmationHero() {
       <span class="add-detail-value">${directorStr}</span>
     </div>`;
   }
-  if (selectedCast.length) {
+  if (selectedCastActors.length) {
     detailsHtml += `<div class="add-detail-row">
       <span class="add-detail-label">Cast</span>
-      <div>${selectedCast.map(c => `<span class="add-detail-chip">${c}</span>`).join('')}</div>
+      <div>${selectedCastActors.map(a => {
+        const portrait = a.profile_path
+          ? `<img src="https://image.tmdb.org/t/p/w45${a.profile_path}" alt="" style="width:20px;height:20px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px">`
+          : '';
+        return `<span class="add-detail-chip">${portrait}${a.name}</span>`;
+      }).join('')}</div>
     </div>`;
   }
   if (selectedCompanies.length) {
