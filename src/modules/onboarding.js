@@ -168,7 +168,7 @@ function clearOnboardingState() {
   localStorage.removeItem(OB_SAVE_KEY);
   localStorage.removeItem(OB_WRITE_TOKEN_KEY);
   // Also clear server-side if email is known (fire-and-forget, works when authenticated)
-  const email = (obMagicLinkEmail || '').toLowerCase().trim();
+  const email = (obMagicLinkEmail || window._pendingAuthSession?.user?.email || '').toLowerCase().trim();
   if (email) {
     sb.from('onboarding_autosave').delete().eq('email', email).then(() => {}).catch(() => {});
   }
