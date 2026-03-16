@@ -742,8 +742,14 @@ async function init() {
   loadUserLocally();
   runMigrations();
 
-  // Check for active Supabase auth session first
-  const session = await getAuthSession();
+  // Check for active Supabase auth session first.
+  // Magic links put tokens in the URL hash — Supabase exchanges them async.
+  // If the URL has auth params but getSession returns null, retry once.
+  let session = await getAuthSession();
+  if (!session && window.location.hash.includes('access_token')) {
+    await new Promise(r => setTimeout(r, 500));
+    session = await getAuthSession();
+  }
 
   if (session) {
     setCloudStatus('syncing');

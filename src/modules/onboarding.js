@@ -105,8 +105,8 @@ function saveOnboardingState() {
   } catch (e) {
     console.warn('Onboarding autosave failed:', e);
   }
-  // Fire-and-forget server save when email is known
-  const email = (obMagicLinkEmail || '').toLowerCase().trim();
+  // Fire-and-forget server save when email is known (magic link or Google auth)
+  const email = (obMagicLinkEmail || window._pendingAuthSession?.user?.email || '').toLowerCase().trim();
   if (email) {
     saveOnboardingStateToServer(email, state).catch(() => {});
   }
