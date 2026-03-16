@@ -1,5 +1,5 @@
 import { MOVIES, CATEGORIES, currentUser, setCurrentUser, scoreClass, getLabel, calcTotal, mergeSplitNames } from '../state.js';
-import { syncToSupabase, saveUserLocally, logPrediction, sb } from './supabase.js';
+import { syncToSupabase, saveUserLocally, logPrediction, saveGeneratedArtifact, sb } from './supabase.js';
 import { ARCHETYPES } from '../data/archetypes.js';
 import { classifyArchetype } from './quiz-engine.js';
 import { track, pushAnalyticsEvent } from '../analytics.js';
@@ -2099,6 +2099,28 @@ async function runPrediction(film, source = 'manual_predict') {
         ...(prediction._promptSizes ? { prompt_sizes: prediction._promptSizes } : {}),
       }
     });
+
+    // Persist prediction as durable artifact (fire-and-forget)
+    saveGeneratedArtifact({
+      contentType: 'film_prediction',
+      objectType: 'film',
+      objectId: String(film.tmdbId),
+      objectLabel: `${film.title} (${film.year || '?'})`,
+      payload: {
+        film,
+        prediction: { predicted_scores: prediction.predicted_scores, confidence: prediction.confidence, reasoning: prediction.reasoning },
+        predictedTotal: calcPredictedTotal(prediction),
+        comparables: comps || null,
+      },
+      summaryText: prediction.reasoning || null,
+      generationSource: prediction._source || source,
+      metadata: {
+        archetype_at_time: currentUser?.archetype || null,
+        weights_at_time: currentUser?.weights ? { ...currentUser.weights } : null,
+        films_rated: MOVIES.length,
+      },
+    });
+
     renderPrediction(film, prediction, comps, predictedAt);
   } catch(e) {
     // Distinguish quota/policy errors from API errors
@@ -2338,6 +2360,21 @@ async function findMeAFilm() {
           setCurrentUser({ ...currentUser, predictions: trimPredictions(newPredictions) });
           saveUserLocally();
           syncToSupabase();
+          // Persist as durable artifact (fire-and-forget)
+          saveGeneratedArtifact({
+            contentType: 'film_prediction',
+            objectType: 'film',
+            objectId: String(film.tmdbId),
+            objectLabel: `${film.title} (${film.year || '?'})`,
+            payload: {
+              film,
+              prediction: { predicted_scores: prediction.predicted_scores, confidence: prediction.confidence, reasoning: prediction.reasoning },
+              predictedTotal: calcPredictedTotal(prediction),
+            },
+            summaryText: prediction.reasoning || null,
+            generationSource: predSource,
+            metadata: { archetype_at_time: currentUser?.archetype || null, films_rated: MOVIES.length },
+          });
         } catch { /* prediction failure — candidate still viable as heuristic */ }
       }));
     }
@@ -2624,6 +2661,13 @@ async function loadDiscoveryRecommendations() {
         setCurrentUser({ ...currentUser, predictions: trimPredictions(newPredictions) });
         saveUserLocally();
         syncToSupabase();
+        saveGeneratedArtifact({
+          contentType: 'film_prediction', objectType: 'film', objectId: String(film.tmdbId),
+          objectLabel: `${film.title} (${film.year || '?'})`,
+          payload: { film, prediction: { predicted_scores: prediction.predicted_scores, confidence: prediction.confidence, reasoning: prediction.reasoning }, predictedTotal: calcPredictedTotal(prediction) },
+          summaryText: prediction.reasoning || null, generationSource: 'discovery_auto',
+          metadata: { archetype_at_time: currentUser?.archetype || null, films_rated: MOVIES.length },
+        });
       } catch { /* skip */ }
     }));
 
@@ -2980,6 +3024,13 @@ async function constrainedSelectEntity(type, tmdbId, name) {
         setCurrentUser({ ...currentUser, predictions: trimPredictions(newPredictions) });
         saveUserLocally();
         syncToSupabase();
+        saveGeneratedArtifact({
+          contentType: 'film_prediction', objectType: 'film', objectId: String(film.tmdbId),
+          objectLabel: `${film.title} (${film.year || '?'})`,
+          payload: { film, prediction: { predicted_scores: prediction.predicted_scores, confidence: prediction.confidence, reasoning: prediction.reasoning }, predictedTotal: calcPredictedTotal(prediction) },
+          summaryText: prediction.reasoning || null, generationSource: 'constrained_search',
+          metadata: { archetype_at_time: currentUser?.archetype || null, films_rated: MOVIES.length },
+        });
       } catch { /* prediction failure */ }
     }));
 

@@ -432,3 +432,73 @@ export async function reconcilePredictionLog(tmdbId, actualScores, actualTotal, 
     console.warn('prediction_log reconcile failed:', e);
   }
 }
+
+// ── GENERATED ARTIFACTS (server-side persistence) ──
+
+/**
+ * Upsert a generated artifact. Call after successful Claude generation.
+ * @param {{ contentType, objectType, objectId, objectLabel, payload, summaryText, model, generationSource, metadata }} artifact
+ */
+export async function saveGeneratedArtifact(artifact) {
+  if (!currentUser?.id) return;
+  try {
+    const row = {
+      user_id: currentUser.id,
+      content_type: artifact.contentType,
+      object_type: artifact.objectType,
+      object_id: artifact.objectId,
+      object_label: artifact.objectLabel || null,
+      payload: artifact.payload,
+      summary_text: artifact.summaryText || null,
+      model: artifact.model || null,
+      generation_source: artifact.generationSource || null,
+      generated_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      version: artifact.version || 1,
+      metadata: artifact.metadata || {},
+    };
+    await sb.from('generated_artifacts')
+      .upsert(row, { onConflict: 'user_id,content_type,object_id' });
+  } catch(e) {
+    console.warn('generated_artifacts upsert failed:', e);
+  }
+}
+
+/**
+ * Load a single generated artifact by type and object ID.
+ * Returns the artifact row or null.
+ */
+export async function loadGeneratedArtifact(contentType, objectId) {
+  if (!currentUser?.id) return null;
+  try {
+    const { data } = await sb.from('generated_artifacts')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .eq('content_type', contentType)
+      .eq('object_id', objectId)
+      .maybeSingle();
+    return data || null;
+  } catch(e) {
+    console.warn('generated_artifacts load failed:', e);
+    return null;
+  }
+}
+
+/**
+ * Load all artifacts of a given type for the current user.
+ * Useful for hydrating local cache on login.
+ */
+export async function loadGeneratedArtifacts(contentType) {
+  if (!currentUser?.id) return [];
+  try {
+    const { data } = await sb.from('generated_artifacts')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .eq('content_type', contentType)
+      .order('generated_at', { ascending: false });
+    return data || [];
+  } catch(e) {
+    console.warn('generated_artifacts load-all failed:', e);
+    return [];
+  }
+}

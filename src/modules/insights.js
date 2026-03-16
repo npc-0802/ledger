@@ -164,6 +164,22 @@ Write 2–3 sentences in second person about what this user's scoring patterns r
   cache[key] = { text, filmCount, avg, ts: Date.now() };
   saveCache(cache);
   recordInsightUsage('entity', key);
+
+  // Persist server-side (fire-and-forget)
+  const entityObjectId = `${type}::${name.toLowerCase().trim()}`;
+  import('./supabase.js').then(({ saveGeneratedArtifact }) => {
+    saveGeneratedArtifact({
+      contentType: 'entity_insight',
+      objectType: 'entity',
+      objectId: entityObjectId,
+      objectLabel: `${type}: ${name}`,
+      payload: { text, filmCount, avg },
+      summaryText: text,
+      generationSource: 'entity_insight',
+      metadata: { filmCount, avg, type, name },
+    });
+  });
+
   return text;
 }
 
@@ -216,6 +232,22 @@ Write 2–3 sentences in second person about what this scoring pattern reveals a
   cache[key] = { text, filmCount: 1, total: film.total, ts: Date.now() };
   saveCache(cache);
   recordInsightUsage('film', key);
+
+  // Persist server-side (fire-and-forget)
+  const filmObjectId = film.tmdbId ? String(film.tmdbId) : `${film.title}::${film.year || ''}`;
+  import('./supabase.js').then(({ saveGeneratedArtifact }) => {
+    saveGeneratedArtifact({
+      contentType: 'film_insight',
+      objectType: 'film',
+      objectId: filmObjectId,
+      objectLabel: `${film.title} (${film.year || '?'})`,
+      payload: { text, total: film.total },
+      summaryText: text,
+      generationSource: 'film_insight',
+      metadata: { total: film.total, tmdbId: film.tmdbId || null },
+    });
+  });
+
   return text;
 }
 
