@@ -36,7 +36,7 @@ import { loadTagVectors, getTagVector, tagVectorsLoaded, getAdmissibleTags, find
 import { computeCategoryFingerprints, categorySimilarity, overallSimilarity, getTopCategoryTags, tagSimilarity, getCoverageCount } from './tag-profile.js';
 import { fitUserResidual, predictWithResidual, checkPooledBaselineGate, checkResidualGate } from './residual-model.js';
 import { evaluatePredictions } from './eval-framework.js';
-import { canRunFreshPrediction, recordPredictionUsage, isCachedPrediction, isCacheValid, getRemainingPredictionQuota, getPredictionPolicy } from './prediction-policy.js';
+import { canRunFreshPrediction, recordPredictionUsage, isCachedPrediction, isCacheValid, getRemainingPredictionQuota, getPredictionPolicy, isOnboardingSeedEligible, markOnboardingSeeded } from './prediction-policy.js';
 
 const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
 const TMDB = 'https://api.themoviedb.org/3';
@@ -146,9 +146,8 @@ function libraryFingerprint() {
 }
 
 function canRefreshRecommendations() {
-  const stored = currentUser?.recommendationFingerprint;
-  if (!stored) return true;
-  return stored !== libraryFingerprint();
+  // Always allow manual refresh — quota gates the actual predictions
+  return true;
 }
 
 function trimPredictions(predictions, limit = 200) {
@@ -164,6 +163,7 @@ let lastPrediction = null;
 let recommendPage = 1;
 let dismissedTmdbIds = new Set(); // tracks films dismissed this session
 let previousRecommendationIds = new Set(); // tracks previous cycle's recommendation tmdbIds
+let _manualRefresh = false; // set by findMeAFilmRefresh, consumed by findMeAFilm
 let constrainedDebounceTimer = null;
 
 // ── PROGRESSIVE UNLOCK TIERS ────────────────────────────────────────────────
@@ -561,10 +561,24 @@ function renderHeroCard(result) {
 function updateRefreshButtonState() {
   const btn = document.getElementById('foryou-refresh-btn');
   if (!btn) return;
-  const canRefresh = canRefreshRecommendations();
-  btn.disabled = !canRefresh;
-  btn.style.opacity = canRefresh ? '' : '0.3';
-  btn.style.cursor = canRefresh ? '' : 'default';
+  const tier = getPredictionTier();
+  const quota = getRemainingPredictionQuota();
+  const hasQuota = quota.daily_remaining > 0 && quota.monthly_remaining > 0;
+  btn.disabled = !hasQuota;
+  btn.style.opacity = hasQuota ? '' : '0.3';
+  btn.style.cursor = hasQuota ? '' : 'default';
+
+  // Quota indicator
+  const quotaEl = document.getElementById('foryou-quota-indicator');
+  if (quotaEl && tier.canPredict) {
+    const text = quota.monthly_remaining <= 10
+      ? `${quota.monthly_remaining} predictions left this month`
+      : `${quota.daily_remaining} of ${quota.daily_limit} left today`;
+    quotaEl.textContent = text;
+    quotaEl.style.display = '';
+  } else if (quotaEl) {
+    quotaEl.style.display = 'none';
+  }
 }
 
 function renderSecondaryCards(results) {
@@ -2137,8 +2151,19 @@ async function findMeAFilm() {
       .filter(c => !alreadyKnown(c))
       .filter(c => !previousRecommendationIds.has(String(c.tmdbId)));
 
+    // Determine prediction source and whether we can run predictions
+    const isOnboardingSeed = isOnboardingSeedEligible();
+    const isManualRefresh = _manualRefresh;
+    _manualRefresh = false; // consume the flag
+
+    const predSource = isOnboardingSeed ? 'onboarding_seed'
+      : isManualRefresh ? 'manual_refresh'
+      : 'foryou_auto';
+
+    const canPredictForYou = fmTier.canPredict && canRunFreshPrediction(predSource).allowed;
+
     // At Tier 1, skip Claude calls entirely — heuristic-only recommendations
-    if (fmTier.canPredict && canRunFreshPrediction('foryou_auto').allowed) {
+    if (canPredictForYou) {
       // Predict up to 8 films (increased from 5) — prioritize uncached
       const toPredict = viable.filter(c => !isCacheValid(c.tmdbId));
       const toCall = toPredict.slice(0, 8);
@@ -2151,7 +2176,7 @@ async function findMeAFilm() {
           overview: c.overview || '', poster: c.poster || null
         };
         try {
-          const { prediction } = await callClaudeForPrediction(film, null, 'foryou_auto');
+          const { prediction } = await callClaudeForPrediction(film, null, predSource);
           const predictedAt = new Date().toISOString();
           const newPredictions = {
             ...(currentUser?.predictions || {}),
@@ -2206,8 +2231,10 @@ async function findMeAFilm() {
 
     // ── Phase 5: Cache + render into For You layout ──────────────────────────
     const now = new Date().toISOString();
+    const seedFields = isOnboardingSeed ? markOnboardingSeeded() : {};
     setCurrentUser({
       ...currentUser,
+      ...seedFields,
       cachedRecommendations: finalResults,
       lastRecommendationAt: now,
       moviesCountAtLastRecommendation: MOVIES.length,
@@ -3061,7 +3088,7 @@ window.recDetailToggleWl = async function(tmdbId) {
 };
 
 window.findMeAFilmRefresh = function() {
-  if (!canRefreshRecommendations()) return;
+  _manualRefresh = true;
   loadForYouRecommendations();
 };
 

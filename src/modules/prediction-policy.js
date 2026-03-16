@@ -131,6 +131,8 @@ export function canRunFreshPrediction(source) {
     constrained_search: policy.allow_constrained,
     repredict: policy.allow_repredict,
     manual_predict: true, // always allowed (within quota)
+    onboarding_seed: true, // one-time post-onboarding grace (within quota)
+    manual_refresh: true, // explicit user-triggered Discover refresh (within quota)
   };
 
   if (sourceGates[source] === false) {
@@ -185,6 +187,27 @@ export function getRemainingPredictionQuota() {
     daily_limit: policy.daily_limit,
     monthly_limit: policy.monthly_limit,
     tier: policy.tier,
+  };
+}
+
+// ── Onboarding seed grace ─────────────────────────────────────────────────
+// Every user gets one prediction-backed Discover batch immediately after
+// onboarding, regardless of plan tier. This is a one-time acquisition cost.
+
+export function isOnboardingSeedEligible() {
+  if (!currentUser) return false;
+  // Already seeded — no grace
+  if (currentUser.onboarding_discover_seeded) return false;
+  // Must have completed onboarding (has archetype + rated films)
+  if (!currentUser.archetype) return false;
+  return true;
+}
+
+export function markOnboardingSeeded() {
+  // Caller is responsible for setCurrentUser + save/sync
+  return {
+    onboarding_discover_seeded: true,
+    onboarding_discover_seeded_at: new Date().toISOString(),
   };
 }
 
