@@ -1,4 +1,4 @@
-import { searchMovieCandidates } from './tmdb-movie.js';
+import { smartSearch, formatDirector } from './smart-search.js';
 
 function closePosterPicker() {
   document.getElementById('poster-picker-overlay')?.remove();
@@ -36,7 +36,8 @@ export async function openPosterPicker({ title, year = null, selectedTmdbId = nu
   resultsEl.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);padding:10px 0">Loading options…</div>`;
 
   try {
-    const results = await searchMovieCandidates(title, year);
+    const query = year ? `${title} ${year}` : title;
+    const results = await smartSearch(query, { limit: 12 });
     if (!results.length) {
       resultsEl.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);padding:10px 0">No alternate matches found.</div>`;
       return;
@@ -50,7 +51,9 @@ export async function openPosterPicker({ title, year = null, selectedTmdbId = nu
       const poster = movie.poster_path
         ? `<img src="https://image.tmdb.org/t/p/w154${movie.poster_path}" alt="" style="width:58px;height:87px;object-fit:cover;flex-shrink:0">`
         : `<div style="width:58px;height:87px;background:var(--cream);display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:8px;color:var(--dim);flex-shrink:0">NO IMG</div>`;
-      const releaseYear = movie.release_date?.slice(0, 4) || '—';
+      const releaseYear = movie._yearNum || '—';
+      const dirStr = formatDirector(movie._directors);
+      const metaLine = [releaseYear, dirStr].filter(Boolean).join(' · ');
       const selectedLabel = movie.id === selectedTmdbId
         ? `<div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--blue);margin-bottom:6px">Current</div>`
         : '';
@@ -59,7 +62,7 @@ export async function openPosterPicker({ title, year = null, selectedTmdbId = nu
         <div style="min-width:0">
           ${selectedLabel}
           <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;line-height:1.1;color:var(--ink);margin-bottom:4px">${movie.title}</div>
-          <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-bottom:8px">${releaseYear}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-bottom:8px">${metaLine}</div>
           <div style="font-family:'DM Sans',sans-serif;font-size:12px;line-height:1.5;color:var(--dim)">${(movie.overview || 'No overview available.').slice(0, 120)}${(movie.overview || '').length > 120 ? '…' : ''}</div>
         </div>
       `;

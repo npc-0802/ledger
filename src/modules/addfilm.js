@@ -5,6 +5,7 @@ import { saveUserLocally, reconcilePredictionLog } from './supabase.js';
 import { removeFromWatchlist } from './watchlist.js';
 import { openPosterPicker } from './posterpicker.js';
 import { fetchTmdbMovieBundle } from './tmdb-movie.js';
+import { smartSearch, formatDirector } from './smart-search.js';
 import { track } from '../analytics.js';
 import { shouldShowHint, renderHint } from './hints.js';
 import { updateEffectiveWeights } from './weight-blend.js';
@@ -55,26 +56,28 @@ export function liveSearch(val) {
   document.getElementById('searchSpinner').style.display = 'inline';
   searchDebounceTimer = setTimeout(async () => {
     try {
-      const res = await fetch(`${TMDB}/search/movie?api_key=${TMDB_KEY}&query=${encodeURIComponent(val.trim())}&include_adult=false`);
-      const data = await res.json();
+      const results = await smartSearch(val, { limit: 6 });
       document.getElementById('searchSpinner').style.display = 'none';
-      if (!data.results || data.results.length === 0) {
+      if (!results.length) {
         resultsEl.innerHTML = '<div class="tmdb-loading">No results found.</div>';
         return;
       }
-      const top = data.results.slice(0, 6);
-      resultsEl.innerHTML = top.map(m => {
-        const year = m.release_date ? m.release_date.slice(0,4) : '?';
+      resultsEl.innerHTML = results.map(m => {
+        const year = m._yearNum || '?';
         const poster = m.poster_path
           ? '<img class="add-result-poster" src="https://image.tmdb.org/t/p/w92' + m.poster_path + '" alt="">'
           : '<div class="add-result-poster-none"></div>';
         const safeTitle = m.title.replace(/'/g,"\\'").replace(/"/g,'\\"');
         const safePoster = (m.poster_path || '').replace(/'/g,"\\'");
+        const dirStr = formatDirector(m._directors);
+        const metaParts = [year];
+        if (dirStr) metaParts.push(dirStr);
+        else if (m.vote_average) metaParts.push(m.vote_average.toFixed(1) + ' TMDB');
         return '<div class="add-result" onclick="tmdbSelect(' + m.id + ', \'' + safeTitle + '\')">' +
           poster +
           '<div class="add-result-info">' +
             '<div class="add-result-title">' + m.title + '</div>' +
-            '<div class="add-result-meta">' + year + (m.vote_average ? ' · ' + m.vote_average.toFixed(1) + ' TMDB' : '') + '</div>' +
+            '<div class="add-result-meta">' + metaParts.join(' · ') + '</div>' +
           '</div>' +
           '<div class="add-result-actions" onclick="event.stopPropagation()">' +
             '<button class="add-result-wl-btn" onclick="addResultToWatchlist(' + m.id + ',\'' + safeTitle + '\',\'' + year + '\',\'' + safePoster + '\',this)">+ List</button>' +

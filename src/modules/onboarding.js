@@ -5,9 +5,10 @@ import { saveToStorage } from './storage.js';
 import { renderRankings } from './rankings.js';
 import { sb, syncToSupabase, saveUserLocally, signInWithGoogle, sendMagicLink } from './supabase.js';
 import { fetchTmdbMovieBundle } from './tmdb-movie.js';
-import { track } from '../analytics.js';
+import { track, pushAnalyticsEvent } from '../analytics.js';
 import { recordWeightSnapshot, computeWeightedCategoryAverages } from './weight-blend.js';
 import { SELECTION_FILMS } from '../data/selection-films.js';
+import { smartSearch, formatDirector } from './smart-search.js';
 
 const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
 
@@ -553,12 +554,24 @@ export function launchOnboarding(opts = {}) {
     obDisplayName = opts.name || '';
     obStep = 'guided';
     track('onboarding_start', { method: 'google' });
+    pushAnalyticsEvent('pm_onboarding_started', {
+      screen_name: 'onboarding',
+      step_name: 'guided',
+    });
   } else if (opts.skipToImport) {
     obStep = 'import';
     obImportedMovies = null;
     track('onboarding_start', { method: 'letterboxd_import' });
+    pushAnalyticsEvent('pm_onboarding_started', {
+      screen_name: 'onboarding',
+      step_name: 'import',
+    });
   } else {
     obStep = 'name';
+    pushAnalyticsEvent('pm_onboarding_started', {
+      screen_name: 'onboarding',
+      step_name: 'name',
+    });
   }
   renderObStep();
 }
@@ -620,8 +633,23 @@ window.obResumeSession = function() {
     saved_step: savedState.obStep,
     progress_percent: Math.round(savedState.progressPercent || 0),
   });
+  pushAnalyticsEvent('pm_onboarding_resumed', {
+    screen_name: 'onboarding',
+    step_name: savedState.obStep,
+  });
 
   restoreOnboardingState(savedState);
+
+  // When resuming at taste-reveal, the calibrated films from finishCalibration()
+  // were in memory but never persisted to MOVIES storage. Re-derive them from
+  // the saved comparison results (deterministic — same inputs produce same scores).
+  if (obStep === 'taste-reveal' && selectSelectedFilms.length > 0) {
+    const existingIds = new Set(MOVIES.map(m => String(m.tmdbId)));
+    const allCalibratedPresent = selectSelectedFilms.every(f => existingIds.has(String(f.tmdbId)));
+    if (!allCalibratedPresent) {
+      finishCalibrationOnly();
+    }
+  }
 
   // Animate progress bar from 0 to saved percentage (400ms CSS transition)
   ensureProgressBar();
@@ -660,6 +688,10 @@ window.saveAndExitOnboarding = function() {
   track('onboarding_save_and_exit', {
     saved_step: obStep,
     progress_percent: Math.round(getCurrentOnboardingProgressPercent()),
+  });
+  pushAnalyticsEvent('pm_onboarding_save_exit', {
+    screen_name: 'onboarding',
+    step_name: obStep,
   });
 
   // Save any committed film objects through normal persistence
@@ -894,7 +926,7 @@ function renderGuidedStep() {
 }
 
 // ── GUIDED SCORING (sliders) ──
-function renderGuidedScoring() {
+function renderGuidedScoring(skipScrollToTop = false) {
   const card = document.getElementById('ob-card-content');
   const film = guidedSelectedFilm;
   if (!film) return;
@@ -918,7 +950,7 @@ function renderGuidedScoring() {
     const val = guidedScores[cat.key] || 65;
     // Insert divider before beat group on first film
     if (isFirstFilm && guidedSliderStage === 'all' && idx === GUT_CATS.length) {
-      slidersHTML += '<div style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--on-dark-dim);margin:28px 0 16px;padding-top:20px;border-top:1px solid rgba(255,255,255,0.08);opacity:0;animation:fadeIn 0.4s ease 0.1s both">Now the ones that take a beat longer.</div>';
+      slidersHTML += '<div class="beat-sliders-section" style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--on-dark-dim);margin:28px 0 16px;padding-top:20px;border-top:1px solid rgba(255,255,255,0.08);opacity:0;animation:fadeIn 0.4s ease 0.1s both">Now the ones that take a beat longer.</div>';
     }
     const animStyle = isFirstFilm && guidedSliderStage === 'all' && BEAT_CATS.includes(cat.key)
       ? `opacity:0;animation:fadeIn 0.4s ease ${0.1 + (idx - GUT_CATS.length) * 0.08}s both`
@@ -970,9 +1002,17 @@ function renderGuidedScoring() {
     </div>
   `;
 
-  // Scroll to top
   const overlay = document.getElementById('onboarding-overlay');
-  if (overlay) overlay.scrollTo({ top: 0, behavior: 'smooth' });
+  if (skipScrollToTop) {
+    // When revealing beat sliders, scroll to them instead of jumping to top
+    const beatSection = card?.querySelector('.beat-sliders-section');
+    if (beatSection) {
+      beatSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  } else {
+    // Normal transition: scroll to top
+    if (overlay) overlay.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 }
 
 // ── GUIDED INSIGHT (after rating) ──
@@ -1300,24 +1340,22 @@ window.guidedSearchFilm = function(query) {
   if (!query || query.length < 2) { resultsEl.innerHTML = ''; return; }
   _guidedSearchTimer = setTimeout(async () => {
     try {
-      const res = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${TMDB_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`);
-      const data = await res.json();
-      const ratedSet = new Set([...MOVIES.map(m => String(m.tmdbId)), ...guidedFilms.map(f => String(f.tmdbId))]);
-      const results = (data.results || [])
-        .filter(f => f.poster_path && !ratedSet.has(String(f.id)))
-        .slice(0, 6);
+      const excludeIds = new Set([...MOVIES.map(m => String(m.tmdbId)), ...guidedFilms.map(f => String(f.tmdbId))]);
+      const results = await smartSearch(query, { limit: 6, requirePoster: true, excludeIds });
       if (!results.length) {
         resultsEl.innerHTML = '<div style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--on-dark-dim);padding:8px 0">No results</div>';
         return;
       }
       resultsEl.innerHTML = results.map(f => {
-        const year = f.release_date ? f.release_date.slice(0, 4) : '';
+        const year = f._yearNum || '';
+        const dirStr = formatDirector(f._directors);
         const safeTitle = f.title.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        const metaLine = [year, dirStr].filter(Boolean).join(' · ');
         return `<div style="display:flex;align-items:center;gap:10px;padding:10px 4px;cursor:pointer;border-bottom:1px solid rgba(244,239,230,0.08)" onclick="guidedSelectFilm(${f.id}, '${f.poster_path}', '${safeTitle}', '${year}')">
           <img src="https://image.tmdb.org/t/p/w92${f.poster_path}" style="width:36px;height:54px;object-fit:cover;border-radius:2px;flex-shrink:0" alt="">
           <div style="min-width:0">
             <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:15px;color:var(--on-dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${f.title}</div>
-            <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim)">${year}</div>
+            <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim)">${metaLine}</div>
           </div>
         </div>`;
       }).join('');
@@ -1363,7 +1401,7 @@ window.guidedSliderChange = function(catKey, val) {
 
 window.guidedRevealBeatSliders = function() {
   guidedSliderStage = 'all';
-  renderGuidedScoring();
+  renderGuidedScoring(true);
 };
 
 window.guidedBackToSearch = function() {
@@ -1561,9 +1599,7 @@ window.obSelectSearch = function(query) {
   }
   _selectSearchTimeout = setTimeout(async () => {
     try {
-      const res = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${TMDB_KEY}&query=${encodeURIComponent(query)}&page=1`);
-      const data = await res.json();
-      selectSearchResults = (data.results || []).filter(r => r.poster_path);
+      selectSearchResults = await smartSearch(query, { limit: 12, requirePoster: true });
       renderSelectScreen();
       // Restore search input value and focus
       const input = document.getElementById('ob-select-search-input');
@@ -1905,10 +1941,36 @@ window.obAbsolutePick = function(bucketKey) {
       card.innerHTML = `
         <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;opacity:0;animation:fadeIn 0.3s ease both">
           <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:28px;color:var(--on-dark);margin-bottom:12px">All done.</div>
-          <div style="font-family:'DM Sans',sans-serif;font-size:14px;color:var(--on-dark-dim)">Building your taste profile...</div>
-        </div>`;
+          <div style="font-family:'DM Sans',sans-serif;font-size:14px;color:var(--on-dark-dim);margin-bottom:24px">Building your taste profile...</div>
+          <div style="width:28px;height:28px;border:2.5px solid rgba(255,255,255,0.12);border-top-color:var(--on-dark-dim);border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:32px"></div>
+          <button id="ob-building-skip" style="display:none;background:none;border:1px solid rgba(255,255,255,0.15);color:var(--on-dark-dim);font-family:'DM Sans',sans-serif;font-size:13px;padding:8px 20px;border-radius:6px;cursor:pointer;opacity:0;animation:fadeIn 0.3s ease both" onclick="window._obSkipBuild && window._obSkipBuild()">Skip</button>
+        </div>
+        <style>@keyframes spin{to{transform:rotate(360deg)}}</style>`;
     }
-    setTimeout(() => finishCalibration(), 1200);
+    // Show skip button after 4s in case finishCalibration hangs
+    const skipTimer = setTimeout(() => {
+      const skipBtn = document.getElementById('ob-building-skip');
+      if (skipBtn) skipBtn.style.display = '';
+    }, 4000);
+    window._obSkipBuild = () => {
+      clearTimeout(skipTimer);
+      try { finishCalibration(); } catch(e) {
+        console.error('finishCalibration skip error:', e);
+        obStep = 'taste-reveal';
+        renderObStep();
+      }
+    };
+    setTimeout(() => {
+      clearTimeout(skipTimer);
+      try {
+        finishCalibration();
+      } catch(e) {
+        console.error('finishCalibration error:', e);
+        // If calibration fails, still advance so user isn't stuck
+        obStep = 'taste-reveal';
+        renderObStep();
+      }
+    }, 1200);
   } else {
     renderAbsolutePass();
   }
@@ -2006,9 +2068,14 @@ function applyAbsoluteAdjustment(scores, calibrationConfidence, targetTotal, cal
   };
 }
 
-function finishCalibration() {
+// Re-derive calibrated films from saved comparison data and push into MOVIES.
+// Deterministic: same inputs always produce the same scores.
+// Used both during initial calibration and when resuming at taste-reveal
+// (where the calibrated films were in memory but never persisted).
+function finishCalibrationOnly() {
   const catKeys = CATEGORIES.map(c => c.key);
   const anchors = guidedFilms;
+  if (!anchors.length || !selectSelectedFilms.length) return;
 
   // Compute user prior per category (anchor mean)
   const userAvg = {};
@@ -2027,16 +2094,16 @@ function finishCalibration() {
   const catRankMap = {};
   sortedCats.forEach((c, i) => { catRankMap[c] = i; });
 
-  // Calibrated films are approximate inferred scores from pairwise comparisons.
-  // They are lower-confidence than slider-scored onboarding anchors.
-  // Confidence metadata is stored so downstream systems can weight accordingly.
-  // These scores serve as bootstrap data, not full-certainty measurements.
+  const existingIds = new Set(MOVIES.map(m => String(m.tmdbId)));
+
   for (const nf of selectSelectedFilms) {
+    // Skip if already in MOVIES (prevents duplicates on double-call)
+    if (existingIds.has(String(nf.tmdbId))) continue;
+
     const scores = {};
     const calibrationConfidence = {};
     const calibrationCompCount = {};
 
-    // First pass: estimate covered categories
     catKeys.forEach(c => {
       const comps = obCalResults
         .filter(r => String(r.filmA.tmdbId) === String(nf.tmdbId) && r.category === c && r.winner !== 'tie')
@@ -2057,21 +2124,16 @@ function finishCalibration() {
       calibrationCompCount[c] = result.compCount;
     });
 
-    // Second pass: for uncovered categories (alpha=0), apply conservative coherence
-    // nudge toward the film's mean inferred score from covered categories
     const coveredEntries = catKeys.filter(c => calibrationConfidence[c] > 0);
     if (coveredEntries.length > 0) {
       const coveredMean = coveredEntries.reduce((s, c) => s + scores[c], 0) / coveredEntries.length;
       catKeys.forEach(c => {
         if (calibrationConfidence[c] === 0) {
-          // 90% prior, 10% covered mean — tiny coherence nudge, no randomness
           scores[c] = Math.round(Math.min(98, Math.max(20, 0.9 * userAvg[c] + 0.1 * coveredMean)));
         }
       });
     }
 
-    // ── Absolute-level elevation adjustment ──
-    // Pairwise determines category shape; absolute pass determines total level.
     const absoluteData = _absoluteResponses[String(nf.tmdbId)];
     let absoluteMeta = {};
     if (absoluteData) {
@@ -2087,7 +2149,7 @@ function finishCalibration() {
     }
 
     const total = calcTotal(scores);
-    const filmObj = {
+    MOVIES.push({
       title: nf.title, year: nf.year,
       director: nf.director || '', writer: '', cast: '',
       productionCompanies: '', poster: nf.poster,
@@ -2099,7 +2161,6 @@ function finishCalibration() {
       calibration_confidence: calibrationConfidence,
       calibration_comp_count: calibrationCompCount,
       ...absoluteMeta,
-      // Per-film pairwise comparison trace for debugging/analysis
       calibration_log: obCalResults
         .filter(r => String(r.filmA.tmdbId) === String(nf.tmdbId))
         .map((r, i) => ({
@@ -2109,10 +2170,13 @@ function finishCalibration() {
           anchorRole: r.anchorRole,
           anchorScore: r.anchorScore,
         })),
-    };
-    MOVIES.push(filmObj);
+    });
+    existingIds.add(String(nf.tmdbId));
   }
+}
 
+function finishCalibration() {
+  finishCalibrationOnly();
   obStep = 'taste-reveal';
   renderObStep();
 }
@@ -2508,5 +2572,11 @@ async function obFinish(reveal, opts = {}) {
     adjective,
     guided_films: guidedFilms.length,
     time_in_onboarding_seconds: _obStartTime ? Math.round((Date.now() - _obStartTime) / 1000) : null,
+  });
+  const calibratedCount = MOVIES.filter(m => m.rating_source === 'onboarding_pairwise').length;
+  pushAnalyticsEvent('pm_onboarding_completed', {
+    screen_name: 'onboarding',
+    movies_count: MOVIES.length,
+    calibrated_movies_count: calibratedCount,
   });
 }

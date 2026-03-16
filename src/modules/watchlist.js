@@ -3,6 +3,7 @@ import { syncToSupabase, saveUserLocally } from './supabase.js';
 import { isNewTerritory, DISCOVERY_ICON_SVG, getPredictionTier, formatPredictedScore } from './predict.js';
 import { shouldShowHint, renderHint } from './hints.js';
 import { track } from '../analytics.js';
+import { smartSearch, formatDirector } from './smart-search.js';
 
 const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
 let wlSearchDebounce = null;
@@ -337,25 +338,25 @@ async function wlSearch() {
   if (!q || q.length < 2) { resultsEl.innerHTML = ''; return; }
 
   try {
-    const res = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${TMDB_KEY}&query=${encodeURIComponent(q)}&language=en-US&page=1`);
-    const data = await res.json();
-    const results = (data.results || []).slice(0, 6);
+    const results = await smartSearch(q, { limit: 6 });
     if (!results.length) { resultsEl.innerHTML = ''; return; }
 
     const myTitles = new Set((currentUser?.watchlist || []).map(w => w.title.toLowerCase()));
     resultsEl.innerHTML = `<div style="border:1px solid var(--rule-dark);border-top:none;background:white">` +
       results.map(m => {
         const title = m.title || '';
-        const year = m.release_date?.slice(0,4) || '';
+        const year = m._yearNum || '';
+        const dirStr = formatDirector(m._directors);
         const poster = m.poster_path
           ? `<img src="https://image.tmdb.org/t/p/w92${m.poster_path}" style="width:24px;height:36px;object-fit:cover;flex-shrink:0">`
           : `<div style="width:24px;height:36px;background:var(--rule);flex-shrink:0"></div>`;
         const alreadyAdded = myTitles.has(title.toLowerCase());
+        const metaLine = [year, dirStr].filter(Boolean).join(' · ') + (alreadyAdded ? ' · on watch list' : '');
         return `<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--rule);cursor:${alreadyAdded ? 'default' : 'pointer'};opacity:${alreadyAdded ? 0.5 : 1}" ${alreadyAdded ? '' : `onclick="wlAddFromSearch(${m.id},'${title.replace(/'/g,"\\'")}','${year}','${(m.poster_path||'').replace(/'/g,"\\'")}','${(m.overview||'').slice(0,200).replace(/'/g,"\\'").replace(/\n/g,' ')}')" onmouseover="if(this.style.opacity!=='0.5')this.style.background='var(--cream)'" onmouseout="this.style.background='white'"`}>
           ${poster}
           <div style="flex:1;min-width:0">
             <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${title}</div>
-            <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">${year}${alreadyAdded ? ' · on watch list' : ''}</div>
+            <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">${metaLine}</div>
           </div>
           ${alreadyAdded ? '' : `<span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--blue);flex-shrink:0">＋ Add</span>`}
         </div>`;
@@ -661,12 +662,13 @@ async function gsSearch() {
   // ── TMDB searches in parallel ──
   let tmdbFilms = [], tmdbPeople = [], tmdbCompanies = [];
   try {
-    const [filmData, personData, companyData] = await Promise.all([
-      fetch(`https://api.themoviedb.org/3/search/movie?api_key=${TMDB_KEY}&query=${encodeURIComponent(q)}&language=en-US&page=1`).then(r => r.json()),
+    const excludeIds = new Set(ownFilms.map(m => String(m.tmdbId)));
+    const [smartResults, personData, companyData] = await Promise.all([
+      smartSearch(q, { limit: 5, excludeIds }),
       fetch(`https://api.themoviedb.org/3/search/person?api_key=${TMDB_KEY}&query=${encodeURIComponent(q)}&language=en-US&page=1`).then(r => r.json()),
       fetch(`https://api.themoviedb.org/3/search/company?api_key=${TMDB_KEY}&query=${encodeURIComponent(q)}`).then(r => r.json()),
     ]);
-    tmdbFilms = (filmData.results || []).filter(m => !ownFilmTitles.has((m.title || '').toLowerCase())).slice(0, 5);
+    tmdbFilms = smartResults.filter(m => !ownFilmTitles.has((m.title || '').toLowerCase()));
     tmdbPeople = (personData.results || []).filter(p => p.name && !ownEntityNames.has(p.name.toLowerCase())).slice(0, 3);
     tmdbCompanies = (companyData.results || []).filter(c => c.name && !ownEntityNames.has(c.name.toLowerCase())).slice(0, 2);
   } catch(e) {}
@@ -700,7 +702,8 @@ async function gsSearch() {
     html += gsSecHeader('Films');
     html += tmdbFilms.map(m => {
       const title = m.title || '';
-      const year = m.release_date?.slice(0, 4) || '';
+      const year = m._yearNum || m.release_date?.slice(0, 4) || '';
+      const dirStr = formatDirector(m._directors);
       const poster = m.poster_path
         ? `<img src="https://image.tmdb.org/t/p/w92${m.poster_path}" style="width:28px;height:42px;object-fit:cover;flex-shrink:0">`
         : `<div style="width:28px;height:42px;background:var(--rule);flex-shrink:0"></div>`;
@@ -710,11 +713,12 @@ async function gsSearch() {
       const safeTitle = title.replace(/'/g, "\\'");
       const safePoster = (m.poster_path || '').replace(/'/g, "\\'");
       const safeOverview = (m.overview || '').slice(0, 200).replace(/'/g, "\\'").replace(/\n/g, ' ');
+      const metaLine = [year, dirStr].filter(Boolean).join(' · ');
       return `<div onclick="closeGlobalSearch();openRecommendedDetail(${m.id})" style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--rule);cursor:pointer" onmouseover="this.style.background='var(--cream)'" onmouseout="this.style.background=''">
         ${poster}
         <div style="flex:1;min-width:0">
           <div style="font-family:'DM Sans',sans-serif;font-size:14px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${title}</div>
-          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">${year}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">${metaLine}</div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
           ${isSeen

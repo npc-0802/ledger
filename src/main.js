@@ -1,5 +1,5 @@
 import { MOVIES, currentUser, setCurrentUser, setMovies, CATEGORIES, recalcAllTotals, applyUserWeights } from './state.js';
-import { track, identifyUser, trackPageview } from './analytics.js';
+import { track, identifyUser, trackPageview, pushAnalyticsEvent, persistBetaAttributionFromUrl } from './analytics.js';
 import './vitals.js';
 import { registerUICallbacks } from './ui-callbacks.js';
 import { renderRankings, sortBy, setViewMode, updateTasteBanner } from './modules/rankings.js';
@@ -47,7 +47,10 @@ export function showScreen(id) {
   if (id === 'add') { checkAddFilmResume(); renderWatchlistInSearch(); }
   if (id === 'analysis') renderAnalysis();
   if (id === 'calibration') resetCalibration();
-  if (id === 'predict') initPredict();
+  if (id === 'predict') {
+    initPredict();
+    pushAnalyticsEvent('pm_recommendations_screen_viewed', { screen_name: 'for_you' });
+  }
   if (id === 'profile') renderProfile();
   if (id === 'friends') renderFriends();
   if (id === 'watchlist') renderWatchlist();
@@ -103,6 +106,10 @@ export function showColdLanding() {
   if (el) {
     el.style.display = 'block';
     track('landing_view', { referrer: document.referrer });
+    pushAnalyticsEvent('pm_landing_view', {
+      screen_name: 'landing',
+      referrer: document.referrer,
+    });
     initTableau();
   } else {
     launchOnboarding();
@@ -721,6 +728,10 @@ window.startFromLandingReturning = function() {
 };
 
 async function init() {
+  // Capture UTM attribution from landing URL before anything else.
+  // Must run early so attribution is available for all subsequent events.
+  persistBetaAttributionFromUrl();
+
   registerUICallbacks({
     setCloudStatus,
     updateMastheadProfile,

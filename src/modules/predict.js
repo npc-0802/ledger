@@ -2,8 +2,9 @@ import { MOVIES, CATEGORIES, currentUser, setCurrentUser, scoreClass, getLabel, 
 import { syncToSupabase, saveUserLocally, logPrediction, sb } from './supabase.js';
 import { ARCHETYPES } from '../data/archetypes.js';
 import { classifyArchetype } from './quiz-engine.js';
-import { track } from '../analytics.js';
+import { track, pushAnalyticsEvent } from '../analytics.js';
 import { getFilmObservationWeight } from './weight-blend.js';
+import { smartSearch, formatDirector } from './smart-search.js';
 
 function renderWelcomeBanner() {
   const el = document.getElementById('foryou-welcome-banner');
@@ -619,27 +620,27 @@ export async function predictSearch() {
   const resultsEl = document.getElementById('predict-search-results');
   resultsEl.innerHTML = `<div class="tmdb-loading">Searching…</div>`;
   try {
-    const res = await fetch(`${TMDB}/search/movie?api_key=${TMDB_KEY}&query=${encodeURIComponent(q)}&language=en-US&page=1`);
-    const data = await res.json();
-    const results = (data.results || []).slice(0, 5);
+    const results = await smartSearch(q, { limit: 5 });
     if (!results.length) { resultsEl.innerHTML = `<div class="tmdb-error">No results found.</div>`; return; }
 
     const myTitles = new Set(MOVIES.map(m => m.title.toLowerCase()));
     const myPredictions = currentUser?.predictions || {};
 
     resultsEl.innerHTML = results.map(m => {
-      const year = m.release_date?.slice(0,4) || '';
+      const year = m._yearNum || '';
       const poster = m.poster_path
         ? `<img class="tmdb-result-poster" src="https://image.tmdb.org/t/p/w92${m.poster_path}">`
         : `<div class="tmdb-result-poster-placeholder">no img</div>`;
       const alreadyRated = myTitles.has(m.title.toLowerCase());
       const alreadyPredicted = !!myPredictions[String(m.id)];
-      const meta = alreadyRated ? ' · already in your list' : alreadyPredicted ? ' · predicted ✓' : '';
+      const statusMeta = alreadyRated ? ' · already in your list' : alreadyPredicted ? ' · predicted ✓' : '';
+      const dirStr = formatDirector(m._directors);
+      const metaLine = [year, dirStr].filter(Boolean).join(' · ') + statusMeta;
       return `<div class="tmdb-result ${alreadyRated ? 'opacity-50' : ''}" onclick="${alreadyRated ? '' : `predictSelectFilm(${m.id}, '${m.title.replace(/'/g,"\\'")}', '${year}')`}" style="${alreadyRated ? 'opacity:0.4;cursor:default' : ''}">
         ${poster}
         <div class="tmdb-result-info">
           <div class="tmdb-result-title">${m.title}</div>
-          <div class="tmdb-result-meta">${year}${meta}</div>
+          <div class="tmdb-result-meta">${metaLine}</div>
           <div class="tmdb-result-overview">${(m.overview||'').slice(0,100)}${m.overview?.length > 100 ? '…':''}</div>
         </div>
       </div>`;
@@ -656,6 +657,10 @@ export async function predictSelectFilm(tmdbId, title, year) {
   // Check cache first
   const cached = currentUser?.predictions?.[String(tmdbId)];
   if (cached) {
+    pushAnalyticsEvent('pm_prediction_cache_hit', {
+      screen_name: 'predict',
+      prediction_source: 'cache',
+    });
     predictSelectedFilm = cached.film;
     lastPrediction = cached.prediction;
     const comps = findComparableFilms(cached.film);
@@ -1581,6 +1586,10 @@ async function callClaudeForPrediction(film, entityConstraint = null, source = '
   // Policy gate — check quota and source entitlement
   const policyCheck = canRunFreshPrediction(source);
   if (!policyCheck.allowed) {
+    pushAnalyticsEvent('pm_prediction_quota_blocked', {
+      screen_name: 'predict',
+      prediction_source: source,
+    });
     throw new Error(policyCheck.reason);
   }
 
@@ -1687,6 +1696,10 @@ async function callClaudeForPrediction(film, entityConstraint = null, source = '
 
 async function runPrediction(film, source = 'manual_predict') {
   const _predStart = Date.now();
+  pushAnalyticsEvent('pm_prediction_used', {
+    screen_name: 'predict',
+    prediction_source: source,
+  });
   track('prediction_requested', {
     tmdb_id: film.tmdbId,
     title: film.title,

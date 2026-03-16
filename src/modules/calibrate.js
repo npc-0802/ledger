@@ -263,7 +263,21 @@ function showCalReview() {
                 </div>
               </div>`;
             }).join('')}
-            ${more > 0 ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-top:8px">+${more} more</div>` : ''}
+            ${more > 0 ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);margin-top:8px;cursor:pointer" onclick="(function(el){var p=el.parentElement;var h=p.querySelector('[data-cal-hidden]');if(h){h.style.display='block';el.remove()}})(this)"><span data-cal-more>+${more} more</span></div>` : ''}
+            <div data-cal-hidden style="display:none">${catEntries.slice(3).map((e, i) => {
+              const col = e.new > e.old ? 'var(--green)' : 'var(--red)';
+              return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;${i < catEntries.length - 4 ? 'border-bottom:1px solid var(--rule)' : ''}">
+                <input type="checkbox" id="caldiff_x${e.idx}" checked style="flex-shrink:0;accent-color:var(--blue);width:14px;height:14px"
+                  data-movie-idx="${MOVIES.findIndex(m => m.title === e.title)}" data-cat="${e.catKey}" data-old="${e.old}" data-new="${e.new}">
+                <div style="flex:1;overflow:hidden">
+                  <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:13px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.title}</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
+                  <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);text-decoration:line-through">${e.old}</span>
+                  <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:${col}">${e.new}</span>
+                </div>
+              </div>`;
+            }).join('')}</div>
           </div>`;
         }).join('')}
       </div>`;

@@ -2,6 +2,7 @@ import { MOVIES, currentUser, setCurrentUser, mergeSplitNames } from '../state.j
 import { ARCHETYPES } from '../data/archetypes.js';
 import { sb, loadFriends, loadFriendFull, acceptFriendInvite, confirmFriendInvite, unfriendUser, searchUsers, sendFriendRequest, loadPendingIncoming, loadPendingOutgoing, acceptFriendRequest, declineFriendRequest, cancelFriendRequest, getUserEmail, loadAllFriendsFilmData } from './supabase.js';
 import { shouldShowHint, renderHint } from './hints.js';
+import { smartSearch, formatDirector } from './smart-search.js';
 
 const CATS = ['story','craft','performance','world','experience','hold','ending','singularity'];
 const CAT_SHORT = { story:'Story', craft:'Craft', performance:'Perf', world:'World', experience:'Exp', hold:'Hold', ending:'Ending', singularity:'Singular' };
@@ -1212,21 +1213,21 @@ window.overlapPredictSearch = async function() {
   if (!resultsEl) return;
   resultsEl.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);padding:8px 0">Searching…</div>`;
   try {
-    const res = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${TMDB_KEY}&query=${encodeURIComponent(q)}&language=en-US&page=1`);
-    const data = await res.json();
-    const results = (data.results || []).slice(0, 5);
+    const results = await smartSearch(q, { limit: 5 });
     if (!results.length) { resultsEl.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);padding:8px 0">No results.</div>`; return; }
     resultsEl.innerHTML = results.map(m => {
-      const year = m.release_date?.slice(0,4) || '';
+      const year = m._yearNum || '';
+      const dirStr = formatDirector(m._directors);
       const poster = m.poster_path
         ? `<img src="https://image.tmdb.org/t/p/w92${m.poster_path}" style="width:24px;height:36px;object-fit:cover;flex-shrink:0">`
         : `<div style="width:24px;height:36px;background:rgba(255,255,255,0.1);flex-shrink:0"></div>`;
       const safeTitle = (m.title || '').replace(/'/g, "\\'");
+      const metaLine = [year, dirStr].filter(Boolean).join(' · ');
       return `<div onclick="overlapPredictSelect(${m.id},'${safeTitle}','${year}')" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);cursor:pointer" onmouseover="this.style.background='rgba(255,255,255,0.06)'" onmouseout="this.style.background=''">
         ${poster}
         <div>
           <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--on-dark)">${m.title}</div>
-          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim)">${year}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim)">${metaLine}</div>
         </div>
       </div>`;
     }).join('');
