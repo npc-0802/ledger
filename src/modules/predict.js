@@ -392,9 +392,19 @@ export function initPredict() {
   const countAtLast = currentUser?.moviesCountAtLastRecommendation || 0;
   const cached = currentUser?.cachedRecommendations;
 
-  if (!lastAt || MOVIES.length >= countAtLast + 5 || !cached?.length) {
+  // Seed-eligible users must not be blocked by stale heuristic-only cache
+  const seedEligible = isOnboardingSeedEligible();
+  // Cache is only "good enough" if at least one item is prediction-backed
+  const cacheHasPredictions = cached?.some(r => r.predictionBacked);
+
+  const shouldRefresh = !lastAt || MOVIES.length >= countAtLast + 5 || !cached?.length || seedEligible || !cacheHasPredictions;
+  if (shouldRefresh) {
+    track('discover_load_fresh', {
+      reason: !lastAt ? 'no_prior' : seedEligible ? 'onboarding_seed' : !cached?.length ? 'empty_cache' : !cacheHasPredictions ? 'heuristic_only_cache' : 'new_films',
+    });
     loadForYouRecommendations();
   } else {
+    track('discover_load_cache', { cached_count: cached.length, prediction_backed: cached.filter(r => r.predictionBacked).length });
     renderForYouFromCache();
   }
 
@@ -2904,26 +2914,137 @@ function renderConstrainedResults(name, type, _tmdbId, results) {
     <div class="constrained-results-grid">${cards}</div>`;
 }
 
-async function openRecommendedDetail(tmdbId) {
+// Run an inline prediction for a recommended film (shows loading state in modal)
+async function _runInlinePrediction(tmdbId) {
+  // Show modal with loading state
+  const { openModal } = await import('./modal.js');
+  openModal();
+  document.getElementById('modalContent').innerHTML = `
+    <div style="padding:60px 20px;text-align:center">
+      <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:22px;color:var(--dim);margin-bottom:12px">Generating prediction…</div>
+      <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim)">Reading your taste · predicting scores</div>
+    </div>`;
+
+  try {
+    const [dRes, cRes] = await Promise.all([
+      fetch(`${TMDB}/movie/${tmdbId}?api_key=${TMDB_KEY}`),
+      fetch(`${TMDB}/movie/${tmdbId}/credits?api_key=${TMDB_KEY}`)
+    ]);
+    const detail = await dRes.json();
+    const credits = await cRes.json();
+    const director = (credits.crew||[]).filter(c=>c.job==='Director').map(c=>c.name).join(', ');
+    const writer = (credits.crew||[]).filter(c=>['Screenplay','Writer','Story'].includes(c.job)).map(c=>c.name).slice(0,2).join(', ');
+    const cast = (credits.cast||[]).slice(0,8).map(c=>c.name).join(', ');
+    const genres = (detail.genres||[]).map(g=>g.name).join(', ');
+    const overview = detail.overview || '';
+    const poster = detail.poster_path || null;
+    const film = { tmdbId, title: detail.title || '', year: (detail.release_date||'').slice(0,4), director, writer, cast, genres, overview, poster };
+
+    await runPrediction(film, 'manual_predict');
+  } catch (e) {
+    // Prediction failed — modal will be replaced by heuristic fallback
+    track('inline_prediction_failed', { tmdb_id: tmdbId, error: e.message });
+  }
+}
+
+// Open detail for a film with no prediction — shows overview + entity chips + actions
+async function _openRecommendedDetailHeuristic(tmdbId) {
+  const { openModal } = await import('./modal.js');
+  openModal();
+
+  // Try to pull basic info from recommendation cache
+  const allCached = [
+    ...(currentUser?.cachedRecommendations || []),
+    ...(currentUser?.cachedDiscovery || []),
+  ];
+  const rec = allCached.find(r => String(r.tmdbId) === String(tmdbId));
+  const title = rec?.title || '';
+  const year = rec?.year || '';
+  const poster = rec?.poster;
+
+  const policyCheck = canRunFreshPrediction('manual_predict');
+  const predictBtn = policyCheck.allowed
+    ? `<button onclick="_runInlinePredictionFromDetail(${parseInt(tmdbId)})" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:10px 20px;cursor:pointer;flex:2">Generate prediction →</button>`
+    : `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);text-align:center;padding:10px">${policyCheck.reason || 'Prediction not available right now'}</div>`;
+
+  const onWl = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(tmdbId));
+
+  const posterHtml = poster
+    ? `<div style="position:relative;display:flex;align-items:stretch;background:var(--surface-dark);margin:-40px -40px 28px;padding:28px 32px">
+         <button onclick="closeModal()" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--on-dark-dim);line-height:1;padding:4px 8px">×</button>
+         <img style="width:100px;height:150px;object-fit:cover;flex-shrink:0;display:block" src="https://image.tmdb.org/t/p/w342${poster}" alt="">
+         <div style="flex:1;padding:0 40px 0 20px;display:flex;flex-direction:column;justify-content:flex-end">
+           <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px">Recommendation</div>
+           <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(20px,3.5vw,30px);line-height:1.1;color:var(--on-dark);letter-spacing:-0.5px;margin-bottom:8px">${title}</div>
+           <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${year}</div>
+         </div>
+       </div>`
+    : `<div style="position:relative;background:var(--surface-dark);margin:-40px -40px 28px;padding:32px 40px 28px">
+         <button onclick="closeModal()" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--on-dark-dim);line-height:1;padding:4px 8px">×</button>
+         <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px">Recommendation</div>
+         <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(20px,3.5vw,30px);line-height:1.1;color:var(--on-dark);letter-spacing:-0.5px;margin-bottom:8px">${title}</div>
+         <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${year}</div>
+       </div>`;
+
+  document.getElementById('modalContent').innerHTML = `
+    ${posterHtml}
+    <div id="rec-detail-meta" style="margin-bottom:16px"></div>
+    <div id="rec-detail-streaming" style="margin-bottom:4px"></div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button id="rec-detail-wl-btn" onclick="recDetailToggleWl('${tmdbId}')" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;${onWl ? 'background:var(--green);border:1px solid var(--green);color:white' : 'background:none;border:1px solid var(--rule);color:var(--dim)'};padding:10px 20px;cursor:pointer;flex:1">${onWl ? '✓ On Watch List' : '＋ Watchlist'}</button>
+      ${predictBtn}
+    </div>`;
+
+  const fmEl = document.getElementById('filmModal');
+  fmEl.classList.add('open');
+  requestAnimationFrame(() => fmEl.classList.add('visible'));
+
+  // Load enriched TMDB details
+  _loadRecDetailTmdb(tmdbId, { title, year, poster, overview: rec?.overview || '' });
+}
+
+// Called from heuristic detail modal's "Generate prediction" button
+async function _runInlinePredictionFromDetail(tmdbId) {
+  const btn = event?.target;
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+  await _runInlinePrediction(tmdbId);
   const cached = currentUser?.predictions?.[String(tmdbId)];
+  if (cached?.film) {
+    // Re-open with full prediction detail
+    const { closeModal } = await import('./modal.js');
+    closeModal();
+    setTimeout(() => openRecommendedDetail(tmdbId), 200);
+  } else if (btn) {
+    btn.textContent = 'Could not generate prediction';
+    btn.style.background = 'var(--dim)';
+  }
+}
+
+async function openRecommendedDetail(tmdbId) {
+  let cached = currentUser?.predictions?.[String(tmdbId)];
+  let detailSource = 'cached_prediction';
   if (!cached?.film) {
-    // No prediction — check watchlist or go straight to rating
-    const wlIdx = (currentUser?.watchlist || []).findIndex(w => String(w.tmdbId) === String(tmdbId));
-    if (wlIdx >= 0) {
-      window.openWatchlistDetail(wlIdx);
+    // No cached prediction — try to generate one inline
+    const policyCheck = canRunFreshPrediction('manual_predict');
+    if (policyCheck.allowed) {
+      detailSource = 'inline_prediction';
+      await _runInlinePrediction(tmdbId);
+      cached = currentUser?.predictions?.[String(tmdbId)];
+    }
+    if (!cached?.film) {
+      // Still no prediction — show film detail without prediction scores
+      detailSource = 'heuristic_fallback';
+      track('foryou_recommendation_clicked', { tmdb_id: tmdbId, detail_source: detailSource, blocked_reason: policyCheck.reason || null });
+      await _openRecommendedDetailHeuristic(tmdbId);
       return;
     }
-    // Not on watchlist — go to Add Film with this film
-    const { closeModal } = await import('./modal.js');
-    window.showScreen('add');
-    setTimeout(() => window.tmdbSelect?.(tmdbId, ''), 150);
-    return;
   }
   // Determine if hero or secondary
   const heroTmdbId = currentUser?.cachedRecommendations?.[0]?.tmdbId;
   track('foryou_recommendation_clicked', {
     tmdb_id: tmdbId,
     position: String(tmdbId) === String(heroTmdbId) ? 'hero' : 'secondary',
+    detail_source: detailSource,
   });
   const film = cached.film;
   const prediction = cached.prediction;
@@ -2984,7 +3105,7 @@ async function openRecommendedDetail(tmdbId) {
     ${predHtml}
     <div style="display:flex;gap:8px;margin-top:8px">
       <button id="rec-detail-wl-btn" onclick="recDetailToggleWl('${tmdbId}')" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;${onWl ? 'background:var(--green);border:1px solid var(--green);color:white' : 'background:none;border:1px solid var(--rule);color:var(--dim)'};padding:10px 20px;cursor:pointer;flex:1">${onWl ? '✓ On Watch List' : '＋ Watchlist'}</button>
-      <button onclick="closeModal();predictSelectFilm(${parseInt(tmdbId)},'${(film.title||'').replace(/'/g,"\\'")}','${(film.year||'').replace(/'/g,"\\'")}');document.getElementById('predict-result').scrollIntoView({behavior:'smooth'})" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:10px 20px;cursor:pointer;flex:2">Full prediction →</button>
+      <button onclick="closeModal();window.showScreen('add');setTimeout(()=>window.tmdbSelect?.(${parseInt(tmdbId)},''),150)" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:10px 20px;cursor:pointer;flex:2">Add & rate →</button>
     </div>
   `;
   const fmEl = document.getElementById('filmModal');
@@ -3071,6 +3192,7 @@ window.moodChipSelect = async function(type, name) {
   } catch {}
 };
 window.openRecommendedDetail = openRecommendedDetail;
+window._runInlinePredictionFromDetail = _runInlinePredictionFromDetail;
 window.recDetailToggleWl = async function(tmdbId) {
   await window.toggleRecommendWatchlist(tmdbId);
   const btn = document.getElementById('rec-detail-wl-btn');
