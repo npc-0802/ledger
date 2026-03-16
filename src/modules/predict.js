@@ -515,9 +515,13 @@ function renderHeroCard(result) {
       ${sourceNote ? `<div class="foryou-hero-reasoning">${sourceNote}</div>` : ''}`;
   } else if (!hasPrediction) {
     // Tier 2/3 but no real prediction — qualitative fallback, never show compatScore as a number
+    const canPredictNow = tier.canPredict && canRunFreshPrediction('foryou_auto').allowed;
+    const subtitle = canPredictNow
+      ? 'Matched by your taste profile · prediction pending'
+      : 'Matched by your taste profile';
     scoreHtml = `
       <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:28px;color:var(--blue);line-height:1.1">Strong candidate</div>
-      <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim);margin-top:4px">Matched by taste profile · prediction pending</div>`;
+      <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim);margin-top:4px">${subtitle}</div>`;
   } else if (tier.rangeWidth > 0) {
     // Tier 2: range score with real prediction
     scoreHtml = `
