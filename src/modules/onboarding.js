@@ -644,10 +644,14 @@ window.obResumeSession = function() {
   // were in memory but never persisted to MOVIES storage. Re-derive them from
   // the saved comparison results (deterministic — same inputs produce same scores).
   if (obStep === 'taste-reveal' && selectSelectedFilms.length > 0) {
-    const existingIds = new Set(MOVIES.map(m => String(m.tmdbId)));
-    const allCalibratedPresent = selectSelectedFilms.every(f => existingIds.has(String(f.tmdbId)));
-    if (!allCalibratedPresent) {
-      finishCalibrationOnly();
+    try {
+      const existingIds = new Set(MOVIES.map(m => String(m.tmdbId)));
+      const allCalibratedPresent = selectSelectedFilms.every(f => existingIds.has(String(f.tmdbId)));
+      if (!allCalibratedPresent) {
+        finishCalibrationOnly();
+      }
+    } catch (e) {
+      console.warn('Could not re-derive calibrated films on resume:', e);
     }
   }
 
