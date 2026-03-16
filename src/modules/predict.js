@@ -494,6 +494,46 @@ function getSourceLabel(r) {
   return 'Recommended';
 }
 
+// Source-aware explanation for why a film surfaced — richer than the label
+function getSourceExplanation(r) {
+  const dirName = (r.director || '').split(',')[0];
+  if (r.source === 'director' && dirName)
+    return `You've rated ${dirName}'s work highly — this is a natural next film to explore.`;
+  if (r.source === 'actor' && r.sourceName)
+    return `This surfaced because of ${r.sourceName} — an actor pattern in your ratings.`;
+  if (r.source === 'company' && r.sourceName)
+    return `From ${r.sourceName} — a studio whose films align with your taste.`;
+  if (r.source === 'tag_genome' && r.sourceName)
+    return `This shares traits with films you score highly.`;
+  if (r.source === 'discover' || r.source === 'discovery')
+    return `This matches broader patterns in your taste profile — new territory worth testing.`;
+  return `This matched patterns across your rated films.`;
+}
+
+// Build compact entity chips for the hero card
+function buildHeroChips(result) {
+  const chips = [];
+  const dirName = (result.director || '').split(',')[0].trim();
+  if (dirName) chips.push(dirName);
+  // Add top cast (first 2-3 names)
+  const castNames = (result.cast || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 3);
+  castNames.forEach(n => chips.push(n));
+  // Add primary genres (first 2)
+  const genres = (result.genres || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 2);
+  genres.forEach(g => chips.push(g));
+  if (!chips.length) return '';
+  return `<div class="foryou-hero-chips">${chips.slice(0, 5).map(c =>
+    `<span class="foryou-hero-chip">${c}</span>`
+  ).join('')}</div>`;
+}
+
+// Truncate overview to ~2 lines
+function truncateOverview(text, maxLen = 180) {
+  if (!text) return '';
+  if (text.length <= maxLen) return text;
+  return text.slice(0, maxLen).replace(/\s+\S*$/, '') + '…';
+}
+
 function renderHeroCard(result) {
   const heroEl = document.getElementById('foryou-hero');
   if (!heroEl || !result) return;
@@ -501,7 +541,7 @@ function renderHeroCard(result) {
   heroEl.classList.add('dark-grid', 'foryou-hero-enter');
 
   const posterHtml = result.poster
-    ? `<img class="foryou-hero-poster" src="https://image.tmdb.org/t/p/w185${result.poster}" alt="${result.title}">`
+    ? `<img class="foryou-hero-poster" src="https://image.tmdb.org/t/p/w342${result.poster}" alt="${result.title}">`
     : `<div class="foryou-hero-poster" style="width:160px;min-height:240px;background:var(--surface-dark-2);display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim)">${result.title}</div>`;
 
   const total = result.predTotal;
@@ -512,37 +552,43 @@ function renderHeroCard(result) {
   // predictionBacked may be absent on old cached recs — infer from prediction object
   const hasPrediction = (result.predictionBacked ?? !!result.prediction) && result.predTotal != null;
 
+  // Shared enrichment: overview + chips
+  const overview = truncateOverview(result.overview);
+  const overviewHtml = overview
+    ? `<div class="foryou-hero-overview">${overview}</div>` : '';
+  const chipsHtml = buildHeroChips(result);
+
   let scoreHtml;
+  let explanationHtml;
+
   if (!tier.showScores) {
     // Tier 1: qualitative label (no predictions available at this tier)
-    const sourceNote = result.source === 'director' ? `You rated ${(result.director || '').split(',')[0]}'s work highly — this shares their signature style.` : '';
     scoreHtml = `
       <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:28px;color:var(--blue);line-height:1.1">Likely a match</div>
-      <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim);margin-top:4px">Based on your first ${MOVIES.length} ratings</div>
-      ${sourceNote ? `<div class="foryou-hero-reasoning">${sourceNote}</div>` : ''}`;
+      <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim);margin-top:4px">Based on your first ${MOVIES.length} ratings</div>`;
+    explanationHtml = `<div class="foryou-hero-reasoning">${getSourceExplanation(result)}</div>`;
   } else if (!hasPrediction) {
-    // Tier 2/3 but no real prediction — qualitative fallback, never show compatScore as a number
-    const canPredictNow = tier.canPredict && canRunFreshPrediction('foryou_auto').allowed;
-    const subtitle = canPredictNow
-      ? 'Matched by your taste profile · prediction pending'
-      : 'Matched by your taste profile';
+    // Tier 2/3 but no real prediction — qualitative fallback with rich context
     scoreHtml = `
       <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:28px;color:var(--blue);line-height:1.1">Strong candidate</div>
-      <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim);margin-top:4px">${subtitle}</div>`;
+      <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim);margin-top:4px">Matched by your taste profile</div>`;
+    explanationHtml = `<div class="foryou-hero-reasoning">${getSourceExplanation(result)}</div>`;
   } else if (tier.rangeWidth > 0) {
     // Tier 2: range score with real prediction
     scoreHtml = `
       <div class="foryou-hero-score">${formatPredictedScore(total, MOVIES.length)}</div>
       <span class="predict-confidence conf-exploratory">Exploratory</span>
-      <div class="foryou-hero-score-label">${getLabel(Math.round(total))}</div>
-      ${result.prediction?.reasoning ? `<div class="foryou-hero-reasoning">${result.prediction.reasoning}</div>` : ''}`;
+      <div class="foryou-hero-score-label">${getLabel(Math.round(total))}</div>`;
+    explanationHtml = result.prediction?.reasoning
+      ? `<div class="foryou-hero-reasoning">${result.prediction.reasoning}</div>` : '';
   } else {
     // Tier 3: exact score with real prediction
     const totalDisplay = (Math.round(total * 10) / 10).toFixed(1);
     scoreHtml = `
       <div class="foryou-hero-score">~${totalDisplay}</div>
-      <div class="foryou-hero-score-label">${getLabel(Math.round(total))}</div>
-      ${result.prediction?.reasoning ? `<div class="foryou-hero-reasoning">${result.prediction.reasoning}</div>` : ''}`;
+      <div class="foryou-hero-score-label">${getLabel(Math.round(total))}</div>`;
+    explanationHtml = result.prediction?.reasoning
+      ? `<div class="foryou-hero-reasoning">${result.prediction.reasoning}</div>` : '';
   }
 
   const footerText = tier.tier === 'early'
@@ -559,6 +605,9 @@ function renderHeroCard(result) {
         <div class="foryou-hero-title">${result.title}</div>
         <div class="foryou-hero-meta">${result.year || ''}${result.director ? ' · ' + result.director.split(',')[0] : ''}</div>
         ${scoreHtml}
+        ${explanationHtml}
+        ${overviewHtml}
+        ${chipsHtml}
       </div>
     </div>
     <div class="foryou-hero-actions" onclick="event.stopPropagation()">
@@ -566,6 +615,44 @@ function renderHeroCard(result) {
       <button class="btn btn-outline" id="foryou-hero-wl-btn" onclick="toggleRecommendWatchlist('${result.tmdbId}')" style="${onWl ? 'background:var(--green);color:white;border-color:var(--green)' : 'color:var(--on-dark);border-color:rgba(255,255,255,0.2)'}">${onWl ? '✓ Watch List' : '+ Watch List'}</button>
     </div>
     <div class="foryou-hero-footer">${footerText}</div>`;
+
+  // Async enrichment: fetch cast/genres from TMDB if missing on the result
+  if ((!result.cast || !result.genres) && result.tmdbId) {
+    _enrichHeroFromTmdb(result, safeTmdbId);
+  }
+}
+
+// Fetch cast/genres for the hero and update chips in place
+async function _enrichHeroFromTmdb(result, tmdbId) {
+  try {
+    const [dRes, cRes] = await Promise.all([
+      fetch(`${TMDB}/movie/${tmdbId}?api_key=${TMDB_KEY}`),
+      fetch(`${TMDB}/movie/${tmdbId}/credits?api_key=${TMDB_KEY}`)
+    ]);
+    const detail = await dRes.json();
+    const credits = await cRes.json();
+    if (!result.cast) result.cast = (credits.cast || []).slice(0, 8).map(c => c.name).join(', ');
+    if (!result.genres) result.genres = (detail.genres || []).map(g => g.name).join(', ');
+    if (!result.overview && detail.overview) result.overview = detail.overview;
+    // Re-render chips and overview in place
+    const chipsEl = document.querySelector('.foryou-hero-chips');
+    const newChips = buildHeroChips(result);
+    if (newChips) {
+      if (chipsEl) { chipsEl.outerHTML = newChips; }
+      else {
+        const bodyEl = document.querySelector('.foryou-hero-body');
+        if (bodyEl) bodyEl.insertAdjacentHTML('beforeend', newChips);
+      }
+    }
+    if (!document.querySelector('.foryou-hero-overview') && result.overview) {
+      const overview = truncateOverview(result.overview);
+      if (overview) {
+        const chipsTarget = document.querySelector('.foryou-hero-chips');
+        const insertTarget = chipsTarget || document.querySelector('.foryou-hero-reasoning');
+        if (insertTarget) insertTarget.insertAdjacentHTML('beforebegin', `<div class="foryou-hero-overview">${overview}</div>`);
+      }
+    }
+  } catch { /* silent — chips are nice-to-have */ }
 }
 
 function updateRefreshButtonState() {
