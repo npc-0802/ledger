@@ -509,8 +509,7 @@ export function renderProfile() {
             <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:40px;color:${archInfo.color};line-height:1;margin-bottom:14px">${archInfo.fullName}</div>
             ${archInfo.tagline ? `<div style="font-family:'DM Sans',sans-serif;font-size:13px;font-style:italic;color:var(--on-dark);opacity:0.8">${archInfo.tagline}</div>` : ''}
           </div>
-          <p style="font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.75;color:var(--ink);margin:0 0 10px">${archInfo.description}</p>
-          ${archInfo.tasteEdges ? `<p style="font-family:'DM Sans',sans-serif;font-size:13px;line-height:1.65;color:var(--dim);font-style:italic;margin:0 0 12px">${archInfo.tasteEdges}</p>` : ''}
+          <p style="font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.75;color:var(--ink);margin:0 0 10px">${archInfo.description}${archInfo.tasteEdges ? ' ' + archInfo.tasteEdges : ''}</p>
           <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);letter-spacing:0.5px;margin-bottom:16px">${archInfo.quote}</div>
           <span onclick="openArchetypeModal()" style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--blue);cursor:pointer;text-decoration:underline">Edit weights →</span>
         </div>
