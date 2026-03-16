@@ -32,6 +32,18 @@ export function openModal(idx) {
   renderModal();
 }
 
+// Open the modal shell without rendering rankings-specific content.
+// Used by Discover recommendation detail which injects its own HTML.
+export function openModalShell() {
+  currentModalIdx = null;
+  editMode = false;
+  editScores = {};
+  const fmEl = document.getElementById('filmModal');
+  document.getElementById('modalContent').innerHTML = '';
+  fmEl.classList.add('open');
+  requestAnimationFrame(() => fmEl.classList.add('visible'));
+}
+
 function renderModal() {
   const idx = currentModalIdx;
   const m = MOVIES[idx];

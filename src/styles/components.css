@@ -1957,6 +1957,12 @@ input[type="range"]::-webkit-slider-thumb:hover { background: var(--blue-dark); 
   border: 1px solid rgba(255,255,255,0.08);
   padding: 3px 8px;
   border-radius: 2px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.foryou-hero-chip:hover {
+  border-color: var(--blue);
+  color: var(--blue);
 }
 .foryou-hero-actions {
   display: flex;

@@ -536,20 +536,18 @@ function getMatchReason(result) {
   return `${top2[0]} + ${top2[1]} match`;
 }
 
-// Build compact entity chips for the hero card
+// Build compact entity chips for the hero card (clickable, like modal-meta-chip)
 function buildHeroChips(result) {
   const chips = [];
   const dirName = (result.director || '').split(',')[0].trim();
-  if (dirName) chips.push(dirName);
-  // Add top cast (first 2-3 names)
+  if (dirName) chips.push({ name: dirName, type: 'director' });
   const castNames = (result.cast || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 3);
-  castNames.forEach(n => chips.push(n));
-  // Add primary genres (first 2)
+  castNames.forEach(n => chips.push({ name: n, type: 'actor' }));
   const genres = (result.genres || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 2);
-  genres.forEach(g => chips.push(g));
+  genres.forEach(g => chips.push({ name: g, type: 'genre' }));
   if (!chips.length) return '';
   return `<div class="foryou-hero-chips">${chips.slice(0, 5).map(c =>
-    `<span class="foryou-hero-chip">${c}</span>`
+    `<span class="foryou-hero-chip" onclick="event.stopPropagation();exploreEntity('${c.type}','${c.name.replace(/'/g, "\\'")}')">${c.name}</span>`
   ).join('')}</div>`;
 }
 
@@ -3066,8 +3064,8 @@ function renderConstrainedResults(name, type, _tmdbId, results) {
 // Run an inline prediction for a recommended film (shows loading state in modal)
 async function _runInlinePrediction(tmdbId) {
   // Show modal with loading state
-  const { openModal } = await import('./modal.js');
-  openModal();
+  const { openModalShell } = await import('./modal.js');
+  openModalShell();
   document.getElementById('modalContent').innerHTML = `
     <div style="padding:60px 20px;text-align:center">
       <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:22px;color:var(--dim);margin-bottom:12px">Generating prediction…</div>
@@ -3098,8 +3096,8 @@ async function _runInlinePrediction(tmdbId) {
 
 // Open detail for a film with no prediction — shows overview + entity chips + actions
 async function _openRecommendedDetailHeuristic(tmdbId) {
-  const { openModal } = await import('./modal.js');
-  openModal();
+  const { openModalShell } = await import('./modal.js');
+  openModalShell();
 
   // Try to pull basic info from recommendation cache
   const allCached = [
@@ -3143,10 +3141,6 @@ async function _openRecommendedDetailHeuristic(tmdbId) {
       <button id="rec-detail-wl-btn" onclick="recDetailToggleWl('${tmdbId}')" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;${onWl ? 'background:var(--green);border:1px solid var(--green);color:white' : 'background:none;border:1px solid var(--rule);color:var(--dim)'};padding:10px 20px;cursor:pointer;flex:1">${onWl ? '✓ On Watch List' : '＋ Watchlist'}</button>
       ${predictBtn}
     </div>`;
-
-  const fmEl = document.getElementById('filmModal');
-  fmEl.classList.add('open');
-  requestAnimationFrame(() => fmEl.classList.add('visible'));
 
   // Load enriched TMDB details
   _loadRecDetailTmdb(tmdbId, { title, year, poster, overview: rec?.overview || '' });
@@ -3245,6 +3239,8 @@ async function openRecommendedDetail(tmdbId) {
       </div>
     </div>`;
 
+  const { openModalShell } = await import('./modal.js');
+  openModalShell();
   document.getElementById('modalContent').innerHTML = `
     ${headerHtml}
     <div id="rec-detail-meta" style="margin-bottom:16px">
@@ -3257,9 +3253,6 @@ async function openRecommendedDetail(tmdbId) {
       <button onclick="closeModal();window.showScreen('add');setTimeout(()=>window.tmdbSelect?.(${parseInt(tmdbId)},''),150)" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:10px 20px;cursor:pointer;flex:2">Add & rate →</button>
     </div>
   `;
-  const fmEl = document.getElementById('filmModal');
-  fmEl.classList.add('open');
-  requestAnimationFrame(() => fmEl.classList.add('visible'));
 
   // Load enriched TMDB details (cast, director, writer, companies, streaming)
   _loadRecDetailTmdb(tmdbId, film);
