@@ -394,8 +394,10 @@ export function initPredict() {
 
   // Seed-eligible users must not be blocked by stale heuristic-only cache
   const seedEligible = isOnboardingSeedEligible();
-  // Cache is only "good enough" if at least one item is prediction-backed
-  const cacheHasPredictions = cached?.some(r => r.predictionBacked);
+  // Cache is "good enough" if at least one item has a real prediction
+  // Use same fallback as render code: predictionBacked flag OR prediction object presence
+  const hasPred = r => (r.predictionBacked ?? !!r.prediction) && r.predTotal != null;
+  const cacheHasPredictions = cached?.some(hasPred);
 
   const shouldRefresh = !lastAt || MOVIES.length >= countAtLast + 5 || !cached?.length || seedEligible || !cacheHasPredictions;
   if (shouldRefresh) {
@@ -404,7 +406,7 @@ export function initPredict() {
     });
     loadForYouRecommendations();
   } else {
-    track('discover_load_cache', { cached_count: cached.length, prediction_backed: cached.filter(r => r.predictionBacked).length });
+    track('discover_load_cache', { cached_count: cached.length, prediction_backed: cached.filter(hasPred).length });
     renderForYouFromCache();
   }
 
