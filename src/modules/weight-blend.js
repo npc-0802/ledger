@@ -10,6 +10,10 @@ const DECAY_RATE = 0.15;
 const QUIZ_FLOOR = 0.25;     // quiz influence never drops below 25%
 const MAX_SNAPSHOTS = 500;
 
+// Sources that were part of the onboarding flow — these shaped the prior,
+// so they should not also advance the decay for extended onboarding users.
+const ONBOARDING_SOURCES = new Set(['guided_slider', 'onboarding_pairwise']);
+
 // ── Skew-adjusted decay ──
 // When a user's rated films cluster at one end of the spectrum (all loved
 // or all hated), variance-based rating weights become unreliable because
@@ -101,9 +105,18 @@ export function recordWeightSnapshot(trigger, opts = {}) {
   if (trigger === 'rating' && currentUser.rating_weights) {
     const skew = computeSkewCoefficient();
     const skewMul = 1.0 + skew * (MAX_SKEW_BOOST - 1.0);
-    const effFilms = MOVIES.length / skewMul;
-    snapshot.decay = Math.round((1.0 / (1.0 + effFilms * DECAY_RATE)) * 1000) / 1000;
+    // Mirror the actual decay basis used in updateEffectiveWeights()
+    const obPW = currentUser.onboarding_profile_weights;
+    const qw = currentUser.quiz_weights;
+    const isExtOB = !!(obPW && qw && Object.values(qw).every(v => Math.abs(v - 2.5) < 0.01));
+    const dfc = isExtOB
+      ? MOVIES.filter(m => !ONBOARDING_SOURCES.has(m.rating_source)).length
+      : MOVIES.length;
+    const effFilms = dfc / skewMul;
+    const rawDec = 1.0 / (1.0 + effFilms * DECAY_RATE);
+    snapshot.decay = Math.round(Math.max(rawDec, QUIZ_FLOOR) * 1000) / 1000;
     snapshot.skew = Math.round(skew * 1000) / 1000;
+    if (isExtOB) snapshot.postOB = dfc; // post-onboarding film count for diagnostics
     snapshot.rw = {};
     for (const cat of CATEGORIES) {
       snapshot.rw[cat.key] = Math.round((currentUser.rating_weights[cat.key] || 0) * 1000) / 1000;
@@ -256,16 +269,21 @@ export function computeRatingWeights() {
  * Call after every film rating or calibration.
  *
  * Weight architecture:
- * - quiz_weights: the prior/baseline. For old quiz users, this is their
- *   quiz-derived stated preference. For new extended onboarding users,
- *   this is a neutral 2.5 prior (the shaped onboarding profile is NOT
- *   stored here to avoid double-counting, since it's derived from the
- *   same MOVIES data that computeRatingWeights() processes).
+ * - quiz_weights: stored prior/baseline. For old quiz users, quiz-derived
+ *   stated preference. For new extended onboarding users, neutral 2.5.
  * - rating_weights: derived from MOVIES via computeRatingWeights().
  *   Confidence-aware (pairwise films discounted).
- * - weights (effective): blend of quiz_weights × decay + rating_weights × (1-decay).
- * - onboarding_profile_weights: diagnostic record of what the taste reveal
- *   computed (if extended onboarding was used). Not used in blending.
+ * - onboarding_profile_weights: what the taste reveal computed (extended
+ *   onboarding). Used as the ACTUAL blend prior for these users (see below).
+ * - weights (effective): blend of prior × decay + rating_weights × (1-decay).
+ *
+ * Prior selection (in updateEffectiveWeights):
+ * - Old quiz users: prior = quiz_weights, decay based on total films.
+ * - Extended onboarding users: prior = onboarding_profile_weights (the shape
+ *   the user saw in their reveal), decay based on post-onboarding films only.
+ *   quiz_weights stays neutral 2.5 on disk — the actual anchor is the profile.
+ *   This prevents the flat prior from collapsing a distinctive reveal shape
+ *   into Holist after a single new rating.
  */
 export function updateEffectiveWeights() {
   if (!currentUser) return;
@@ -278,28 +296,58 @@ export function updateEffectiveWeights() {
 
   const ratingWeights = computeRatingWeights();
 
+  // ── Determine prior anchor and decay basis ──
+  // Extended onboarding users have neutral 2.5 quiz_weights (to avoid double-
+  // counting the onboarding films in both prior and evidence). But a flat 2.5
+  // prior actively pulls toward Holist — when a user just saw a distinctive
+  // taste reveal, the very next film can collapse their profile.
+  //
+  // Fix: for extended onboarding users, anchor the blend to the onboarding
+  // profile shape (what the user actually saw in their reveal) and base the
+  // decay on post-onboarding film count only. This way the prior loses
+  // authority only as genuinely new evidence arrives, and the reveal shape
+  // provides proper inertia instead of fighting it.
+  const obProfileWeights = currentUser.onboarding_profile_weights;
+  const hasNeutralQuiz = quizWeights &&
+    Object.values(quizWeights).every(v => Math.abs(v - 2.5) < 0.01);
+  const isExtendedOnboarding = !!(obProfileWeights && hasNeutralQuiz);
+
+  let prior, decayFilmCount;
+  if (isExtendedOnboarding) {
+    prior = obProfileWeights;
+    // Only post-onboarding films drive the decay — the onboarding films
+    // already shaped the prior, so counting them again would inflate the
+    // evidence-side's authority and re-introduce the instability.
+    // Any high-trust source that isn't part of the onboarding flow counts:
+    // manual_rating, legacy films (no rating_source), future sources.
+    decayFilmCount = MOVIES.filter(m => !ONBOARDING_SOURCES.has(m.rating_source)).length;
+  } else {
+    prior = quizWeights;
+    decayFilmCount = filmsRated;
+  }
+
   // Skew-adjusted decay: when the rating pool is biased (all loved or all
   // hated), variance is compressed and rating weights are less trustworthy.
   // Boost the decay to retain more quiz influence proportionally.
   const skew = computeSkewCoefficient();
   const skewMultiplier = 1.0 + skew * (MAX_SKEW_BOOST - 1.0); // 1.0–3.0
-  const effectiveFilms = filmsRated / skewMultiplier;           // acts as if fewer films rated
+  const effectiveFilms = decayFilmCount / skewMultiplier;       // acts as if fewer films rated
   const rawDecay = 1.0 / (1.0 + effectiveFilms * DECAY_RATE);
-  // Quiz influence floor: the quiz captures stated preference that ratings
-  // can't — it should never be fully drowned out by statistical inference.
+  // Prior influence floor: the prior captures taste shape that variance
+  // alone can't reconstruct — it should never be fully drowned out.
   const decay = Math.max(rawDecay, QUIZ_FLOOR);
 
   let effective;
   if (!ratingWeights) {
-    // Not enough films — quiz weights are all we have
-    effective = { ...quizWeights };
+    // Not enough films — prior is all we have
+    effective = { ...prior };
   } else {
-    // Blend quiz and rating-derived weights
+    // Blend prior and rating-derived weights
     effective = {};
     for (const cat of CATEGORIES) {
-      const qw = quizWeights[cat.key] ?? 2.5;
+      const pw = prior[cat.key] ?? 2.5;
       const rw = ratingWeights[cat.key] ?? 2.5;
-      effective[cat.key] = qw * decay + rw * (1.0 - decay);
+      effective[cat.key] = pw * decay + rw * (1.0 - decay);
     }
   }
 
