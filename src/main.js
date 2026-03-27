@@ -911,6 +911,11 @@ async function init() {
   // Analytics: identify user session
   if (currentUser) identifyUser(currentUser, MOVIES.length);
 
+  // Hydrate credit balance from server (background, non-blocking)
+  if (currentUser) {
+    import('./modules/credit-policy.js').then(m => m.hydrateCreditsFromServer()).catch(() => {});
+  }
+
   // Check for pending friend requests and show notification dot
   // Also background-load all friends' film data for modal context
   if (currentUser) {

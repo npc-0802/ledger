@@ -1,10 +1,12 @@
 // ── Palate Map Proxy Worker ────────────────────────────────────────────────
 // Cloudflare Worker that proxies Anthropic API calls and Resend emails.
-// Server-side prediction quota enforcement prevents client-side bypass.
+// Server-side credit enforcement prevents client-side bypass.
 //
-// Prediction calls (those with prediction_source) REQUIRE authentication.
-// Quota is enforced atomically via Supabase RPC before any Anthropic call.
-// Non-prediction Claude calls (insights, friend overlap) pass through freely.
+// Credit flow: reserve slot → call Anthropic → finalize or release.
+// Pending reservations count toward the cap (no concurrent overspend).
+// Failed API calls release the reservation (no charge to user).
+//
+// Company-funded sources bypass credit checks but still log usage.
 //
 // Environment variables (set in Cloudflare dashboard):
 //   ANTHROPIC_KEY     — Anthropic API key
@@ -12,35 +14,38 @@
 //   SUPABASE_URL      — Supabase project URL
 //   SUPABASE_KEY      — Supabase service role key (for server-side DB access)
 
-// ── Tier definitions (must match client-side prediction-policy.js) ────────
+// ── Tier definitions (must match client-side credit-policy.js) ───────────
 
-const POLICY = {
-  free:    { daily_limit: 10,  monthly_limit: 50  },
-  paid:    { daily_limit: 50,  monthly_limit: 200 },
-  founder: { daily_limit: 100, monthly_limit: 500 },
+const CREDIT_LIMITS = {
+  free:    { monthly: 25  },
+  pro:     { monthly: 150 },
+  premium: { monthly: 500 },
 };
 
-// Source-level gating by tier
+// Source-level gating by tier (predictions only)
 const SOURCE_GATES = {
   free: {
     manual_predict: true,
     repredict: true,
+    manual_refresh: true,
     watchlist_auto: false,
     foryou_auto: false,
     discovery_auto: false,
     constrained_search: false,
   },
-  paid: {
+  pro: {
     manual_predict: true,
     repredict: true,
+    manual_refresh: true,
     watchlist_auto: true,
     foryou_auto: true,
     discovery_auto: true,
     constrained_search: true,
   },
-  founder: {
+  premium: {
     manual_predict: true,
     repredict: true,
+    manual_refresh: true,
     watchlist_auto: true,
     foryou_auto: true,
     discovery_auto: true,
@@ -48,16 +53,27 @@ const SOURCE_GATES = {
   },
 };
 
-// Founder emails (case-insensitive)
+// Company-funded sources: allowed without credit check, never charged to user
+const COMPANY_FUNDED_SOURCES = new Set([
+  'onboarding_seed',
+]);
+
+// Founder emails → premium tier (case-insensitive)
 const FOUNDER_EMAILS = [
   'noahparikhcott@gmail.com',
 ];
+
+// Legacy tier aliases → normalized product-facing names
+const TIER_ALIASES = {
+  paid: 'pro',
+  founder: 'premium',
+};
 
 // ── CORS ──────────────────────────────────────────────────────────────────
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
@@ -99,20 +115,22 @@ async function verifySupabaseAuth(env, accessToken) {
   }
 }
 
-// Look up user tier from palatemap_users table
+// Look up and normalize user tier
 async function getUserTier(env, authUser) {
   if (!authUser) return 'free';
 
-  // Founder email check
-  if (authUser.email && FOUNDER_EMAILS.includes(authUser.email)) return 'founder';
+  // Founder email check → premium
+  if (authUser.email && FOUNDER_EMAILS.includes(authUser.email)) return 'premium';
 
-  // Check subscription_tier in palatemap_users
+  // Check subscription_tier in palatemap_users, normalize through aliases
   try {
     const res = await supabaseQuery(env, `palatemap_users?auth_id=eq.${authUser.id}&select=subscription_tier`);
     if (res.ok) {
       const rows = await res.json();
-      if (rows.length > 0 && rows[0].subscription_tier && POLICY[rows[0].subscription_tier]) {
-        return rows[0].subscription_tier;
+      if (rows.length > 0 && rows[0].subscription_tier) {
+        const raw = rows[0].subscription_tier;
+        const normalized = TIER_ALIASES[raw] || raw;
+        if (CREDIT_LIMITS[normalized]) return normalized;
       }
     }
   } catch {}
@@ -120,83 +138,126 @@ async function getUserTier(env, authUser) {
   return 'free';
 }
 
-// ── Quota enforcement ─────────────────────────────────────────────────────
+// ── Credit enforcement ──────────────────────────────────────────────────
+// Three-phase atomic flow:
+//   1. reserve_credit  — atomically checks (finalized + pending) against cap,
+//                        creates a pending reservation if under limit
+//   2. call Anthropic
+//   3a. finalize_credit — on success: marks reservation finalized, increments usage
+//   3b. release_credit  — on failure: marks reservation released, slot freed
+//
+// Pending reservations count toward the cap, so concurrent requests cannot
+// overspend. Stale reservations (>5 min) are auto-ignored in budget checks.
 
-function todayStr() { return new Date().toISOString().slice(0, 10); }
-
-// Atomically check limits and reserve one prediction slot.
-// Returns { allowed, daily, monthly, reason } — all in one DB transaction.
-async function reserveQuota(env, userId, source, tier) {
-  const policy = POLICY[tier] || POLICY.free;
-  const today = todayStr();
-
+// Read-only budget check (for GET /credits display endpoint only).
+async function checkBudget(env, userId) {
   try {
-    const res = await supabaseQuery(env, 'rpc/reserve_prediction_quota', {
+    const res = await supabaseQuery(env, 'rpc/check_credit_budget', {
+      method: 'POST',
+      prefer: 'return=representation',
+      body: JSON.stringify({ p_user_id: userId, p_date: new Date().toISOString().slice(0, 10) }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch { return null; }
+}
+
+// Atomically reserve a credit slot. Returns { allowed, reservation_id, ... }.
+async function reserveCredit(env, userId, tier, creditType, source) {
+  const limits = CREDIT_LIMITS[tier] || CREDIT_LIMITS.free;
+  try {
+    const res = await supabaseQuery(env, 'rpc/reserve_credit', {
       method: 'POST',
       prefer: 'return=representation',
       body: JSON.stringify({
         p_user_id: userId,
-        p_date: today,
-        p_source: source || 'manual_predict',
-        p_daily_limit: policy.daily_limit,
-        p_monthly_limit: policy.monthly_limit,
+        p_monthly_limit: limits.monthly,
+        p_credit_type: creditType,
+        p_source: source || null,
       }),
     });
-
     if (!res.ok) {
-      // If RPC fails, fail closed — block the call
-      console.error('reserve_prediction_quota RPC failed:', res.status, await res.text());
+      console.error('reserve_credit RPC failed:', res.status, await res.text());
       return { allowed: false, reason: 'quota_service_error' };
     }
-
     return await res.json();
   } catch (e) {
-    console.error('reserveQuota error:', e);
+    console.error('reserveCredit error:', e);
     return { allowed: false, reason: 'quota_service_error' };
   }
 }
 
-// Full quota + source gate check. Reserves a slot atomically if allowed.
-async function checkAndReserveQuota(env, authUser, tier, source) {
-  const gates = SOURCE_GATES[tier] || SOURCE_GATES.free;
-  const policy = POLICY[tier] || POLICY.free;
+// Finalize a reservation after successful API call. Returns { monthly_used }.
+async function finalizeCredit(env, reservationId, userId) {
+  try {
+    const res = await supabaseQuery(env, 'rpc/finalize_credit', {
+      method: 'POST',
+      prefer: 'return=representation',
+      body: JSON.stringify({ p_reservation_id: reservationId, p_user_id: userId }),
+    });
+    if (!res.ok) {
+      console.error('finalize_credit RPC failed:', res.status, await res.text());
+      return null;
+    }
+    return await res.json();
+  } catch (e) {
+    console.error('finalizeCredit error:', e);
+    return null;
+  }
+}
 
-  // Source gating (no DB call needed)
-  if (source && gates[source] === false) {
-    return {
-      allowed: false,
-      error: 'plan_restricted',
-      message: `${source} is not available on the ${tier} plan.`,
-    };
+// Release a reservation after failed API call. Frees the slot.
+async function releaseCredit(env, reservationId, userId) {
+  try {
+    await supabaseQuery(env, 'rpc/release_credit', {
+      method: 'POST',
+      body: JSON.stringify({ p_reservation_id: reservationId, p_user_id: userId }),
+    });
+  } catch (e) {
+    console.error('releaseCredit error:', e);
+  }
+}
+
+// Full pre-call gate: source gating + atomic reservation.
+// Returns { allowed, reservationId?, companyFunded?, error?, message? }
+async function reserveCreditSlot(env, authUser, tier, creditType, source) {
+  // Company-funded sources bypass credit checks entirely
+  if (source && COMPANY_FUNDED_SOURCES.has(source)) {
+    return { allowed: true, companyFunded: true };
   }
 
-  // Atomic quota reservation
-  const result = await reserveQuota(env, authUser.id, source, tier);
+  // Source gating (predictions only — no DB call needed)
+  if (source) {
+    const gates = SOURCE_GATES[tier] || SOURCE_GATES.free;
+    if (gates[source] === false) {
+      return {
+        allowed: false,
+        error: 'plan_restricted',
+        message: `${source} is not available on the ${tier} plan.`,
+      };
+    }
+  }
+
+  // Atomic reservation (includes budget check)
+  const result = await reserveCredit(env, authUser.id, tier, creditType, source);
 
   if (!result.allowed) {
-    if (result.reason === 'daily_limit') {
-      return {
-        allowed: false,
-        error: 'quota_exceeded',
-        message: `You've used today's ${policy.daily_limit} fresh predictions.`,
-      };
-    }
     if (result.reason === 'monthly_limit') {
+      const limits = CREDIT_LIMITS[tier] || CREDIT_LIMITS.free;
       return {
         allowed: false,
         error: 'quota_exceeded',
-        message: `You've reached this month's ${policy.monthly_limit} prediction limit.`,
+        message: `You've reached this month's ${limits.monthly} credit limit.`,
       };
     }
-    // Service error — fail closed
     return {
       allowed: false,
       error: 'quota_service_error',
-      message: 'Unable to verify prediction quota. Please try again.',
+      message: 'Unable to verify credit budget. Please try again.',
     };
   }
 
-  return { allowed: true, daily: result.daily, monthly: result.monthly };
+  return { allowed: true, reservationId: result.reservation_id, companyFunded: false };
 }
 
 // ── Email actions ─────────────────────────────────────────────────────────
@@ -241,7 +302,7 @@ async function handleEmailAction(env, body) {
 
 // ── Claude proxy ──────────────────────────────────────────────────────────
 
-async function handleClaudeCall(env, body) {
+async function callAnthropic(env, body) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -256,9 +317,41 @@ async function handleClaudeCall(env, body) {
       messages: body.messages,
     }),
   });
+  return { data: await res.json(), status: res.status, ok: res.ok };
+}
 
-  const data = await res.json();
-  return corsResponse(data, res.status);
+// ── Auth helper ─────────────────────────────────────────────────────────
+
+function extractAccessToken(request) {
+  const authHeader = request.headers.get('Authorization') || '';
+  return authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+}
+
+// ── Credit balance endpoint ─────────────────────────────────────────────
+// GET /credits — returns the user's current credit balance from the server.
+// Used by the client to hydrate the display cache from the authoritative ledger.
+
+async function handleCreditBalance(env, request) {
+  const accessToken = extractAccessToken(request);
+  const authUser = await verifySupabaseAuth(env, accessToken);
+  if (!authUser) {
+    return corsResponse({ error: 'auth_required' }, 401);
+  }
+
+  const tier = await getUserTier(env, authUser);
+  const limits = CREDIT_LIMITS[tier] || CREDIT_LIMITS.free;
+  const budget = await checkBudget(env, authUser.id);
+
+  if (!budget) {
+    return corsResponse({ error: 'service_error' }, 500);
+  }
+
+  return corsResponse({
+    used: budget.monthly_used,
+    limit: limits.monthly,
+    remaining: Math.max(0, limits.monthly - budget.monthly_used),
+    tier,
+  });
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────
@@ -270,51 +363,83 @@ export default {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
 
+    // Credit balance endpoint (GET)
+    const url = new URL(request.url);
+    if (request.method === 'GET' && url.pathname === '/credits') {
+      return handleCreditBalance(env, request);
+    }
+
     if (request.method !== 'POST') {
       return corsResponse({ error: 'method_not_allowed' }, 405);
     }
 
     const body = await request.json();
 
-    // Route email actions (no quota needed)
+    // Route email actions (no credits needed)
     if (body.action) {
       return handleEmailAction(env, body);
     }
 
     // Claude API call
     if (body.messages) {
-      const source = body.prediction_source || null;
+      // Determine credit type: prediction_source → prediction, credit_source → insight
+      const creditType = body.prediction_source ? 'prediction'
+                       : body.credit_source     ? 'insight'
+                       : null;
+      const source = body.prediction_source || body.credit_source || null;
 
-      // Non-prediction calls (insights, friend overlap) pass through freely
-      if (!source) {
-        return handleClaudeCall(env, body);
+      // Non-metered calls (e.g. friend overlap) pass through freely
+      if (!creditType) {
+        const result = await callAnthropic(env, body);
+        return corsResponse(result.data, result.status);
       }
 
-      // Prediction calls REQUIRE authentication
-      const authHeader = request.headers.get('Authorization') || '';
-      const accessToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+      // Metered calls REQUIRE authentication
+      const accessToken = extractAccessToken(request);
       const authUser = await verifySupabaseAuth(env, accessToken);
 
       if (!authUser) {
         return corsResponse({
           error: 'auth_required',
-          message: 'Authentication required for predictions. Please sign in.',
+          message: 'Authentication required. Please sign in.',
         }, 401);
       }
 
       const tier = await getUserTier(env, authUser);
 
-      // Atomic quota check + reservation (one DB transaction)
-      const quotaResult = await checkAndReserveQuota(env, authUser, tier, source);
-      if (!quotaResult.allowed) {
+      // Phase 1: Atomic reservation (checks budget + creates pending slot)
+      const reservation = await reserveCreditSlot(env, authUser, tier, creditType, source);
+      if (!reservation.allowed) {
         return corsResponse({
-          error: quotaResult.error,
-          message: quotaResult.message,
+          error: reservation.error,
+          message: reservation.message,
         }, 429);
       }
 
-      // Quota reserved — safe to call Anthropic
-      return handleClaudeCall(env, body);
+      // Phase 2: Call Anthropic (slot is reserved, concurrent requests see it)
+      const apiResult = await callAnthropic(env, body);
+
+      // Phase 3: Finalize on success, release on failure
+      if (!reservation.companyFunded && reservation.reservationId) {
+        if (apiResult.ok) {
+          // Finalize: mark reservation done, increment credit_usage
+          const finalized = await finalizeCredit(env, reservation.reservationId, authUser.id);
+          if (finalized) {
+            const limits = CREDIT_LIMITS[tier] || CREDIT_LIMITS.free;
+            apiResult.data._credits = {
+              used: finalized.monthly_used,
+              limit: limits.monthly,
+              remaining: Math.max(0, limits.monthly - finalized.monthly_used),
+              tier,
+            };
+          }
+        } else {
+          // Release: free the slot — user keeps their budget
+          await releaseCredit(env, reservation.reservationId, authUser.id);
+        }
+      }
+
+      return corsResponse(apiResult.data, apiResult.ok ? 200 : apiResult.status);
     }
 
     return corsResponse({ error: 'invalid_request' }, 400);

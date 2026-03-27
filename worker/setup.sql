@@ -1,6 +1,7 @@
--- ── Prediction Quota Table ─────────────────────────────────────────────────
--- Server-side prediction usage tracking. One row per user per day per source.
--- The worker reserves quota atomically via reserve_prediction_quota RPC.
+-- ── Prediction Quota Table (LEGACY) ────────────────────────────────────────
+-- Superseded by credit_usage table (see setup-credits.sql).
+-- Kept for historical data. No longer written to by the Worker.
+-- Original: server-side prediction usage tracking, one row per user per day per source.
 
 -- Drop old schema if migrating from v1 (single-source-per-day)
 DROP FUNCTION IF EXISTS increment_prediction_quota(uuid, date, text);

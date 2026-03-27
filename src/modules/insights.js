@@ -1,64 +1,11 @@
 import { MOVIES, CATEGORIES, currentUser } from '../state.js';
 import { getFilmObservationWeight } from './weight-blend.js';
 import { track } from '../analytics.js';
+import { loadGeneratedArtifact, saveGeneratedArtifact, sb } from './supabase.js';
+import { canUseCredit, recordCreditUsage, getCreditPolicy, syncCreditsFromResponse } from './credit-policy.js';
 
 const PROXY_URL = 'https://palate-map-proxy.noahparikhcott.workers.dev';
 const CACHE_KEY = 'palate_insights_v1';
-
-// ── Insight quota (separate from prediction quota) ────────────────────────
-// Controls fresh Claude calls for entity/film insight generation.
-// Cached insights are always free — quota only applies to fresh generation.
-
-const INSIGHT_QUOTA_KEY = 'palatemap_insight_quota';
-
-const INSIGHT_LIMITS = {
-  free:    { daily: 10,  monthly: 30  },
-  paid:    { daily: 50,  monthly: 200 },
-  founder: { daily: 200, monthly: 1000 },
-};
-
-const FOUNDER_EMAILS = ['noahparikhcott@gmail.com'];
-
-function getInsightTier() {
-  const explicit = currentUser?.subscription_tier;
-  if (explicit && INSIGHT_LIMITS[explicit]) return explicit;
-  const email = (currentUser?.email || '').toLowerCase().trim();
-  if (email && FOUNDER_EMAILS.includes(email)) return 'founder';
-  return 'free';
-}
-
-function loadInsightQuota() {
-  try { return JSON.parse(localStorage.getItem(INSIGHT_QUOTA_KEY) || '{}'); } catch { return {}; }
-}
-
-function saveInsightQuota(q) {
-  localStorage.setItem(INSIGHT_QUOTA_KEY, JSON.stringify(q));
-}
-
-function canGenerateFreshInsight() {
-  const tier = getInsightTier();
-  const limits = INSIGHT_LIMITS[tier];
-  const q = loadInsightQuota();
-  const today = new Date().toISOString().slice(0, 10);
-  const month = new Date().toISOString().slice(0, 7);
-  const daily = q.date === today ? (q.daily || 0) : 0;
-  const monthly = q.month === month ? (q.monthly || 0) : 0;
-  if (daily >= limits.daily) return { allowed: false, reason: 'daily' };
-  if (monthly >= limits.monthly) return { allowed: false, reason: 'monthly' };
-  return { allowed: true, reason: null };
-}
-
-function recordInsightUsage(insightType, entityKey) {
-  const q = loadInsightQuota();
-  const today = new Date().toISOString().slice(0, 10);
-  const month = new Date().toISOString().slice(0, 7);
-  if (q.date !== today) { q.date = today; q.daily = 0; }
-  if (q.month !== month) { q.month = month; q.monthly = 0; }
-  q.daily = (q.daily || 0) + 1;
-  q.monthly = (q.monthly || 0) + 1;
-  saveInsightQuota(q);
-  track('insight_generated', { type: insightType, key: entityKey, daily_used: q.daily, monthly_used: q.monthly, tier: getInsightTier() });
-}
 
 // Sentinel thrown when quota is exhausted (not a real error)
 export class InsightQuotaExhausted extends Error {
@@ -104,13 +51,29 @@ function buildOverallStats() {
   return stats;
 }
 
-async function callClaude(system, user) {
-  const res = await fetch(PROXY_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ system, messages: [{ role: 'user', content: user }] })
-  });
+async function callClaude(system, user, creditSource) {
+  const headers = { 'Content-Type': 'application/json' };
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session?.access_token) {
+      headers['Authorization'] = `Bearer ${session.access_token}`;
+    }
+  } catch {}
+
+  const body = { system, messages: [{ role: 'user', content: user }] };
+  if (creditSource) body.credit_source = creditSource;
+
+  const res = await fetch(PROXY_URL, { method: 'POST', headers, body: JSON.stringify(body) });
   const data = await res.json();
+
+  // Sync credit balance from server piggyback
+  if (data._credits) syncCreditsFromResponse(data._credits);
+
+  // Server-side credit enforcement may reject
+  if (data.error === 'quota_exceeded' || data.error === 'auth_required') {
+    throw new InsightQuotaExhausted();
+  }
+
   return (data.content?.[0]?.text || '').trim();
 }
 
@@ -124,14 +87,26 @@ export async function getEntityInsight(type, name, films) {
 
   // Cached insight — always free
   if (!isEntityStale(cache[key], filmCount, avg)) {
-    track('insight_cache_hit', { type: 'entity', key, tier: getInsightTier() });
+    track('insight_cache_hit', { type: 'entity', key, tier: getCreditPolicy().tier });
     return cache[key].text;
   }
 
+  // Server artifact — free (user already paid for this generation)
+  const entityObjectId = `${type}::${name.toLowerCase().trim()}`;
+  try {
+    const artifact = await loadGeneratedArtifact('entity_insight', entityObjectId);
+    if (artifact?.payload?.text && !isEntityStale({ filmCount: artifact.payload.filmCount, avg: artifact.payload.avg }, filmCount, avg)) {
+      cache[key] = { text: artifact.payload.text, filmCount: artifact.payload.filmCount, avg: artifact.payload.avg, ts: Date.now(), generatedAt: artifact.generated_at };
+      saveCache(cache);
+      track('insight_server_hit', { type: 'entity', key, tier: getCreditPolicy().tier });
+      return artifact.payload.text;
+    }
+  } catch { /* server unavailable — fall through to fresh generation */ }
+
   // Fresh generation — check quota
-  const quotaCheck = canGenerateFreshInsight();
+  const quotaCheck = canUseCredit();
   if (!quotaCheck.allowed) {
-    track('insight_quota_blocked', { type: 'entity', key, reason: quotaCheck.reason, tier: getInsightTier() });
+    track('insight_quota_blocked', { type: 'entity', key, reason: quotaCheck.reason, tier: getCreditPolicy().tier });
     throw new InsightQuotaExhausted();
   }
 
@@ -160,25 +135,26 @@ ${filmLines}
 
 Write 2–3 sentences in second person about what this user's scoring patterns reveal about what they value in ${typeLabel}'s work. Be precise — reference film titles, specific scores, category highs/lows.`;
 
-  const text = await callClaude(system, userPrompt);
-  cache[key] = { text, filmCount, avg, ts: Date.now() };
-  saveCache(cache);
-  recordInsightUsage('entity', key);
+  const text = await callClaude(system, userPrompt, 'entity_insight');
+  const generatedAt = new Date().toISOString();
 
-  // Persist server-side (fire-and-forget)
-  const entityObjectId = `${type}::${name.toLowerCase().trim()}`;
-  import('./supabase.js').then(({ saveGeneratedArtifact }) => {
-    saveGeneratedArtifact({
-      contentType: 'entity_insight',
-      objectType: 'entity',
-      objectId: entityObjectId,
-      objectLabel: `${type}: ${name}`,
-      payload: { text, filmCount, avg },
-      summaryText: text,
-      generationSource: 'entity_insight',
-      metadata: { filmCount, avg, type, name },
-    });
+  // Persist server-side BEFORE recording quota spend — if this fails,
+  // the user keeps the text locally but doesn't lose a credit for a
+  // non-durable artifact.
+  const persisted = await saveGeneratedArtifact({
+    contentType: 'entity_insight',
+    objectType: 'entity',
+    objectId: entityObjectId,
+    objectLabel: `${type}: ${name}`,
+    payload: { text, filmCount, avg },
+    summaryText: text,
+    generationSource: 'entity_insight',
+    metadata: { filmCount, avg, type, name },
   });
+
+  cache[key] = { text, filmCount, avg, ts: Date.now(), generatedAt };
+  saveCache(cache);
+  if (persisted) recordCreditUsage('insight', null, key);
 
   return text;
 }
@@ -191,14 +167,26 @@ export async function getFilmInsight(film) {
 
   // Cached insight — always free
   if (!isFilmStale(cache[key], film.total)) {
-    track('insight_cache_hit', { type: 'film', key, tier: getInsightTier() });
+    track('insight_cache_hit', { type: 'film', key, tier: getCreditPolicy().tier });
     return cache[key].text;
   }
 
+  // Server artifact — free (user already paid for this generation)
+  const filmObjectId = film.tmdbId ? String(film.tmdbId) : `${film.title}::${film.year || ''}`;
+  try {
+    const artifact = await loadGeneratedArtifact('film_insight', filmObjectId);
+    if (artifact?.payload?.text && !isFilmStale({ total: artifact.payload.total }, film.total)) {
+      cache[key] = { text: artifact.payload.text, filmCount: 1, total: artifact.payload.total, ts: Date.now(), generatedAt: artifact.generated_at };
+      saveCache(cache);
+      track('insight_server_hit', { type: 'film', key, tier: getCreditPolicy().tier });
+      return artifact.payload.text;
+    }
+  } catch { /* server unavailable — fall through to fresh generation */ }
+
   // Fresh generation — check quota
-  const quotaCheck = canGenerateFreshInsight();
+  const quotaCheck = canUseCredit();
   if (!quotaCheck.allowed) {
-    track('insight_quota_blocked', { type: 'film', key, reason: quotaCheck.reason, tier: getInsightTier() });
+    track('insight_quota_blocked', { type: 'film', key, reason: quotaCheck.reason, tier: getCreditPolicy().tier });
     throw new InsightQuotaExhausted();
   }
 
@@ -228,25 +216,26 @@ ${catLines}
 
 Write 2–3 sentences in second person about what this scoring pattern reveals about how this user experienced ${film.title}. What stood out (scored above their avg)? What fell short? Make it feel personal and specific.`;
 
-  const text = await callClaude(system, userPrompt);
-  cache[key] = { text, filmCount: 1, total: film.total, ts: Date.now() };
-  saveCache(cache);
-  recordInsightUsage('film', key);
+  const text = await callClaude(system, userPrompt, 'film_insight');
+  const generatedAt = new Date().toISOString();
 
-  // Persist server-side (fire-and-forget)
-  const filmObjectId = film.tmdbId ? String(film.tmdbId) : `${film.title}::${film.year || ''}`;
-  import('./supabase.js').then(({ saveGeneratedArtifact }) => {
-    saveGeneratedArtifact({
-      contentType: 'film_insight',
-      objectType: 'film',
-      objectId: filmObjectId,
-      objectLabel: `${film.title} (${film.year || '?'})`,
-      payload: { text, total: film.total },
-      summaryText: text,
-      generationSource: 'film_insight',
-      metadata: { total: film.total, tmdbId: film.tmdbId || null },
-    });
+  // Persist server-side BEFORE recording quota spend — if this fails,
+  // the user keeps the text locally but doesn't lose a credit for a
+  // non-durable artifact.
+  const persisted = await saveGeneratedArtifact({
+    contentType: 'film_insight',
+    objectType: 'film',
+    objectId: filmObjectId,
+    objectLabel: `${film.title} (${film.year || '?'})`,
+    payload: { text, total: film.total },
+    summaryText: text,
+    generationSource: 'film_insight',
+    metadata: { total: film.total, tmdbId: film.tmdbId || null },
   });
+
+  cache[key] = { text, filmCount: 1, total: film.total, ts: Date.now(), generatedAt };
+  saveCache(cache);
+  if (persisted) recordCreditUsage('insight', null, key);
 
   return text;
 }

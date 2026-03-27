@@ -440,7 +440,7 @@ export async function reconcilePredictionLog(tmdbId, actualScores, actualTotal, 
  * @param {{ contentType, objectType, objectId, objectLabel, payload, summaryText, model, generationSource, metadata }} artifact
  */
 export async function saveGeneratedArtifact(artifact) {
-  if (!currentUser?.id) return;
+  if (!currentUser?.id) return false;
   try {
     const row = {
       user_id: currentUser.id,
@@ -457,10 +457,13 @@ export async function saveGeneratedArtifact(artifact) {
       version: artifact.version || 1,
       metadata: artifact.metadata || {},
     };
-    await sb.from('generated_artifacts')
+    const { error } = await sb.from('generated_artifacts')
       .upsert(row, { onConflict: 'user_id,content_type,object_id' });
+    if (error) { console.warn('generated_artifacts upsert error:', error); return false; }
+    return true;
   } catch(e) {
     console.warn('generated_artifacts upsert failed:', e);
+    return false;
   }
 }
 
