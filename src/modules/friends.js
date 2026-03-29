@@ -784,10 +784,23 @@ function sharedWatchlistHTML(friend, color) {
     </div>`;
 }
 
+// Ensure friend color is always visually distinct from the user's blue (#3D5A80).
+// Measures perceptual distance in RGB space; if too close, picks a warm fallback.
+function ensureDistinctFromBlue(hex) {
+  const USER_BLUE = { r: 0x3D, g: 0x5A, b: 0x80 };
+  const WARM_FALLBACKS = ['#D4665A', '#D4A84B', '#E8906A', '#B48FD4', '#52BFA8'];
+  const parse = h => ({ r: parseInt(h.slice(1, 3), 16), g: parseInt(h.slice(3, 5), 16), b: parseInt(h.slice(5, 7), 16) });
+  const dist = (a, b) => Math.sqrt((a.r - b.r) ** 2 + (a.g - b.g) ** 2 + (a.b - b.b) ** 2);
+  try {
+    if (dist(parse(hex), USER_BLUE) > 80) return hex;
+  } catch(_) {}
+  return WARM_FALLBACKS[Math.abs(hex.charCodeAt(1) || 0) % WARM_FALLBACKS.length];
+}
+
 function renderFriendProfile(el, friend) {
   currentFriendCache = friend;
   const arch = ARCHETYPES[friend.archetype] || {};
-  const color = arch.palette || '#3D5A80';
+  const color = ensureDistinctFromBlue(arch.palette || '#D4665A');
   const compat = computeCompatibility(currentUser.weights || {}, friend.weights || {}, MOVIES, friend.movies || []);
 
   el.innerHTML = `
