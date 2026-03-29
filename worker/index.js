@@ -242,18 +242,26 @@ async function reserveCreditSlot(env, authUser, tier, creditType, source) {
   const result = await reserveCredit(env, authUser.id, tier, creditType, source);
 
   if (!result.allowed) {
+    // Attach _credits so the client can refresh its local display cache
+    // even on denied requests — prevents stale balance after exhaustion.
+    const creditsPayload = result.monthly_used != null
+      ? { used: result.monthly_used + (result.pending || 0) }
+      : undefined;
+
     if (result.reason === 'monthly_limit') {
       const limits = CREDIT_LIMITS[tier] || CREDIT_LIMITS.free;
       return {
         allowed: false,
         error: 'quota_exceeded',
         message: `You've reached this month's ${limits.monthly} credit limit.`,
+        _credits: creditsPayload,
       };
     }
     return {
       allowed: false,
       error: 'quota_service_error',
       message: 'Unable to verify credit budget. Please try again.',
+      _credits: creditsPayload,
     };
   }
 
@@ -413,6 +421,8 @@ export default {
         return corsResponse({
           error: reservation.error,
           message: reservation.message,
+          // Include _credits so the client can refresh its stale local cache
+          ...(reservation._credits ? { _credits: reservation._credits } : {}),
         }, 429);
       }
 

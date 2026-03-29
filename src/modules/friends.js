@@ -875,7 +875,7 @@ function renderFriendProfile(el, friend) {
           <div class="dark-grid" style="background:var(--surface-dark);padding:28px 32px;border-top:3px solid ${color}">
             <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--on-dark-dim);margin-bottom:10px">palate map · overlap predict</div>
             <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(22px,5vw,32px);line-height:1.1;color:var(--on-dark);margin-bottom:10px">What would you both think?</div>
-            <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--on-dark-dim);line-height:1.6;margin-bottom:20px">Pick any film. Palate Map reads both your taste profiles and predicts how it would land for each of you.</div>
+            <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--on-dark-dim);line-height:1.6;margin-bottom:20px">Pick any film. Palate Map reads both your taste profiles and predicts how it would land for each of you. <span style="font-family:'DM Mono',monospace;font-size:10px;opacity:0.7">Uses 1 credit</span></div>
             <input id="overlap-predict-search" type="text" placeholder="Search a film…" oninput="overlapPredictDebounce()" style="width:100%;box-sizing:border-box;padding:13px 16px;border:1px solid rgba(244,239,230,0.15);background:rgba(244,239,230,0.07);font-family:'DM Sans',sans-serif;font-size:15px;outline:none;color:var(--on-dark);caret-color:${color}" onfocus="this.style.borderColor='${color}'" onblur="this.style.borderColor='rgba(244,239,230,0.15)'">
             <div id="overlap-predict-results" style="margin-top:2px"></div>
           </div>

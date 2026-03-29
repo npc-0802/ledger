@@ -160,14 +160,7 @@ function renderModal() {
         <span style="color:${color};font-weight:600">${sign}${delta} · ${label}</span>
       </div>`;
     })()}
-    ${!editMode ? `<div id="modal-insight" style="margin-bottom:20px">
-      <div class="insight-loading">
-        <div class="insight-loading-label">Analysing your score <div class="insight-loading-dots"><span></span><span></span><span></span></div></div>
-        <div class="insight-skeleton"></div>
-        <div class="insight-skeleton s2"></div>
-        <div class="insight-skeleton s3"></div>
-      </div>
-    </div>` : ''}
+    ${!editMode ? `<div id="modal-insight" style="margin-bottom:20px"></div>` : ''}
     <div style="margin-bottom:20px">
       ${editMode
         ? `<button onclick="modalSaveScores()" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;background:var(--blue);color:white;border:none;padding:8px 18px;cursor:pointer;margin-right:8px">Save scores</button>
@@ -341,28 +334,83 @@ window.modalChoosePoster = async function() {
   });
 };
 
+function formatInsightDate(isoDate) {
+  if (!isoDate) return '';
+  try {
+    return new Date(isoDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  } catch { return ''; }
+}
+
+function renderInsightBlock(text, generatedAt, style = 'dark') {
+  const dateStr = formatInsightDate(generatedAt);
+  const dateLine = dateStr ? `<span style="margin-left:auto;font-style:normal;opacity:0.6">Generated ${dateStr}</span>` : '';
+  if (style === 'dark') {
+    return `<div style="padding:14px 18px;background:var(--surface-dark);border-radius:6px">
+      <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-dark-dim);margin-bottom:8px;display:flex;align-items:center;gap:6px">
+        <span>Why this score</span>${dateLine}
+      </div>
+      <div style="font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.7;color:var(--on-dark)">${text}</div>
+    </div>`;
+  }
+  return `<div style="padding:18px 20px;background:var(--cream);border:1px solid var(--rule);border-radius:4px">
+    <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--dim);margin-bottom:10px;display:flex;align-items:center;gap:6px">
+      <span>Your taste insight</span>${dateLine}
+    </div>
+    <div style="font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.7;color:var(--ink)">${text}</div>
+  </div>`;
+}
+
 async function loadModalInsight(film) {
   const el = document.getElementById('modal-insight');
   if (!el) return;
+
+  // Step 1: Check if insight already exists (free lookup — no generation)
   try {
-    const { getFilmInsight } = await import('./insights.js');
-    const text = await getFilmInsight(film);
+    const { lookupFilmInsight, getFilmInsight } = await import('./insights.js');
+    const existing = await lookupFilmInsight(film);
     if (!document.getElementById('modal-insight')) return;
+
+    if (existing.exists) {
+      // Insight already generated — show it directly with date
+      el.innerHTML = renderInsightBlock(existing.text, existing.generatedAt, 'dark');
+      return;
+    }
+
+    // No existing insight — show generate CTA
     el.innerHTML = `
-      <div style="padding:14px 18px;background:var(--surface-dark);border-radius:6px">
-        <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-dark-dim);margin-bottom:8px">Why this score</div>
-        <div style="font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.7;color:var(--on-dark)">${text}</div>
+      <div id="modal-insight-cta" style="padding:12px 16px;border:1px dashed var(--rule);border-radius:6px;display:flex;align-items:center;justify-content:space-between">
+        <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);letter-spacing:0.3px">Written insight available</span>
+        <button onclick="window._generateModalInsight()" style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;background:none;color:var(--blue);border:1px solid var(--blue);padding:6px 14px;cursor:pointer;white-space:nowrap">Generate insight <span style="font-size:8px;opacity:0.7">· 1 credit</span></button>
       </div>`;
+
+    // Expose the generate action on window (scoped to this modal instance)
+    window._generateModalInsight = async () => {
+      const cta = document.getElementById('modal-insight-cta');
+      if (cta) {
+        cta.innerHTML = `<div class="insight-loading">
+          <div class="insight-loading-label">Analysing your score <div class="insight-loading-dots"><span></span><span></span><span></span></div></div>
+          <div class="insight-skeleton"></div>
+          <div class="insight-skeleton s2"></div>
+        </div>`;
+      }
+      try {
+        const text = await getFilmInsight(film);
+        const el2 = document.getElementById('modal-insight');
+        if (!el2) return;
+        el2.innerHTML = renderInsightBlock(text, new Date().toISOString(), 'dark');
+      } catch(e) {
+        const el2 = document.getElementById('modal-insight');
+        if (!el2) return;
+        if (e?.name === 'InsightQuotaExhausted') {
+          el2.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);padding:8px 0;line-height:1.6">You've used this month's credits. Your scores above tell the story.</div>`;
+        } else {
+          el2.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);padding:8px 0">Insight couldn't load right now.</div>`;
+        }
+      }
+    };
   } catch(e) {
     const el2 = document.getElementById('modal-insight');
-    if (!el2) return;
-    if (e?.name === 'InsightQuotaExhausted') {
-      // Quota exhausted — hide silently (film modal still has scores, reasoning, etc.)
-      el2.style.display = 'none';
-    } else {
-      // Real error (proxy failure, malformed response, etc.) — show subtle indicator
-      el2.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);padding:8px 0">Insight couldn't load right now.</div>`;
-    }
+    if (el2) el2.style.display = 'none';
   }
 }
 

@@ -172,11 +172,15 @@ export async function hydrateCreditsFromServer() {
 // ── Public API ────────────────────────────────────────────────────────────
 
 /**
- * Check if a credit can be used. For predictions, pass `source` for gate check.
- * For insights, omit source.
+ * Check source-level entitlement (plan gates + company-funded bypass).
+ * This is a hard gate: if the user's plan doesn't allow a source, the request
+ * should not be attempted. Monthly budget is NOT checked here — the server
+ * is authoritative for spend eligibility.
+ *
+ * For predictions, pass `source`. For insights, omit source.
  * Returns { allowed, reason, companyFunded }.
  */
-export function canUseCredit(source) {
+export function canUseSource(source) {
   const policy = getCreditPolicy();
 
   // Company-funded sources are always allowed and never cost user credits
@@ -201,13 +205,35 @@ export function canUseCredit(source) {
     }
   }
 
-  // Monthly credit check
-  const used = getUsedThisMonth();
-  if (used >= policy.monthly) {
-    return { allowed: false, reason: `You've reached this month's ${policy.monthly} credit limit.`, companyFunded: false };
-  }
-
   return { allowed: true, reason: null, companyFunded: false };
+}
+
+/**
+ * Soft hint: check if local credit cache suggests the user is near/at limit.
+ * Use for UI display (disabling buttons, showing warnings) — NOT for blocking
+ * requests. The server is the authority for spend eligibility; stale local
+ * state must not prevent a legitimate request from reaching the Worker.
+ *
+ * Returns { locallyExhausted, remaining, limit, tier }.
+ */
+export function getCreditHint(source) {
+  // Company-funded sources are always allowed
+  if (source && COMPANY_FUNDED_SOURCES.has(source)) {
+    return { locallyExhausted: false, remaining: Infinity, limit: Infinity, tier: getSubscriptionTier() };
+  }
+  const policy = getCreditPolicy();
+  const used = getUsedThisMonth();
+  const remaining = Math.max(0, policy.monthly - used);
+  return { locallyExhausted: remaining <= 0, remaining, limit: policy.monthly, tier: policy.tier };
+}
+
+/**
+ * @deprecated Use canUseSource() for source gating and getCreditHint() for display.
+ * Preserved temporarily for any callers not yet migrated — delegates to canUseSource
+ * so it no longer hard-blocks on monthly budget.
+ */
+export function canUseCredit(source) {
+  return canUseSource(source);
 }
 
 /**

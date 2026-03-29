@@ -196,14 +196,7 @@ export function exploreEntity(type, name) {
         </div>
       </div>
 
-      <div id="explore-insight" style="margin-bottom:28px">
-        <div class="insight-loading">
-          <div class="insight-loading-label">Analysing your taste patterns <div class="insight-loading-dots"><span></span><span></span><span></span></div></div>
-          <div class="insight-skeleton"></div>
-          <div class="insight-skeleton s2"></div>
-          <div class="insight-skeleton s3"></div>
-        </div>
-      </div>
+      <div id="explore-insight" style="margin-bottom:28px"></div>
 
       ${scored.length > 0 ? (() => {
         const craftKeys = ['story','craft','performance','world'];
@@ -320,29 +313,79 @@ async function loadCompanyLogo(name) {
   } catch(e) {}
 }
 
+function _formatInsightDate(isoDate) {
+  if (!isoDate) return '';
+  try { return new Date(isoDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
+  catch { return ''; }
+}
+
 async function loadExploreInsight(type, name, films) {
   const el = document.getElementById('explore-insight');
   if (!el) return;
+
   try {
-    const { getEntityInsight } = await import('./insights.js');
-    const text = await getEntityInsight(type, name, films);
-    if (!document.getElementById('explore-insight')) return; // user navigated away
+    const { lookupEntityInsight, getEntityInsight } = await import('./insights.js');
+    const existing = await lookupEntityInsight(type, name, films);
+    if (!document.getElementById('explore-insight')) return;
+
+    if (existing.exists) {
+      // Already generated — show as a permanent part of the page
+      const dateStr = _formatInsightDate(existing.generatedAt);
+      const dateLine = dateStr ? `<span style="margin-left:auto;font-style:normal;opacity:0.6">Generated ${dateStr}</span>` : '';
+      el.innerHTML = `
+        <div style="padding:18px 20px;background:var(--cream);border:1px solid var(--rule);border-radius:4px">
+          <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--dim);margin-bottom:10px;display:flex;align-items:center;gap:6px">
+            <span>Your taste in ${name}</span>${dateLine}
+          </div>
+          <div style="font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.7;color:var(--ink)">${existing.text}</div>
+        </div>`;
+      return;
+    }
+
+    // Not yet generated — show CTA
     el.innerHTML = `
-      <div style="padding:18px 20px;background:var(--cream);border:1px solid var(--rule);border-radius:4px">
-        <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--dim);margin-bottom:10px">Your taste in ${name}</div>
-        <div style="font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.7;color:var(--ink)">${text}</div>
+      <div id="explore-insight-cta" style="padding:16px 20px;border:1px dashed var(--rule);border-radius:4px;display:flex;align-items:center;justify-content:space-between">
+        <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);letter-spacing:0.3px">Written insight available</span>
+        <button onclick="window._generateExploreInsight()" style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;background:none;color:var(--blue);border:1px solid var(--blue);padding:6px 14px;cursor:pointer;white-space:nowrap">Generate insight <span style="font-size:8px;opacity:0.7">· 1 credit</span></button>
       </div>`;
+
+    window._generateExploreInsight = async () => {
+      const cta = document.getElementById('explore-insight-cta');
+      if (cta) {
+        cta.innerHTML = `<div class="insight-loading">
+          <div class="insight-loading-label">Analysing your taste patterns <div class="insight-loading-dots"><span></span><span></span><span></span></div></div>
+          <div class="insight-skeleton"></div>
+          <div class="insight-skeleton s2"></div>
+        </div>`;
+      }
+      try {
+        const text = await getEntityInsight(type, name, films);
+        const el2 = document.getElementById('explore-insight');
+        if (!el2) return;
+        const dateStr = _formatInsightDate(new Date().toISOString());
+        const dateLine = dateStr ? `<span style="margin-left:auto;font-style:normal;opacity:0.6">Generated ${dateStr}</span>` : '';
+        el2.innerHTML = `
+          <div style="padding:18px 20px;background:var(--cream);border:1px solid var(--rule);border-radius:4px">
+            <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--dim);margin-bottom:10px;display:flex;align-items:center;gap:6px">
+              <span>Your taste in ${name}</span>${dateLine}
+            </div>
+            <div style="font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.7;color:var(--ink)">${text}</div>
+          </div>`;
+      } catch(e) {
+        const el2 = document.getElementById('explore-insight');
+        if (!el2) return;
+        if (e?.name === 'InsightQuotaExhausted') {
+          el2.innerHTML = `
+            <div style="padding:14px 18px;border:1px dashed var(--rule);border-radius:4px">
+              <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);letter-spacing:0.3px;line-height:1.6">You've used this month's credits. Your category breakdowns and scores below still tell the full story.</div>
+            </div>`;
+        } else {
+          el2.style.display = 'none';
+        }
+      }
+    };
   } catch(e) {
     const el2 = document.getElementById('explore-insight');
-    if (!el2) return;
-    // Quota exhausted — graceful fallback (entity page still shows all data)
-    if (e?.name === 'InsightQuotaExhausted') {
-      el2.innerHTML = `
-        <div style="padding:14px 18px;border:1px dashed var(--rule);border-radius:4px">
-          <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);letter-spacing:0.3px">Written insight unavailable right now — the numbers tell the story.</div>
-        </div>`;
-    } else {
-      el2.style.display = 'none';
-    }
+    if (el2) el2.style.display = 'none';
   }
 }

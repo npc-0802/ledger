@@ -36,7 +36,7 @@ import { loadTagVectors, getTagVector, tagVectorsLoaded, getAdmissibleTags, find
 import { computeCategoryFingerprints, categorySimilarity, overallSimilarity, getTopCategoryTags, tagSimilarity, getCoverageCount } from './tag-profile.js';
 import { fitUserResidual, predictWithResidual, checkPooledBaselineGate, checkResidualGate } from './residual-model.js';
 import { evaluatePredictions } from './eval-framework.js';
-import { canUseCredit, recordCreditUsage, isCachedPrediction, isCacheValid, getRemainingCredits, getCreditPolicy, isOnboardingSeedEligible, markOnboardingSeeded, syncCreditsFromResponse } from './credit-policy.js';
+import { canUseSource, getCreditHint, recordCreditUsage, isCachedPrediction, isCacheValid, getRemainingCredits, getCreditPolicy, isOnboardingSeedEligible, markOnboardingSeeded, syncCreditsFromResponse } from './credit-policy.js';
 
 const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
 const TMDB = 'https://api.themoviedb.org/3';
@@ -289,7 +289,13 @@ export function initPredict() {
     const quotaEl = document.getElementById('foryou-manual-quota');
     if (quotaEl && tier.canPredict) {
       const credits = getRemainingCredits();
-      quotaEl.textContent = `${credits.remaining} credits remaining`;
+      if (credits.remaining > 0) {
+        quotaEl.textContent = `${credits.remaining} credit${credits.remaining !== 1 ? 's' : ''} remaining`;
+        quotaEl.style.color = '';
+      } else {
+        quotaEl.textContent = 'Credits used this month · generated predictions still viewable';
+        quotaEl.style.color = 'var(--dim)';
+      }
       quotaEl.style.display = '';
     } else if (quotaEl) {
       quotaEl.style.display = 'none';
@@ -636,7 +642,7 @@ function renderHeroCard(result) {
       </div>
     </div>
     <div class="foryou-hero-actions" onclick="event.stopPropagation()">
-      ${tier.canPredict ? `<button class="btn btn-primary" onclick="openRecommendedDetail(${safeTmdbId})">Full prediction →</button>` : ''}
+      ${tier.canPredict ? `<button class="btn btn-primary" onclick="openRecommendedDetail(${safeTmdbId})">${hasPrediction ? 'View full prediction →' : 'See details →'}</button>` : ''}
       <button class="btn btn-outline" id="foryou-hero-wl-btn" onclick="toggleRecommendWatchlist('${result.tmdbId}')" style="${onWl ? 'background:var(--green);color:white;border-color:var(--green)' : 'color:var(--on-dark);border-color:rgba(255,255,255,0.2)'}">${onWl ? '✓ Watch List' : '+ Watch List'}</button>
     </div>
     <div class="foryou-hero-footer">${footerText}</div>`;
@@ -693,7 +699,13 @@ function updateRefreshButtonState() {
   // Quota indicator
   const quotaEl = document.getElementById('foryou-quota-indicator');
   if (quotaEl && tier.canPredict) {
-    quotaEl.textContent = `${credits.remaining} credits remaining`;
+    if (hasQuota) {
+      quotaEl.textContent = `${credits.remaining} credit${credits.remaining !== 1 ? 's' : ''} remaining`;
+      quotaEl.style.color = '';
+    } else {
+      quotaEl.textContent = 'Credits used this month · your generated predictions are still here';
+      quotaEl.style.color = 'var(--dim)';
+    }
     quotaEl.style.display = '';
   } else if (quotaEl) {
     quotaEl.style.display = 'none';
@@ -731,11 +743,11 @@ function renderSecondaryCards(results) {
     // Data-driven match reason replaces generic "Match" badge
     const matchReason = !hasRealPred ? `<div class="foryou-sec-match-reason">${getMatchReason(r)}</div>` : '';
 
-    // Card-level predict CTA for heuristic cards (with quota disclosure)
-    const canPred = tier.canPredict && canUseCredit('manual_predict').allowed;
-    const predictCta = (!hasRealPred && canPred)
-      ? `<button class="foryou-sec-predict-btn" onclick="event.stopPropagation();openRecommendedDetail(${safeTmdbId})">Get prediction <span style="font-size:8px;opacity:0.7">(uses 1)</span></button>`
-      : '';
+    // Card-level CTA: "View prediction" (free, cached) vs "See details" (free, opens heuristic detail)
+    let predictCta = '';
+    if (hasRealPred) {
+      predictCta = `<button class="foryou-sec-predict-btn" onclick="event.stopPropagation();openRecommendedDetail(${safeTmdbId})" style="opacity:0.7">View prediction</button>`;
+    }
 
     return `
       <div class="foryou-sec-card" onclick="openRecommendedDetail(${safeTmdbId})" style="opacity:0;animation:heroReveal 0.3s ease ${i * 80}ms both">
@@ -822,7 +834,7 @@ export async function predictSearch() {
         : `<div class="tmdb-result-poster-placeholder">no img</div>`;
       const alreadyRated = myTitles.has(m.title.toLowerCase());
       const alreadyPredicted = !!myPredictions[String(m.id)];
-      const statusMeta = alreadyRated ? ' · already in your list' : alreadyPredicted ? ' · predicted ✓' : '';
+      const statusMeta = alreadyRated ? ' · already in your list' : alreadyPredicted ? ' · view prediction' : '';
       const dirStr = formatDirector(m._directors);
       const metaLine = [year, dirStr].filter(Boolean).join(' · ') + statusMeta;
       return `<div class="tmdb-result ${alreadyRated ? 'opacity-50' : ''}" onclick="${alreadyRated ? '' : `predictSelectFilm(${m.id}, '${m.title.replace(/'/g,"\\'")}', '${year}')`}" style="${alreadyRated ? 'opacity:0.4;cursor:default' : ''}">
@@ -1802,14 +1814,17 @@ JSON response:
 }
 
 async function callClaudeForPrediction(film, entityConstraint = null, source = 'manual_predict') {
-  // Policy gate — check quota and source entitlement
-  const policyCheck = canUseCredit(source);
-  if (!policyCheck.allowed) {
+  // Source entitlement gate — plan-level access check (not budget).
+  // Monthly budget is enforced server-side; the Worker returns quota_exceeded
+  // if the user is truly out of credits. We don't block here on stale local
+  // cache to avoid incorrectly preventing legitimate requests.
+  const sourceCheck = canUseSource(source);
+  if (!sourceCheck.allowed) {
     pushAnalyticsEvent('pm_prediction_quota_blocked', {
       screen_name: 'predict',
       prediction_source: source,
     });
-    throw new Error(policyCheck.reason);
+    throw new Error(sourceCheck.reason);
   }
 
   const profile = buildTasteProfile();
@@ -2121,10 +2136,17 @@ async function runPrediction(film, source = 'manual_predict') {
 
     renderPrediction(film, prediction, comps, predictedAt);
   } catch(e) {
-    // Distinguish quota/policy errors from API errors
-    const isQuotaError = e.message?.includes('predictions') || e.message?.includes('plan');
-    document.getElementById('predict-result').innerHTML = `
-      <div class="tmdb-error">${isQuotaError ? e.message : `Prediction failed: ${e.message}`}</div>`;
+    const isQuotaError = e.message?.includes('credit') || e.message?.includes('limit') || e.message?.includes('plan');
+    const el = document.getElementById('predict-result');
+    if (isQuotaError) {
+      el.innerHTML = `
+        <div style="padding:20px 0;text-align:center">
+          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);letter-spacing:0.5px;margin-bottom:8px">You've used this month's credits.</div>
+          <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--dim);line-height:1.6">You can still revisit any prediction you've already generated — just search for the film above.</div>
+        </div>`;
+    } else {
+      el.innerHTML = `<div class="tmdb-error">Prediction failed: ${e.message}</div>`;
+    }
   }
 }
 
@@ -2138,31 +2160,9 @@ function calcPredictedTotal(prediction) {
 }
 
 export async function runAutoPredict(item) {
-  if (!currentUser || !getPredictionTier().canPredict) return;
-  if (isCacheValid(item.tmdbId)) return;
-  // Policy gate — skip silently if watchlist auto-predict is blocked
-  const policyCheck = canUseCredit('watchlist_auto');
-  if (!policyCheck.allowed) return;
-  let detail = {}, credits = {};
-  try {
-    const [dRes, cRes] = await Promise.all([
-      fetch(`${TMDB}/movie/${item.tmdbId}?api_key=${TMDB_KEY}`),
-      fetch(`${TMDB}/movie/${item.tmdbId}/credits?api_key=${TMDB_KEY}`)
-    ]);
-    detail = await dRes.json();
-    credits = await cRes.json();
-  } catch(e) { return; }
-  const director = (credits.crew||[]).filter(c=>c.job==='Director').map(c=>c.name).join(', ');
-  const writer = (credits.crew||[]).filter(c=>['Screenplay','Writer','Story'].includes(c.job)).map(c=>c.name).slice(0,2).join(', ');
-  const cast = (credits.cast||[]).slice(0,8).map(c=>c.name).join(', ');
-  const genres = (detail.genres||[]).map(g=>g.name).join(', ');
-  const film = {
-    tmdbId: item.tmdbId, title: item.title, year: item.year,
-    director: director || item.director || '', writer, cast, genres,
-    overview: item.overview || detail.overview || '',
-    poster: item.poster || detail.poster_path || null
-  };
-  await runPrediction(film, 'watchlist_auto');
+  // No-op: watchlist auto-predict removed to honor explicit-spend contract.
+  // Users generate predictions on demand from watchlist detail view.
+  return;
 }
 
 function renderPrediction(film, prediction, comps, predictedAt = null) {
@@ -2180,8 +2180,8 @@ function renderPrediction(film, prediction, comps, predictedAt = null) {
 
   const cachedLabel = predictedAt
     ? `<div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);letter-spacing:1px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
-        <span>From your prediction history · ${new Date(predictedAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })}</span>
-        <span onclick="predictFresh()" style="color:var(--blue);cursor:pointer;text-decoration:underline">Re-predict →</span>
+        <span>Your prediction · Generated ${new Date(predictedAt).toLocaleDateString('en-US', { month:'short', day:'numeric' })}</span>
+        <span onclick="predictFresh()" style="color:var(--blue);cursor:pointer;text-decoration:underline">Re-predict <span style="font-size:8px;opacity:0.7">· 1 credit</span></span>
       </div>`
     : `<div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--dim);margin-bottom:16px">Prediction</div>`;
 
@@ -2329,7 +2329,7 @@ async function findMeAFilm() {
       : 'foryou_auto';
 
     // Heuristic-only refresh (from "Matched to Your Palate" Refresh button) skips Claude calls entirely
-    const canPredictForYou = !isHeuristicOnly && fmTier.canPredict && canUseCredit(predSource).allowed;
+    const canPredictForYou = !isHeuristicOnly && fmTier.canPredict && canUseSource(predSource).allowed;
 
     // At Tier 1, skip Claude calls entirely — heuristic-only recommendations
     if (canPredictForYou) {
@@ -2635,7 +2635,7 @@ async function loadDiscoveryRecommendations() {
 
     // Predict top 4, render top 3 — skip if policy blocks discovery
     const top4 = scored.slice(0, 4);
-    const toPredict = canUseCredit('discovery_auto').allowed
+    const toPredict = canUseSource('discovery_auto').allowed
       ? top4.filter(c => !isCacheValid(c.tmdbId))
       : [];
     await Promise.allSettled(toPredict.slice(0, 3).map(async (c) => {
@@ -2713,6 +2713,9 @@ function renderDiscoveryCards(results) {
     const scoreDisplay = hasRealPred
       ? `<div class="discovery-card-score">${formatPredictedScore(r.predTotal, MOVIES.length)}</div>`
       : `<div class="discovery-card-match-reason">${getMatchReason(r)}</div>`;
+    const viewLabel = hasRealPred
+      ? `<button class="discovery-view-btn" onclick="event.stopPropagation();openRecommendedDetail(${safeTmdbId})" style="font-family:'DM Mono',monospace;font-size:9px;color:var(--blue);background:none;border:none;padding:0;cursor:pointer;letter-spacing:0.5px">View prediction</button>`
+      : '';
     return `<div class="discovery-card" onclick="openRecommendedDetail(${safeTmdbId})">
       ${poster}
       <div class="discovery-card-body">
@@ -2720,6 +2723,7 @@ function renderDiscoveryCards(results) {
         <div class="discovery-card-title">${r.title}</div>
         <div class="discovery-card-meta">${r.year || ''}${r.director ? ' · ' + r.director.split(',')[0] : ''}</div>
         ${scoreDisplay}
+        ${viewLabel}
       </div>
       <div class="discovery-card-actions" onclick="event.stopPropagation()">
         <button class="discovery-wl-btn${onWl ? ' on-list' : ''}" onclick="toggleRecommendWatchlist('${r.tmdbId}');this.classList.toggle('on-list');this.textContent=this.classList.contains('on-list')?'✓ List':'+ List'">${onWl ? '✓ List' : '+ List'}</button>
@@ -2995,42 +2999,10 @@ async function constrainedSelectEntity(type, tmdbId, name) {
       .map(c => ({ ...c, compatScore: scoreCandidate(c) }))
       .sort((a, b) => b.compatScore - a.compatScore);
 
-    // Step 4: Predict top 5 (cache-first, policy-gated)
+    // Step 4: Rank top 5 — use cached predictions if available, otherwise heuristic
+    // Auto-predict removed to honor explicit-spend contract.
+    // Users generate predictions on demand from detail view.
     const top5 = scored.slice(0, 5);
-    const csPolicy = canUseCredit('constrained_search');
-    const toPredict = csPolicy.allowed ? top5.filter(c => !isCacheValid(c.tmdbId)) : [];
-    const toCall = toPredict.slice(0, 5);
-
-    await Promise.allSettled(toCall.map(async (c) => {
-      const film = {
-        tmdbId: c.tmdbId, title: c.title, year: c.year,
-        director: c.director || '', writer: '',
-        cast: c.cast || '', genres: c.genres || '',
-        overview: c.overview || '', poster: c.poster || null
-      };
-      try {
-        const { prediction } = await callClaudeForPrediction(film, entityConstraint, 'constrained_search');
-        const predictedAt = new Date().toISOString();
-        const newPredictions = {
-          ...(currentUser?.predictions || {}),
-          [String(film.tmdbId)]: {
-            film, prediction, predictedAt,
-            archetype_at_time: currentUser?.archetype || null,
-            weights_at_time: currentUser?.weights ? { ...currentUser.weights } : null
-          }
-        };
-        setCurrentUser({ ...currentUser, predictions: trimPredictions(newPredictions) });
-        saveUserLocally();
-        syncToSupabase();
-        saveGeneratedArtifact({
-          contentType: 'film_prediction', objectType: 'film', objectId: String(film.tmdbId),
-          objectLabel: `${film.title} (${film.year || '?'})`,
-          payload: { film, prediction: { predicted_scores: prediction.predicted_scores, confidence: prediction.confidence, reasoning: prediction.reasoning }, predictedTotal: calcPredictedTotal(prediction) },
-          summaryText: prediction.reasoning || null, generationSource: 'constrained_search',
-          metadata: { archetype_at_time: currentUser?.archetype || null, films_rated: MOVIES.length },
-        });
-      } catch { /* prediction failure */ }
-    }));
 
     // Step 5: Collect and render top 3 — predicted first, heuristic fallback honest
     const csResults = top5.map(c => {
@@ -3164,10 +3136,13 @@ async function _openRecommendedDetailHeuristic(tmdbId) {
   const year = rec?.year || '';
   const poster = rec?.poster;
 
-  const policyCheck = canUseCredit('manual_predict');
+  const policyCheck = canUseSource('manual_predict');
   const predictBtn = policyCheck.allowed
-    ? `<button onclick="_runInlinePredictionFromDetail(${parseInt(tmdbId)})" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:10px 20px;cursor:pointer;flex:2">Generate prediction →</button>`
-    : `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);text-align:center;padding:10px">${policyCheck.reason || 'Prediction not available right now'}</div>`;
+    ? `<button onclick="_runInlinePredictionFromDetail(${parseInt(tmdbId)})" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;background:var(--action);color:white;border:none;padding:10px 20px;cursor:pointer;flex:2">Get prediction <span style="font-size:9px;opacity:0.8">· 1 credit</span></button>`
+    : `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);text-align:center;padding:12px 10px;line-height:1.6">
+        ${policyCheck.reason || "You've used this month's credits."}<br>
+        <span style="opacity:0.7">Your existing predictions are still available anytime.</span>
+      </div>`;
 
   const onWl = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(tmdbId));
 
@@ -3222,20 +3197,12 @@ async function openRecommendedDetail(tmdbId) {
   let cached = currentUser?.predictions?.[String(tmdbId)];
   let detailSource = 'cached_prediction';
   if (!cached?.film) {
-    // No cached prediction — try to generate one inline
-    const policyCheck = canUseCredit('manual_predict');
-    if (policyCheck.allowed) {
-      detailSource = 'inline_prediction';
-      await _runInlinePrediction(tmdbId);
-      cached = currentUser?.predictions?.[String(tmdbId)];
-    }
-    if (!cached?.film) {
-      // Still no prediction — show film detail without prediction scores
-      detailSource = 'heuristic_fallback';
-      track('foryou_recommendation_clicked', { tmdb_id: tmdbId, detail_source: detailSource, blocked_reason: policyCheck.reason || null });
-      await _openRecommendedDetailHeuristic(tmdbId);
-      return;
-    }
+    // No cached prediction — show heuristic detail with explicit "Get prediction" CTA.
+    // Never auto-generate: the user's explicit CTA click is the only metered moment.
+    detailSource = 'heuristic_fallback';
+    track('foryou_recommendation_clicked', { tmdb_id: tmdbId, detail_source: detailSource });
+    await _openRecommendedDetailHeuristic(tmdbId);
+    return;
   }
   // Determine if hero or secondary
   const heroTmdbId = currentUser?.cachedRecommendations?.[0]?.tmdbId;
@@ -3252,7 +3219,7 @@ async function openRecommendedDetail(tmdbId) {
   const newTerr = isDiscoveryCached || isNewTerritory(film);
   const headerLabel = newTerr
     ? `<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;color:var(--discover)">${DISCOVERY_ICON_SVG}<span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--discover);text-transform:uppercase;letter-spacing:1.5px">New Territory</span></div>`
-    : `<div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px">Recommendation</div>`;
+    : `<div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px">Your prediction</div>`;
 
   const headerHtml = film.poster
     ? `<div style="position:relative;display:flex;align-items:stretch;background:var(--surface-dark);margin:-40px -40px 28px;padding:28px 32px">
@@ -3271,9 +3238,16 @@ async function openRecommendedDetail(tmdbId) {
          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${film.year || ''}</div>
        </div>`;
 
+  const predDateStr = cached?.predictedAt
+    ? new Date(cached.predictedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : '';
+  const predDateLabel = predDateStr ? `<span style="margin-left:auto;opacity:0.6;font-style:normal">Generated ${predDateStr}</span>` : '';
+
   const predHtml = `
     <div style="border-top:1px solid var(--rule);padding-top:20px;margin-top:4px;margin-bottom:20px">
-      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:14px">— we think you'd give this —</div>
+      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:14px;display:flex;align-items:center;gap:6px">
+        <span>— we think you'd give this —</span>${predDateLabel}
+      </div>
       <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:16px">
         <span style="font-family:'Playfair Display',serif;font-size:60px;font-weight:900;font-style:italic;color:var(--blue);letter-spacing:-3px;line-height:1">${formatPredictedScore(predTotal, MOVIES.length)}</span>
         <span style="font-family:'DM Mono',monospace;font-size:13px;color:var(--dim);letter-spacing:0.5px">${getLabel(Math.round(predTotal))}</span>

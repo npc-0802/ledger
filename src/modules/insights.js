@@ -2,7 +2,7 @@ import { MOVIES, CATEGORIES, currentUser } from '../state.js';
 import { getFilmObservationWeight } from './weight-blend.js';
 import { track } from '../analytics.js';
 import { loadGeneratedArtifact, saveGeneratedArtifact, sb } from './supabase.js';
-import { canUseCredit, recordCreditUsage, getCreditPolicy, syncCreditsFromResponse } from './credit-policy.js';
+import { recordCreditUsage, getCreditPolicy, syncCreditsFromResponse } from './credit-policy.js';
 
 const PROXY_URL = 'https://palate-map-proxy.noahparikhcott.workers.dev';
 const CACHE_KEY = 'palate_insights_v1';
@@ -49,6 +49,67 @@ function buildOverallStats() {
     stats[cat.key] = wTotal > 0 ? Math.round(wSum / wTotal) : null;
   });
   return stats;
+}
+
+// ── Lookup helpers (read-only — never generate) ──────────────────────────
+// Used by the UI to distinguish "view existing" from "generate new" before
+// committing to a metered API call.
+
+/**
+ * Check if an entity insight already exists (local cache or server artifact).
+ * Returns { exists, text, generatedAt } or { exists: false }.
+ */
+export async function lookupEntityInsight(type, name, films) {
+  const cache = loadCache();
+  const key = `${type}::${name}`;
+  const filmCount = films.length;
+  const avg = Math.round(films.reduce((s, f) => s + (f.total || 0), 0) / filmCount);
+
+  // Local cache hit
+  if (!isEntityStale(cache[key], filmCount, avg)) {
+    return { exists: true, text: cache[key].text, generatedAt: cache[key].generatedAt || null };
+  }
+
+  // Server artifact
+  const entityObjectId = `${type}::${name.toLowerCase().trim()}`;
+  try {
+    const artifact = await loadGeneratedArtifact('entity_insight', entityObjectId);
+    if (artifact?.payload?.text && !isEntityStale({ filmCount: artifact.payload.filmCount, avg: artifact.payload.avg }, filmCount, avg)) {
+      // Populate local cache for next time
+      cache[key] = { text: artifact.payload.text, filmCount: artifact.payload.filmCount, avg: artifact.payload.avg, ts: Date.now(), generatedAt: artifact.generated_at };
+      saveCache(cache);
+      return { exists: true, text: artifact.payload.text, generatedAt: artifact.generated_at || null };
+    }
+  } catch { /* server unavailable */ }
+
+  return { exists: false };
+}
+
+/**
+ * Check if a film insight already exists (local cache or server artifact).
+ * Returns { exists, text, generatedAt } or { exists: false }.
+ */
+export async function lookupFilmInsight(film) {
+  const cache = loadCache();
+  const key = film.tmdbId ? `film::tmdb:${film.tmdbId}` : `film::${film.title}::${film.year || ''}`;
+
+  // Local cache hit
+  if (!isFilmStale(cache[key], film.total)) {
+    return { exists: true, text: cache[key].text, generatedAt: cache[key].generatedAt || null };
+  }
+
+  // Server artifact
+  const filmObjectId = film.tmdbId ? String(film.tmdbId) : `${film.title}::${film.year || ''}`;
+  try {
+    const artifact = await loadGeneratedArtifact('film_insight', filmObjectId);
+    if (artifact?.payload?.text && !isFilmStale({ total: artifact.payload.total }, film.total)) {
+      cache[key] = { text: artifact.payload.text, filmCount: 1, total: artifact.payload.total, ts: Date.now(), generatedAt: artifact.generated_at };
+      saveCache(cache);
+      return { exists: true, text: artifact.payload.text, generatedAt: artifact.generated_at || null };
+    }
+  } catch { /* server unavailable */ }
+
+  return { exists: false };
 }
 
 async function callClaude(system, user, creditSource) {
@@ -103,12 +164,8 @@ export async function getEntityInsight(type, name, films) {
     }
   } catch { /* server unavailable — fall through to fresh generation */ }
 
-  // Fresh generation — check quota
-  const quotaCheck = canUseCredit();
-  if (!quotaCheck.allowed) {
-    track('insight_quota_blocked', { type: 'entity', key, reason: quotaCheck.reason, tier: getCreditPolicy().tier });
-    throw new InsightQuotaExhausted();
-  }
+  // Fresh generation — no local budget gate; the server is authoritative
+  // for spend eligibility and will return quota_exceeded if exhausted.
 
   const overall = buildOverallStats();
   const statStr = CATEGORIES.map(c => `${c.label} ${overall[c.key] ?? '—'}`).join(', ');
@@ -183,12 +240,8 @@ export async function getFilmInsight(film) {
     }
   } catch { /* server unavailable — fall through to fresh generation */ }
 
-  // Fresh generation — check quota
-  const quotaCheck = canUseCredit();
-  if (!quotaCheck.allowed) {
-    track('insight_quota_blocked', { type: 'film', key, reason: quotaCheck.reason, tier: getCreditPolicy().tier });
-    throw new InsightQuotaExhausted();
-  }
+  // Fresh generation — no local budget gate; the server is authoritative
+  // for spend eligibility and will return quota_exceeded if exhausted.
 
   const overall = buildOverallStats();
   const sorted = [...MOVIES].sort((a, b) => b.total - a.total);

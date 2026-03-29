@@ -8,7 +8,6 @@ import { smartSearch, formatDirector } from './smart-search.js';
 const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
 let wlSearchDebounce = null;
 let gsDebounceTimer = null;
-const autoPredictTimers = {};
 let wlSortMode = 'added'; // 'added' | 'score'
 
 function calcWlPredictedTotal(prediction) {
@@ -50,20 +49,6 @@ export function renderWatchlist() {
       </div>
     </div>`;
 
-  // Schedule background predictions for "watch" items only (not "seen")
-  if (getPredictionTier().canPredict) {
-    const unpredicted = list.filter(item => item.status !== 'seen' && item.tmdbId && !currentUser?.predictions?.[String(item.tmdbId)]);
-    unpredicted.forEach((item, i) => {
-      setTimeout(async () => {
-        const { runAutoPredict } = await import('./predict.js');
-        await runAutoPredict(item);
-        const screen = document.getElementById('myfilms-watchlist');
-        if (screen?.classList.contains('active')) {
-          renderWatchlist();
-        }
-      }, (i + 1) * 1500);
-    });
-  }
 }
 
 
@@ -215,18 +200,6 @@ export function addToWatchlist(item) {
   import('../ui-callbacks.js').then(({ showToast }) => showToast(toastMsg));
   window.__ledger?.updateMyFilmsTabCounts?.();
 
-  // Auto-predict after 30s if still on list (skip for seen items)
-  if (status !== 'seen' && item.tmdbId && getPredictionTier().canPredict) {
-    clearTimeout(autoPredictTimers[item.tmdbId]);
-    autoPredictTimers[item.tmdbId] = setTimeout(async () => {
-      const stillOn = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(item.tmdbId));
-      if (!stillOn) return;
-      const { runAutoPredict } = await import('./predict.js');
-      await runAutoPredict(item);
-      const screen = document.getElementById('myfilms-watchlist');
-      if (screen?.classList.contains('active')) renderWatchlist();
-    }, 30000);
-  }
 }
 
 export function markAsSeen(tmdbId, filmData = null) {
@@ -238,7 +211,6 @@ export function markAsSeen(tmdbId, filmData = null) {
     // Already on watchlist — toggle to seen
     list[idx].status = 'seen';
     list[idx].seenAt = new Date().toISOString();
-    clearTimeout(autoPredictTimers[tmdbId]);
     setCurrentUser({ ...currentUser, watchlist: list });
   } else if (filmData) {
     // Not on watchlist — add as seen
@@ -288,19 +260,6 @@ export function unmarkSeen(tmdbId) {
   import('../ui-callbacks.js').then(({ showToast }) => showToast('Moved back to watch list.'));
   window.__ledger?.updateMyFilmsTabCounts?.();
 
-  // Trigger auto-predict now that it's back in watch state
-  if (list[idx].tmdbId && getPredictionTier().canPredict) {
-    clearTimeout(autoPredictTimers[list[idx].tmdbId]);
-    autoPredictTimers[list[idx].tmdbId] = setTimeout(async () => {
-      const stillOn = (currentUser?.watchlist || []).some(w => String(w.tmdbId) === String(list[idx].tmdbId));
-      if (!stillOn) return;
-      const { runAutoPredict } = await import('./predict.js');
-      await runAutoPredict(list[idx]);
-      const screen = document.getElementById('myfilms-watchlist');
-      if (screen?.classList.contains('active')) renderWatchlist();
-    }, 5000);
-  }
-
   const screen = document.getElementById('myfilms-watchlist');
   if (screen?.classList.contains('active')) renderWatchlist();
 }
@@ -309,7 +268,6 @@ window.unmarkSeen = unmarkSeen;
 export function removeFromWatchlist(tmdbId) {
   if (!currentUser) return;
   const item = (currentUser.watchlist || []).find(w => String(w.tmdbId) === String(tmdbId));
-  clearTimeout(autoPredictTimers[tmdbId]);
   if (item?.status === 'seen') {
     const daysSinceSeen = item.seenAt ? Math.round((Date.now() - new Date(item.seenAt).getTime()) / 86400000) : 0;
     track('watchlist_seen_removed', { tmdb_id: tmdbId, title: item.title, days_since_seen: daysSinceSeen });
@@ -374,7 +332,6 @@ window.wlAddFromSearch = function(tmdbId, title, year, poster, overview) {
 window.watchlistRemove = function(index) {
   if (!currentUser) return;
   const item = currentUser.watchlist?.[index];
-  if (item?.tmdbId) clearTimeout(autoPredictTimers[item.tmdbId]);
   const updated = (currentUser.watchlist || []).filter((_, i) => i !== index);
   setCurrentUser({ ...currentUser, watchlist: updated });
   saveUserLocally();
@@ -440,7 +397,9 @@ window.openWatchlistDetail = function(index) {
 
   const predHtml = predTotal != null ? `
     <div style="border-top:1px solid var(--rule);padding-top:20px;margin-top:4px;margin-bottom:20px">
-      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:14px">— we think you'd give this —</div>
+      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:14px;display:flex;align-items:center;gap:6px">
+        <span>— your predicted score —</span>${prediction.predictedAt ? `<span style="margin-left:auto;opacity:0.6;font-style:normal">Generated ${new Date(prediction.predictedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>` : ''}
+      </div>
       <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:28px">
         <span style="font-family:'Playfair Display',serif;font-size:60px;font-weight:900;font-style:italic;color:var(--blue);letter-spacing:-3px;line-height:1">${formatPredictedScore(predTotal, MOVIES.length)}</span>
         <span style="font-family:'DM Mono',monospace;font-size:13px;color:var(--dim);letter-spacing:0.5px">${getLabel(Math.round(predTotal))}</span>
