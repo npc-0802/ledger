@@ -339,7 +339,6 @@ export function updateEffectiveWeights() {
         full_archetype_name: classification.fullName,
       });
       recalcAllTotals();
-      recordWeightSnapshot('rating');
       saveUserLocally();
       return;
     }
