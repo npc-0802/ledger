@@ -1,8 +1,10 @@
-import { MOVIES, currentUser, setCurrentUser, mergeSplitNames } from '../state.js';
+import { MOVIES, currentUser, setCurrentUser, mergeSplitNames, getLabel } from '../state.js';
 import { ARCHETYPES } from '../data/archetypes.js';
-import { sb, loadFriends, loadFriendFull, acceptFriendInvite, confirmFriendInvite, unfriendUser, searchUsers, sendFriendRequest, loadPendingIncoming, loadPendingOutgoing, acceptFriendRequest, declineFriendRequest, cancelFriendRequest, getUserEmail, loadAllFriendsFilmData } from './supabase.js';
+import { sb, loadFriends, loadFriendFull, acceptFriendInvite, confirmFriendInvite, unfriendUser, searchUsers, sendFriendRequest, loadPendingIncoming, loadPendingOutgoing, acceptFriendRequest, declineFriendRequest, cancelFriendRequest, getUserEmail, loadAllFriendsFilmData, saveGeneratedArtifact, loadGeneratedArtifact } from './supabase.js';
 import { shouldShowHint, renderHint } from './hints.js';
 import { smartSearch, formatDirector } from './smart-search.js';
+import { track } from '../analytics.js';
+import { canUseSource, getCreditHint, syncCreditsFromResponse } from './credit-policy.js';
 
 const CATS = ['story','craft','performance','world','experience','hold','ending','singularity'];
 const CAT_SHORT = { story:'Story', craft:'Craft', performance:'Perf', world:'World', experience:'Exp', hold:'Hold', ending:'Ending', singularity:'Singular' };
@@ -886,9 +888,9 @@ function renderFriendProfile(el, friend) {
 
         <div style="padding-bottom:48px">
           <div class="dark-grid" style="background:var(--surface-dark);padding:28px 32px;border-top:3px solid ${color}">
-            <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--on-dark-dim);margin-bottom:10px">palate map · overlap predict</div>
+            <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--on-dark-dim);margin-bottom:10px">palate map · overlap</div>
             <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(22px,5vw,32px);line-height:1.1;color:var(--on-dark);margin-bottom:10px">What would you both think?</div>
-            <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--on-dark-dim);line-height:1.6;margin-bottom:20px">Pick any film. Palate Map reads both your taste profiles and predicts how it would land for each of you. <span style="font-family:'DM Mono',monospace;font-size:10px;opacity:0.7">Uses 1 credit</span></div>
+            <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--on-dark-dim);line-height:1.6;margin-bottom:20px">Pick any film. If you've both seen it, compare your actual scores. Otherwise, Palate Map predicts the unseen side. <span style="font-family:'DM Mono',monospace;font-size:10px;opacity:0.7">Free for films you've both seen · 1 credit if prediction needed</span></div>
             <input id="overlap-predict-search" type="text" placeholder="Search a film…" oninput="overlapPredictDebounce()" style="width:100%;box-sizing:border-box;padding:13px 16px;border:1px solid rgba(244,239,230,0.15);background:rgba(244,239,230,0.07);font-family:'DM Sans',sans-serif;font-size:15px;outline:none;color:var(--on-dark);caret-color:${color}" onfocus="this.style.borderColor='${color}'" onblur="this.style.borderColor='rgba(244,239,230,0.15)'">
             <div id="overlap-predict-results" style="margin-top:2px"></div>
           </div>
@@ -1224,10 +1226,13 @@ window.overlapPredictSearch = async function() {
   if (!q || q.length < 2) return;
   const resultsEl = document.getElementById('overlap-predict-results');
   if (!resultsEl) return;
+  const friend = currentFriendCache;
   resultsEl.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);padding:8px 0">Searching…</div>`;
   try {
     const results = await smartSearch(q, { limit: 5 });
     if (!results.length) { resultsEl.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);padding:8px 0">No results.</div>`; return; }
+    const myTitles = new Set(MOVIES.map(m => `${m.tmdbId}`));
+    const friendTitles = new Set((friend?.movies || []).map(m => `${m.tmdbId}`));
     resultsEl.innerHTML = results.map(m => {
       const year = m._yearNum || '';
       const dirStr = formatDirector(m._directors);
@@ -1235,7 +1240,13 @@ window.overlapPredictSearch = async function() {
         ? `<img src="https://image.tmdb.org/t/p/w92${m.poster_path}" style="width:24px;height:36px;object-fit:cover;flex-shrink:0">`
         : `<div style="width:24px;height:36px;background:rgba(255,255,255,0.1);flex-shrink:0"></div>`;
       const safeTitle = (m.title || '').replace(/'/g, "\\'");
-      const metaLine = [year, dirStr].filter(Boolean).join(' · ');
+      const iSeen = myTitles.has(`${m.id}`);
+      const fSeen = friendTitles.has(`${m.id}`);
+      const stateLabel = (iSeen && fSeen) ? ' · both seen — free'
+        : iSeen ? ' · you\'ve seen this'
+        : fSeen ? ` · ${friend?.display_name || 'they'} has seen this`
+        : '';
+      const metaLine = [year, dirStr].filter(Boolean).join(' · ') + stateLabel;
       return `<div onclick="overlapPredictSelect(${m.id},'${safeTitle}','${year}')" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);cursor:pointer" onmouseover="this.style.background='rgba(255,255,255,0.06)'" onmouseout="this.style.background=''">
         ${poster}
         <div>
@@ -1255,31 +1266,115 @@ window.overlapPredictSelect = async function(tmdbId, title, year) {
   const searchEl = document.getElementById('overlap-predict-search');
   if (resultsEl) resultsEl.innerHTML = '';
   if (searchEl) searchEl.value = title;
-  if (resultEl) resultEl.innerHTML = `
-    <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:18px;color:var(--dim);padding:20px 0">Analyzing both palates…</div>`;
 
-  let detail = {}, credits = {};
+  const friend = currentFriendCache;
+  if (!friend) { if (resultEl) resultEl.innerHTML = ''; return; }
+
+  // ── Detect seen/unseen permutation ──
+  const myFilm = MOVIES.find(m => String(m.tmdbId) === String(tmdbId));
+  const friendFilm = (friend.movies || []).find(m => String(m.tmdbId) === String(tmdbId));
+  const iSeen = !!myFilm;
+  const fSeen = !!friendFilm;
+  const permutation = iSeen && fSeen ? 'seen_seen'
+    : iSeen ? 'seen_unseen'
+    : fSeen ? 'unseen_seen'
+    : 'unseen_unseen';
+
+  const friendColor = ensureDistinctFromBlue((ARCHETYPES[friend.archetype] || {}).palette || '#D4665A');
+  const friendName = friend.display_name || 'Friend';
+  const myName = currentUser.display_name || 'You';
+
+  // ── seen/seen: pure comparison, no Claude, no credit ──
+  if (permutation === 'seen_seen') {
+    renderOverlapSeenSeen(resultEl, myFilm, friendFilm, title, year, friendName, friendColor, tmdbId);
+    return;
+  }
+
+  // ── Check durable artifact cache, then localStorage fallback ──
+  const artifactObjectId = `${currentUser.id}::${friend.id}::${tmdbId}`;
+  const cacheKey = `palatemap_overlap::${artifactObjectId}`;
+  const currentMyActual = !!myFilm;
+  const currentFriendActual = !!friendFilm;
+  let cachedResult = null;
+  let cacheSource = null; // 'server' | 'local'
+
+  // Server-side artifact (authoritative)
+  try {
+    const artifact = await loadGeneratedArtifact('overlap_prediction', artifactObjectId);
+    if (artifact?.payload) { cachedResult = artifact.payload; cacheSource = 'server'; }
+  } catch(_) {}
+
+  // localStorage fallback
+  if (!cachedResult) {
+    try {
+      const raw = localStorage.getItem(cacheKey);
+      if (raw) { cachedResult = JSON.parse(raw); cacheSource = 'local'; }
+    } catch(_) {}
+  }
+
+  // State-aware invalidation: artifact is only reusable when its actual/predicted
+  // assumptions still match the current live state. A new actual rating always wins.
+  if (cachedResult) {
+    const artifactMyActual = cachedResult.myIsActual ?? false;
+    const artifactFriendActual = cachedResult.friendIsActual ?? false;
+    const compatible = (currentMyActual === artifactMyActual) && (currentFriendActual === artifactFriendActual);
+
+    if (!compatible) {
+      track('overlap_artifact_invalidated', {
+        tmdb_id: tmdbId,
+        reason: 'state_mismatch',
+        artifact_my_actual: artifactMyActual,
+        artifact_friend_actual: artifactFriendActual,
+        current_my_actual: currentMyActual,
+        current_friend_actual: currentFriendActual,
+        source: cacheSource,
+      });
+      cachedResult = null;
+      try { localStorage.removeItem(cacheKey); } catch(_) {}
+    }
+  }
+
+  if (cachedResult) {
+    // For mixed-state cache hits, update the actual side's score to current live data
+    // so the UI always reflects the latest rating, not a stale snapshot.
+    if (currentMyActual && myFilm) cachedResult.myScore = Math.round(myFilm.total);
+    if (currentFriendActual && friendFilm) cachedResult.friendScore = Math.round(friendFilm.total);
+
+    const cachedVerdict = computeOverlapVerdict(cachedResult.myScore, cachedResult.friendScore, friendName);
+    track('overlap_predict', { permutation, credit_spent: false, cached: true, cache_source: cacheSource, tmdb_id: tmdbId, verdict: cachedVerdict.key });
+    renderOverlapResult(resultEl, cachedResult, permutation, myFilm, friendFilm, title, year, friendName, myName, friendColor, tmdbId);
+    return;
+  }
+
+  // ── Metered paths: show loading, fetch TMDB detail, call Claude ──
+  if (resultEl) resultEl.innerHTML = `
+    <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:18px;color:var(--dim);padding:20px 0">${
+      permutation === 'unseen_unseen' ? 'Analyzing both palates…'
+      : iSeen ? `You rated this ${Math.round(myFilm.total)}. Predicting for ${friendName}…`
+      : `${friendName} rated this ${Math.round(friendFilm.total)}. Predicting for you…`
+    }</div>`;
+
+  let detail = {}, tmdbCredits = {};
   try {
     const [dRes, cRes] = await Promise.all([
       fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${TMDB_KEY}`),
       fetch(`https://api.themoviedb.org/3/movie/${tmdbId}/credits?api_key=${TMDB_KEY}`)
     ]);
     detail = await dRes.json();
-    credits = await cRes.json();
+    tmdbCredits = await cRes.json();
   } catch(e) {}
 
-  const director = (credits.crew||[]).filter(c=>c.job==='Director').map(c=>c.name).join(', ');
-  const cast = (credits.cast||[]).slice(0,8).map(c=>c.name).join(', ');
+  const director = (tmdbCredits.crew||[]).filter(c=>c.job==='Director').map(c=>c.name).join(', ');
+  const cast = (tmdbCredits.cast||[]).slice(0,8).map(c=>c.name).join(', ');
   const genres = (detail.genres||[]).map(g=>g.name).join(', ');
   const overview = detail.overview || '';
   const poster = detail.poster_path || null;
-
   const film = { tmdbId, title, year, director, cast, genres, overview, poster };
-  const friend = currentFriendCache;
-  if (!friend) { if (resultEl) resultEl.innerHTML = ''; return; }
 
-  await runOverlapPrediction(film, friend, resultEl);
+  await runOverlapPrediction(film, friend, resultEl, permutation, myFilm, friendFilm, cacheKey, artifactObjectId);
 };
+
+// ── Helpers ──
 
 function buildOverlapProfile(movies, weights, archetype, displayName) {
   const sorted = [...(movies||[])].sort((a,b) => b.total - a.total);
@@ -1304,93 +1399,345 @@ function overlapFindComps(film, movies) {
   }).sort((a,b)=>b.total-a.total).slice(0,5);
 }
 
-async function runOverlapPrediction(film, friend, resultEl) {
-  const me = buildOverlapProfile(MOVIES, currentUser.weights, currentUser.archetype, currentUser.display_name);
-  const them = buildOverlapProfile(friend.movies, friend.weights, friend.archetype, friend.display_name);
+function _overlapPosterHtml(poster) {
+  return poster
+    ? `<img src="https://image.tmdb.org/t/p/w185${poster}" style="width:56px;height:84px;object-fit:cover;flex-shrink:0">`
+    : `<div style="width:56px;height:84px;background:var(--rule);flex-shrink:0"></div>`;
+}
+
+function _overlapNewSearchBtn() {
+  return `<button onclick="document.getElementById('overlap-predict-search').value='';document.getElementById('overlap-predict-result').innerHTML=''" style="font-family:'DM Mono',monospace;font-size:10px;padding:10px 14px;background:none;border:1px solid var(--rule-dark);color:var(--dim);cursor:pointer;letter-spacing:0.5px">← New search</button>`;
+}
+
+// ── Shared-watch verdict model ──
+
+function computeOverlapVerdict(myScore, friendScore, friendName) {
+  const high = Math.max(myScore, friendScore);
+  const low = Math.min(myScore, friendScore);
+  const diff = high - low;
+  const avg = (myScore + friendScore) / 2;
+
+  if (low >= 65 && diff <= 12)
+    return { key: 'strong_overlap', label: 'Strong overlap', detail: 'This would land well for both of you.' };
+  if (low >= 65)
+    return { key: 'good_for_both', label: 'Good for both, differently', detail: 'You\'d both enjoy this — but you\'d walk out talking about different things.' };
+  if (avg >= 60 && diff <= 15)
+    return { key: 'solid_pick', label: 'Solid mutual pick', detail: 'Not a slam dunk, but it would work.' };
+  if (high >= 70 && low < 45) {
+    const whose = myScore > friendScore ? 'your' : `${friendName}'s`;
+    return { key: 'one_sided', label: `More ${whose} movie`, detail: 'One of you would be into it. The other, less so.' };
+  }
+  if (avg >= 50 && diff > 20)
+    return { key: 'split_watch', label: 'Likely a split watch', detail: 'You\'d have very different takes on this one.' };
+  if (avg >= 45)
+    return { key: 'could_go_either_way', label: 'Could go either way', detail: 'Neither strongly drawn, neither turned off.' };
+  return { key: 'not_the_move', label: 'Probably not the move', detail: 'Neither palate is really reaching for this one.' };
+}
+
+function _verdictHtml(verdict) {
+  return `<div style="margin-bottom:18px;padding:12px 16px;background:var(--surface);border-left:3px solid var(--ink)">
+    <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:18px;color:var(--ink);margin-bottom:4px">${verdict.label}</div>
+    <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--dim);line-height:1.5">${verdict.detail}</div>
+  </div>`;
+}
+
+function _scoreColumnsHtml(myScore, friendScore, myLabel, fLabel, friendName, friendColor, myIsActual, friendIsActual) {
+  return `<div style="display:flex;gap:24px;align-items:flex-end;margin-bottom:6px">
+    <div style="text-align:center">
+      <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);margin-bottom:4px">${myLabel}</div>
+      <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:42px;color:var(--blue);line-height:1;letter-spacing:-2px">${myScore}</div>
+      ${myIsActual ? `<div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);margin-top:2px">${getLabel(myScore)}</div>` : ''}
+    </div>
+    <div style="text-align:center">
+      <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);margin-bottom:4px">${fLabel}</div>
+      <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:42px;color:${friendColor};line-height:1;letter-spacing:-2px">${friendScore}</div>
+      ${friendIsActual ? `<div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);margin-top:2px">${getLabel(friendScore)}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+// ── Seen / Seen: pure comparison with overlap verdict ──
+
+function renderOverlapSeenSeen(el, myFilm, friendFilm, title, year, friendName, friendColor, tmdbId) {
+  if (!el) return;
+  const poster = myFilm.poster || friendFilm.poster || null;
+  const director = myFilm.director || friendFilm.director || '';
+  const myTotal = Math.round(myFilm.total);
+  const fTotal = Math.round(friendFilm.total);
+  const verdict = computeOverlapVerdict(myTotal, fTotal, friendName);
+
+  track('overlap_predict', { permutation: 'seen_seen', credit_spent: false, cached: false, tmdb_id: tmdbId, verdict: verdict.key });
+
+  // Category breakdown comparison
+  const catRows = CATS.map(cat => {
+    const ms = myFilm.scores?.[cat]; const fs = friendFilm.scores?.[cat];
+    if (ms == null && fs == null) return '';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0">
+      <span style="font-family:'DM Mono',monospace;font-size:9px;width:60px;color:var(--on-dark-dim)">${CAT_SHORT[cat]}</span>
+      <span style="font-family:'DM Sans',sans-serif;font-size:13px;width:28px;text-align:right;color:var(--blue)">${ms ?? '—'}</span>
+      <span style="font-family:'DM Sans',sans-serif;font-size:13px;width:28px;text-align:right;color:${friendColor}">${fs ?? '—'}</span>
+    </div>`;
+  }).join('');
+
+  window._overlapPredictFilm = { tmdbId, title, year, poster, director, overview: '' };
+  el.innerHTML = `
+    <div style="display:flex;gap:16px;align-items:flex-start;margin-bottom:16px">
+      ${_overlapPosterHtml(poster)}
+      <div style="flex:1">
+        <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);margin-bottom:6px">You've both seen this</div>
+        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:22px;color:var(--ink);margin-bottom:4px">${title}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim)">${year}${director ? ' · '+director : ''}</div>
+      </div>
+    </div>
+    ${_verdictHtml(verdict)}
+    ${_scoreColumnsHtml(myTotal, fTotal, 'Your score', `${friendName}'s score`, friendName, friendColor, true, true)}
+    <div style="padding:14px 18px;background:var(--surface-dark);margin:16px 0 12px">
+      <div style="font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-dark-dim);margin-bottom:8px">Category breakdown</div>
+      <div style="display:flex;gap:12px;margin-bottom:6px">
+        <span style="font-family:'DM Mono',monospace;font-size:8px;color:var(--blue)">■ You</span>
+        <span style="font-family:'DM Mono',monospace;font-size:8px;color:${friendColor}">■ ${friendName}</span>
+      </div>
+      ${catRows}
+    </div>
+    <div style="display:flex;gap:8px">
+      ${_overlapNewSearchBtn()}
+    </div>`;
+}
+
+// ── Metered prediction (mixed + unseen/unseen) ──
+
+async function runOverlapPrediction(film, friend, resultEl, permutation, myFilm, friendFilm, cacheKey, artifactObjectId) {
+  const friendColor = ensureDistinctFromBlue((ARCHETYPES[friend.archetype] || {}).palette || '#D4665A');
+  const friendName = friend.display_name || 'Friend';
+  const myName = currentUser.display_name || 'You';
+  const me = buildOverlapProfile(MOVIES, currentUser.weights, currentUser.archetype, myName);
+  const them = buildOverlapProfile(friend.movies, friend.weights, friend.archetype, friendName);
   const myComps = overlapFindComps(film, MOVIES);
   const friendComps = overlapFindComps(film, friend.movies);
+  const compStr = (arr) => arr.length ? arr.map(m=>`  - ${m.title} (${m.total})`).join('\n') : '  None';
 
-  const compStr = (arr, label) => arr.length
-    ? arr.map(m=>`  - ${m.title} (${m.total})`).join('\n')
-    : '  None';
+  const overlapSuffix = `\n\nFinally, assess the shared-watch fit: would this work well for them together? Is it a strong overlap pick, a split watch, more one person's movie, or something else? Write 1 sentence for "overlap_reasoning" explaining why.`;
 
-  const prompt = `Two users want to know how a film would land for them watching together. Predict a single combined score and explain what each would respond to specifically.
+  // ── Build permutation-specific prompt ──
+  let prompt;
+  if (permutation === 'unseen_unseen') {
+    prompt = `Two users are deciding whether to watch a film together. Predict individual scores for each user, then assess whether it would work as a shared watch.
 
 USER 1 — ${me.displayName} (${me.archetype}):
 Films rated: ${me.totalFilms} · Weights: ${me.weightStr}
 Category avgs: ${Object.entries(me.avgs).map(([k,v])=>`${k}:${v}`).join(', ')}
 Top 10: ${me.top10 || 'N/A'} · Bottom 5: ${me.bottom5 || 'N/A'}
-Relevant comparables:
-${compStr(myComps)}
+Relevant comparables:\n${compStr(myComps)}
 
 USER 2 — ${them.displayName} (${them.archetype}):
 Films rated: ${them.totalFilms} · Weights: ${them.weightStr}
 Category avgs: ${Object.entries(them.avgs).map(([k,v])=>`${k}:${v}`).join(', ')}
 Top 10: ${them.top10 || 'N/A'} · Bottom 5: ${them.bottom5 || 'N/A'}
-Relevant comparables:
-${compStr(friendComps)}
+Relevant comparables:\n${compStr(friendComps)}
 
-FILM TO PREDICT:
-Title: ${film.title}
-Year: ${film.year}
-Director: ${film.director || 'unknown'}
-Genres: ${film.genres || 'unknown'}
+FILM: ${film.title} (${film.year}) · Dir: ${film.director || 'unknown'} · Genres: ${film.genres || 'unknown'}
 Synopsis: ${film.overview || 'not available'}
 
-TASK: Predict one combined score (0–100). Write 2–3 sentences that distinguish what ${me.displayName} would specifically respond to versus what ${them.displayName} would respond to. Ground it in their actual rated films by name. Use their names directly — never say "User 1" or "User 2."
+TASK: Predict individual scores (0–100) for each user. Write 2–3 sentences explaining what each user would specifically respond to — use their names and ground in their rated films. Never say "User 1" or "User 2."${overlapSuffix}
 
-Respond with valid JSON only:
-{"predicted_score":<integer>,"confidence":"high"|"medium"|"low","reasoning":"<2-3 sentences using both users names and specific films>"}`;
+JSON only: {"score_user1":<int>,"score_user2":<int>,"confidence":"high"|"medium"|"low","reasoning":"<2-3 sentences about individual responses>","overlap_reasoning":"<1 sentence about shared-watch fit>"}`;
+  } else {
+    // Mixed state: one has seen it, one hasn't
+    const seenUser = myFilm ? me : them;
+    const unseenUser = myFilm ? them : me;
+    const seenFilmData = myFilm || friendFilm;
+    const actualScore = Math.round(seenFilmData.total);
+    const catScores = CATS.map(c => `${c}:${seenFilmData.scores?.[c] ?? '—'}`).join(', ');
+
+    prompt = `${seenUser.displayName} has already seen and rated this film. Predict how ${unseenUser.displayName} would score it, then assess the shared-watch fit.
+
+SEEN USER — ${seenUser.displayName} (${seenUser.archetype}):
+Already rated this film: ${actualScore}/100
+Category scores: ${catScores}
+
+UNSEEN USER — ${unseenUser.displayName} (${unseenUser.archetype}):
+Films rated: ${unseenUser.totalFilms} · Weights: ${unseenUser.weightStr}
+Category avgs: ${Object.entries(unseenUser.avgs).map(([k,v])=>`${k}:${v}`).join(', ')}
+Top 10: ${unseenUser.top10 || 'N/A'} · Bottom 5: ${unseenUser.bottom5 || 'N/A'}
+Relevant comparables:\n${compStr(myFilm ? friendComps : myComps)}
+
+FILM: ${film.title} (${film.year}) · Dir: ${film.director || 'unknown'} · Genres: ${film.genres || 'unknown'}
+Synopsis: ${film.overview || 'not available'}
+
+TASK: Predict ${unseenUser.displayName}'s score (0–100). Write 2–3 sentences: briefly note what ${seenUser.displayName} actually responded to (grounded in their ${actualScore} score), then predict what ${unseenUser.displayName} would specifically notice differently. Use their names directly.${overlapSuffix}
+
+JSON only: {"predicted_score":<int>,"confidence":"high"|"medium"|"low","reasoning":"<2-3 sentences>","overlap_reasoning":"<1 sentence about shared-watch fit>"}`;
+  }
 
   try {
+    // Auth header for server-side credit enforcement
+    const headers = { 'Content-Type': 'application/json' };
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+    } catch(_) {}
+
     const res = await fetch(PROXY_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         system: 'You are a precise film taste prediction engine. Respond ONLY with valid JSON — no preamble, no markdown.',
-        messages: [{ role: 'user', content: prompt }]
+        messages: [{ role: 'user', content: prompt }],
+        prediction_source: 'overlap_predict'
       })
     });
     const data = await res.json();
+    if (data._credits) syncCreditsFromResponse(data._credits);
+
+    // Server rejected (quota exceeded, plan restricted)
+    if (data.error) throw new Error(data.message || data.error);
+
     const text = data.content?.[0]?.text || '';
     const prediction = JSON.parse(text.replace(/```json|```/g,'').trim());
 
-    const arch = ARCHETYPES[friend.archetype] || {};
-    const color = arch.palette || '#3D5A80';
-    const posterHtml = film.poster
-      ? `<img src="https://image.tmdb.org/t/p/w185${film.poster}" style="width:56px;height:84px;object-fit:cover;flex-shrink:0">`
-      : `<div style="width:56px;height:84px;background:var(--rule);flex-shrink:0"></div>`;
-    const confLabel = { high:'High confidence', medium:'Medium confidence', low:'Low confidence' }[prediction.confidence] || '';
+    // Normalize to a consistent shape for rendering + caching
+    let result;
+    if (permutation === 'unseen_unseen') {
+      result = {
+        myScore: prediction.score_user1,
+        friendScore: prediction.score_user2,
+        myIsActual: false,
+        friendIsActual: false,
+        confidence: prediction.confidence,
+        reasoning: prediction.reasoning,
+        overlapReasoning: prediction.overlap_reasoning || '',
+        generatedAt: new Date().toISOString(),
+      };
+    } else {
+      const predictedScore = prediction.predicted_score;
+      result = {
+        myScore: myFilm ? Math.round(myFilm.total) : predictedScore,
+        friendScore: friendFilm ? Math.round(friendFilm.total) : predictedScore,
+        myIsActual: !!myFilm,
+        friendIsActual: !!friendFilm,
+        confidence: prediction.confidence,
+        reasoning: prediction.reasoning,
+        overlapReasoning: prediction.overlap_reasoning || '',
+        generatedAt: new Date().toISOString(),
+      };
+    }
 
-    const watchlistItem = { tmdbId: film.tmdbId, title: film.title, year: film.year, poster: film.poster, director: film.director, overview: film.overview };
-    window._overlapPredictFilm = watchlistItem;
+    const verdict = computeOverlapVerdict(result.myScore, result.friendScore, friendName);
+    result.verdict = verdict.key;
 
-    if (resultEl) resultEl.innerHTML = `
-      <div style="display:flex;gap:16px;align-items:flex-start;margin-bottom:20px">
-        ${posterHtml}
-        <div style="flex:1">
-          <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:22px;color:var(--ink);margin-bottom:4px">${film.title}</div>
-          <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);margin-bottom:12px">${film.year}${film.director ? ' · '+film.director : ''}</div>
-          <div style="display:flex;align-items:baseline;gap:8px">
-            <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:48px;color:${color};line-height:1;letter-spacing:-2px">${prediction.predicted_score}</div>
-            <div>
-              <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim)">/100 combined</div>
-              <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);margin-top:2px">${confLabel}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div style="padding:16px 18px;background:var(--surface-dark);margin-bottom:16px">
-        <div style="font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-dark-dim);margin-bottom:8px">Why this score</div>
-        <div style="font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.7;color:var(--on-dark)">${prediction.reasoning}</div>
-      </div>
-      <div style="display:flex;gap:8px">
-        <button onclick="overlapWatchlist()" style="font-family:'DM Mono',monospace;font-size:10px;padding:10px 14px;background:none;border:1px solid var(--rule-dark);color:var(--dim);cursor:pointer;letter-spacing:0.5px">＋ Watchlist</button>
-        <button onclick="document.getElementById('overlap-predict-search').value='';document.getElementById('overlap-predict-result').innerHTML=''" style="font-family:'DM Mono',monospace;font-size:10px;padding:10px 14px;background:none;border:1px solid var(--rule-dark);color:var(--dim);cursor:pointer;letter-spacing:0.5px">← New search</button>
-      </div>`;
+    // Persist to localStorage immediately (fast, same-device)
+    try { localStorage.setItem(cacheKey, JSON.stringify(result)); } catch(_) {}
+
+    // Server-side persistence: await to confirm durability after credit spend
+    let persisted = false;
+    try {
+      await saveGeneratedArtifact({
+        contentType: 'overlap_prediction',
+        objectType: 'film',
+        objectId: artifactObjectId,
+        objectLabel: `${film.title} (${film.year})`,
+        payload: result,
+        summaryText: verdict.label,
+        generationSource: 'overlap_predict',
+        metadata: { permutation, friendId: friend.id, tmdbId: film.tmdbId },
+      });
+      persisted = true;
+    } catch(persistErr) {
+      console.warn('[overlap] Server persistence failed after metered generation:', persistErr.message);
+    }
+
+    track('overlap_predict', {
+      permutation, credit_spent: true, cached: false,
+      tmdb_id: film.tmdbId, verdict: verdict.key,
+      persisted,
+    });
+
+    renderOverlapResult(resultEl, result, permutation, myFilm, friendFilm,
+      film.title, film.year, friendName, myName, friendColor, film.tmdbId, film.poster, film.director);
   } catch(e) {
-    if (resultEl) resultEl.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);padding:12px 0">Prediction failed. Try again.</div>`;
+    track('overlap_predict_error', { permutation, error: e.message, tmdb_id: film.tmdbId });
+    if (resultEl) resultEl.innerHTML = `<div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--dim);padding:12px 0">${
+      e.message?.includes('credit') || e.message?.includes('limit')
+        ? 'You\'ve used this month\'s credits. Films you\'ve both seen can still be compared for free.'
+        : 'Prediction failed. Try again.'
+    }</div>`;
   }
+}
+
+// ── Render the metered result (mixed + unseen/unseen) ──
+
+function renderOverlapResult(el, result, permutation, myFilm, friendFilm, title, year, friendName, myName, friendColor, tmdbId, poster, director) {
+  if (!el) return;
+  poster = poster || myFilm?.poster || friendFilm?.poster || null;
+  director = director || myFilm?.director || friendFilm?.director || '';
+
+  const verdict = computeOverlapVerdict(result.myScore, result.friendScore, friendName);
+  const confLabel = { high:'High confidence', medium:'Medium confidence', low:'Low confidence' }[result.confidence] || '';
+
+  const myScoreLabel = result.myIsActual ? 'Your score' : 'Predicted for you';
+  const fScoreLabel = result.friendIsActual ? `${friendName}'s score` : `Predicted for ${friendName}`;
+
+  // Header label based on permutation
+  const headerLabel = permutation === 'unseen_unseen' ? 'Overlap analysis'
+    : result.myIsActual ? `You've seen this · predicting for ${friendName}`
+    : `${friendName} has seen this · predicting for you`;
+
+  const watchlistItem = { tmdbId, title, year, poster, director, overview: '' };
+  window._overlapPredictFilm = watchlistItem;
+
+  // Category breakdown for mixed states (show actual categories for seen side)
+  let catBreakdown = '';
+  const seenFilm = myFilm || friendFilm;
+  if (seenFilm && permutation !== 'unseen_unseen') {
+    const catRows = CATS.map(cat => {
+      const s = seenFilm.scores?.[cat];
+      if (s == null) return '';
+      return `<div style="display:flex;align-items:center;gap:8px;padding:3px 0">
+        <span style="font-family:'DM Mono',monospace;font-size:9px;width:60px;color:var(--on-dark-dim)">${CAT_SHORT[cat]}</span>
+        <span style="font-family:'DM Sans',sans-serif;font-size:12px;color:${myFilm ? 'var(--blue)' : friendColor}">${s}</span>
+      </div>`;
+    }).join('');
+    catBreakdown = `
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08)">
+        <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--on-dark-dim);margin-bottom:4px">${myFilm ? 'Your' : friendName + '\'s'} actual category scores</div>
+        ${catRows}
+      </div>`;
+  }
+
+  const dateStr = result.generatedAt
+    ? new Date(result.generatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : '';
+
+  // Overlap reasoning from Claude (shared-watch analysis), falls back to verdict detail
+  const overlapCopy = result.overlapReasoning || verdict.detail;
+
+  el.innerHTML = `
+    <div style="display:flex;gap:16px;align-items:flex-start;margin-bottom:16px">
+      ${_overlapPosterHtml(poster)}
+      <div style="flex:1">
+        <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);margin-bottom:6px">${headerLabel}</div>
+        <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:22px;color:var(--ink);margin-bottom:4px">${title}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim)">${year}${director ? ' · '+director : ''}</div>
+      </div>
+    </div>
+    <div style="margin-bottom:18px;padding:12px 16px;background:var(--surface);border-left:3px solid var(--ink)">
+      <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:18px;color:var(--ink);margin-bottom:4px">${verdict.label}</div>
+      <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--dim);line-height:1.5">${overlapCopy}</div>
+    </div>
+    ${_scoreColumnsHtml(result.myScore, result.friendScore, myScoreLabel, fScoreLabel, friendName, friendColor, result.myIsActual, result.friendIsActual)}
+    <div style="padding:14px 18px;background:var(--surface-dark);margin:16px 0 12px">
+      <div style="font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--on-dark-dim);margin-bottom:8px;display:flex;justify-content:space-between">
+        <span>The breakdown</span>
+        ${dateStr ? `<span style="opacity:0.6;text-transform:none;letter-spacing:0">Generated ${dateStr}</span>` : ''}
+      </div>
+      <div style="font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.7;color:var(--on-dark)">${result.reasoning}</div>
+      ${confLabel ? `<div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--on-dark-dim);margin-top:8px">${confLabel}</div>` : ''}
+      ${catBreakdown}
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="overlapWatchlist()" style="font-family:'DM Mono',monospace;font-size:10px;padding:10px 14px;background:none;border:1px solid var(--rule-dark);color:var(--dim);cursor:pointer;letter-spacing:0.5px">＋ Watchlist</button>
+      ${_overlapNewSearchBtn()}
+    </div>`;
 }
 
 async function loadFriendInsight(friend, compat, color) {

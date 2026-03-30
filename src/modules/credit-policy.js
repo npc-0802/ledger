@@ -198,6 +198,7 @@ export function canUseSource(source) {
       repredict: policy.allow_repredict,
       manual_predict: true,
       manual_refresh: true,
+      overlap_predict: true,
     };
 
     if (sourceGates[source] === false) {

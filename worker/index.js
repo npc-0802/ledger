@@ -28,6 +28,7 @@ const SOURCE_GATES = {
     manual_predict: true,
     repredict: true,
     manual_refresh: true,
+    overlap_predict: true,
     watchlist_auto: false,
     foryou_auto: false,
     discovery_auto: false,
@@ -37,6 +38,7 @@ const SOURCE_GATES = {
     manual_predict: true,
     repredict: true,
     manual_refresh: true,
+    overlap_predict: true,
     watchlist_auto: true,
     foryou_auto: true,
     discovery_auto: true,
@@ -46,6 +48,7 @@ const SOURCE_GATES = {
     manual_predict: true,
     repredict: true,
     manual_refresh: true,
+    overlap_predict: true,
     watchlist_auto: true,
     foryou_auto: true,
     discovery_auto: true,
@@ -396,7 +399,7 @@ export default {
                        : null;
       const source = body.prediction_source || body.credit_source || null;
 
-      // Non-metered calls (e.g. friend overlap) pass through freely
+      // Non-metered calls pass through freely (no prediction_source or credit_source)
       if (!creditType) {
         const result = await callAnthropic(env, body);
         return corsResponse(result.data, result.status);
