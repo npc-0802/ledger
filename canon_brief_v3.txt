@@ -1,5 +1,5 @@
 Palate Map
-Product Brief · Living Document · v3.32
+Product Brief · Living Document · v3.33
 Last updated: March 2026
 Confidential — do not distribute
 
@@ -62,7 +62,7 @@ Design Principles
 • Rankings nav icon is a medal (ribbon + circle), not a hamburger. Analysis uses bar chart. Icons are distinct across all 5 tabs.
 
 03  Current Architecture
-Status: Phase 1 complete, Phase 2 complete, Phase 3.1–3.8 complete, 3.11 complete, 3.13 complete, 3.15–3.32 complete. Vite multi-file vanilla JS.
+Status: Phase 1 complete, Phase 2 complete, Phase 3.1–3.8 complete, 3.11 complete, 3.13 complete, 3.15–3.33 complete. Vite multi-file vanilla JS.
 
 File Structure
 palatemap/
@@ -88,7 +88,7 @@ palatemap/
       onboarding.js    quiz, archetype reveal, starter films, welcome modal, import, cold landing flow
       profile.js       taste profile — fingerprint, radar, signature films w/ posters, card
       archetypemodal.js  weight editor modal, sign out
-      friends.js       friends list, friend profile, invite modal, overlap + taste + predict views
+      friends.js       friends list, friend profile, invite modal, overlap + watchlist + taste + predict views
       watchlist.js     watch list screen — add, remove, rank from queue
       hints.js         dismissable educational hints system (shouldShowHint, renderHint)
       supabase.js      all cloud sync + auth + friends DB + generated artifacts
@@ -643,6 +643,15 @@ Phase 3 — Growth Features [IN PROGRESS]
   - Server-side persistence: metered results stored as generated_artifacts (Supabase table, unique on user_id + content_type + object_id). Predictions, insights, and overlap results all persist durably after credit spend.
   - Generated artifacts API: saveGeneratedArtifact(), loadGeneratedArtifact(), loadGeneratedArtifacts() in supabase.js. Server read path checked before fresh generation to avoid re-spending.
 
+• 3.33 Friends Watchlist ✓ — view a friend's watchlist and maintain a pair-specific shared "Watch together" list:
+  - Watchlist tab on friend profile (tab order: Overlap > Watchlist > Rankings > Taste). Lazy-loaded: friend watchlist and shared watchlist data fetched only when tab is clicked, not on profile open.
+  - Friend's watchlist section: shows all films on the friend's watchlist with cross-reference badges (your score, also on your watchlist, in watch together). Rows are clickable → detail modal with context-aware actions (+ Watchlist, + Watch together, Rate →).
+  - Watch together section: pair-specific shared list stored in shared_watchlist table (canonical pair: lower UUID = user_a_id). Either friend can add/remove. Shows "Added by you" / "Added by [name]" attribution.
+  - Notification dot: orange dot on Watchlist tab when shared watchlist has new items since last seen (localStorage-based seen-state tracking).
+  - Entry points: Watchlist tab browse, Overlap tab "Save to Watch Together" action on prediction results.
+  - Schema: shared_watchlist table with RLS policies (only pair members can read/write). Setup SQL in worker/setup-shared-watchlist.sql.
+  - Inline actions use event.stopPropagation() to prevent row-click bubbling.
+
 Phase 4 — Platform
 • 4.1 Universal entity search — global search surfacing any director/actor/writer/company (entity-level, not film-level — film search is covered by 3.8 Global Search). Entity page shows: TMDB data, user's own rankings (if any), community avg score (requires 4.2). Requires schema change: separate palatemap_ratings table (see below).
 • 4.2 Community ratings layer — requires migrating films from per-user JSON blob to a normalized palatemap_ratings table (user_id, tmdb_id, scores jsonb, total, metadata). Migration strategy: dual-write first (sync to both blob and table), validate counts match, then switch reads. See technical audit roadmap Section 1 for full schema + migration plan. Enables: community avg score on any film or entity, "popular with users like you" discovery, per-rating sync (eliminates row-size limits and full-row overwrite).
@@ -827,4 +836,4 @@ This migration should be planned alongside Phase 4.2 (community ratings) as they
 
 Engineering rule: until the palatemap_predictions table exists, every prediction call must store the full predicted_scores, archetype_at_time, and weights_at_time on the prediction entry in currentUser.predictions. This ensures the data needed for future cross-user learning is captured now and will be migratable when the schema is ready. Do not store only the predicted total — always store the full score breakdown.
 
-Palate Map · private product brief · v3.32 · do not distribute
+Palate Map · private product brief · v3.33 · do not distribute
