@@ -4,6 +4,12 @@ import { emit } from './events.js';
 
 export { CATEGORIES };
 
+// Supported media. The 8 category keys are universal across all of these;
+// only labels/questions differ per medium (see data/category-descriptions.js).
+// Phase 1 ships film + book; tv/music are reserved for later phases.
+export const MEDIA = ['film', 'book', 'tv', 'music'];
+export const DEFAULT_MEDIUM = 'film';
+
 // Active movie list — starts empty for new users, owner gets OWNER_MOVIES via Supabase
 export let MOVIES = [];
 

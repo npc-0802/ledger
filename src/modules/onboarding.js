@@ -1797,8 +1797,8 @@ function renderObCalibrate() {
         </div>
       </div>
       <div class="ob-calibrate-count">Question ${obCalIndex + 1} of ${total}</div>
-      <div style="margin-top:20px">
-        <span data-testid="cal-tie" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--on-dark-dim);cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="obCalTie()">Too close to call</span>
+      <div class="cal-actions">
+        <button type="button" data-testid="cal-tie" class="cal-tie" onclick="obCalTie()">Too close to call</button>
       </div>
     </div>
   `;

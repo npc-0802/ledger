@@ -7,6 +7,8 @@ import { renderRankings } from './rankings.js';
 import { openPosterPicker } from './posterpicker.js';
 import { fetchTmdbMovieBundle } from './tmdb-movie.js';
 import { updateEffectiveWeights } from './weight-blend.js';
+import { credentialChipHTML } from '../data/credentials.js';
+import { filmSeriesInfo, resolveFilmSeriesInfo, seriesPillHTML } from './series-metadata.js';
 
 const SCORE_LABELS = [
   [95, 'Nearly perfect'], [90, 'All-time favorite'], [85, 'Really exceptional'], [80, 'Excellent'],
@@ -84,6 +86,7 @@ function renderModal() {
            <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px">Rank #${rank} of ${MOVIES.length}</div>
            <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(20px,3.5vw,30px);line-height:1.1;color:var(--on-dark);letter-spacing:-0.5px;margin-bottom:8px">${m.title}</div>
            <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${m.year||''}</div>
+         <div id="film-modal-pills" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">${credentialChipHTML(m,{dark:true})}${seriesPillHTML(filmSeriesInfo(m),{dark:true})}</div>
          </div>
        </div>`
     : `<div class="dark-grid" style="position:relative;background:var(--surface-dark);margin:-40px -40px 28px;padding:32px 40px 28px;border-bottom:3px solid ${tierBorderColor}">
@@ -91,6 +94,7 @@ function renderModal() {
          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px">Rank #${rank} of ${MOVIES.length}</div>
          <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(20px,3.5vw,30px);line-height:1.1;color:var(--on-dark);letter-spacing:-0.5px;margin-bottom:8px">${m.title}</div>
          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${m.year||''}</div>
+         <div id="film-modal-pills" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">${credentialChipHTML(m,{dark:true})}${seriesPillHTML(filmSeriesInfo(m),{dark:true})}</div>
        </div>`;
 
   const scores = editMode ? editScores : m.scores;
@@ -209,7 +213,20 @@ function renderModal() {
   requestAnimationFrame(() => filmModalEl.classList.add('visible'));
   localStorage.setItem('palatemap_last_modal', idx);
 
-  if (!editMode) { loadModalInsight(m); loadChipImages(m); loadFriendContext(m); loadStreamingProviders(m.tmdbId, m.title, m.year, 'modal-streaming'); }
+  if (!editMode) { loadModalInsight(m); loadChipImages(m); loadFriendContext(m); loadStreamingProviders(m.tmdbId, m.title, m.year, 'modal-streaming'); loadFilmSeriesPill(m); }
+}
+
+// Async: resolve TMDB collection info for this film and update the pill row if
+// it turns out to be part of a series. Silent on miss — most films aren't.
+async function loadFilmSeriesPill(m) {
+  if (!m?.tmdbId) return;
+  const info = await resolveFilmSeriesInfo(m).catch(() => null);
+  if (!info) return;
+  const pillsEl = document.getElementById('film-modal-pills');
+  if (!pillsEl) return;
+  // Skip if a series pill already rendered (re-entrancy guard)
+  if (pillsEl.querySelector('.series-pill')) return;
+  pillsEl.insertAdjacentHTML('beforeend', seriesPillHTML(info, { dark: true }));
 }
 
 async function loadChipImages(m) {

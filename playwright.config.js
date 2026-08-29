@@ -2,6 +2,9 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
+  // Only Playwright specs. The *.test.mjs files are standalone node scripts that
+  // call process.exit() at import time, which would kill the runner during collection.
+  testMatch: '**/*.spec.js',
   timeout: 30000,
   retries: 0,
   use: {

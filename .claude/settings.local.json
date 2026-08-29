@@ -12,7 +12,12 @@
       "Bash(npx playwright:*)",
       "Bash(lsof:*)",
       "Bash(ls:*)",
-      "Bash(dig:*)"
+      "Bash(dig:*)",
+      "WebFetch(domain:api.themoviedb.org)",
+      "Bash(grep:*)",
+      "Bash(echo === Test 1: Unauth prediction ===:*)",
+      "Bash(git commit:*)",
+      "Bash(xargs kill -9)"
     ]
   }
 }

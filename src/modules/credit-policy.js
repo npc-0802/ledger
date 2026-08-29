@@ -199,6 +199,7 @@ export function canUseSource(source) {
       manual_predict: true,
       manual_refresh: true,
       overlap_predict: true,
+      book_predict: true,
     };
 
     if (sourceGates[source] === false) {

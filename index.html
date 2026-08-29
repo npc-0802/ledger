@@ -404,6 +404,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 <!-- ══════════════ DISCOVER ══════════════ -->
 <div id="predict" class="screen">
+  <!-- Discover medium tabs -->
+  <div id="discover-tabs" class="discover-tabs">
+    <button id="discover-tab-films" class="discover-tab active" onclick="showDiscoverTab('films')">Films</button>
+    <button id="discover-tab-books" class="discover-tab" onclick="showDiscoverTab('books')">Books</button>
+  </div>
+  <div id="discover-film-panel">
   <!-- Welcome banner (first visit after onboarding) -->
   <div id="foryou-welcome-banner"></div>
   <!-- Progress nudge -->
@@ -437,12 +443,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   </div>
   <div id="predict-result" style="margin-top:24px"></div>
 
-  <!-- Section 3: Matched to Your Palate (heuristic recommendations) -->
+  <!-- Section 3: Safe picks (strong-fit, high-confidence — formerly "Matched to Your Palate") -->
   <div id="foryou-secondary-section" class="foryou-picks-left">
     <div class="foryou-section-header">
       <div>
-        <span class="foryou-section-label">Matched to Your Palate</span>
-        <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);margin-top:3px;letter-spacing:0.3px">Based on your taste profile · not individually predicted</div>
+        <span class="foryou-section-label">Safe picks</span>
+        <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);margin-top:3px;letter-spacing:0.3px">Strong fit, higher confidence</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <button class="foryou-refresh-btn" id="foryou-refresh-btn" onclick="findMeAFilmRefresh()">Refresh →</button>
@@ -450,6 +456,17 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       </div>
     </div>
     <div id="foryou-secondary-grid" class="foryou-secondary-grid"></div>
+  </div>
+
+  <!-- Section 3b: High-upside picks (favorite-energy, tolerates lower certainty) -->
+  <div id="foryou-upside-section" class="foryou-picks-left" style="margin-top:36px;display:none">
+    <div class="foryou-section-header">
+      <div>
+        <span class="foryou-section-label">High-upside picks</span>
+        <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);margin-top:3px;letter-spacing:0.3px">Lower certainty, higher ceiling</div>
+      </div>
+    </div>
+    <div id="foryou-upside-grid" class="foryou-secondary-grid"></div>
   </div>
 
   <!-- Section 4: New Territory Teaser -->
@@ -470,7 +487,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       Browse by who made it
     </div>
     <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:24px;color:var(--ink);letter-spacing:-0.5px;margin-bottom:6px">I'm in the mood for…</div>
-    <div style="font-family:'DM Sans',sans-serif;font-size:14px;color:var(--dim);margin-bottom:20px">Pick a director, actor, or studio. We'll find what you'd like best from their catalog.</div>
+    <div style="font-family:'DM Sans',sans-serif;font-size:14px;color:var(--dim);margin-bottom:20px">Pick a genre, director, actor, or studio. We'll find what you'd like best.</div>
+    <div id="mood-genre-chips" class="mood-chips"></div>
+    <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin:18px 0 10px">— or by who made it —</div>
     <div id="mood-entity-chips" class="mood-chips"></div>
     <div style="max-width:480px;margin:0 auto;text-align:left">
       <input class="mood-search" id="constrained-search" type="text" placeholder="or search someone else…" oninput="constrainedSearchDebounce()">
@@ -478,6 +497,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     </div>
     <div id="constrained-results" style="display:none"></div>
   </div>
+  </div><!-- /#discover-film-panel -->
+  <div id="discover-books-panel" style="display:none"></div>
 </div>
 
 <!-- ══════════════ CALIBRATION ══════════════ -->

@@ -106,7 +106,11 @@ async function _applyUserData(data) {
     weight_history: data.weight_history || prev.weight_history || [],
     watchlist: (data.watchlist || []).map(w => ({ ...w, status: w.status || 'watch', seenAt: w.seenAt || null })),
     predictions: data.predictions || {},
+    // Local cache only — durable cross-device source of truth for book
+    // predictions is the generated_artifacts table (see book-predict.js).
+    bookPredictions: prev.bookPredictions || {},
     cachedRecommendations: prev.cachedRecommendations || null,
+    cachedUpsideRecommendations: prev.cachedUpsideRecommendations || null,
     lastRecommendationAt: prev.lastRecommendationAt || null,
     moviesCountAtLastRecommendation: prev.moviesCountAtLastRecommendation || 0,
     cachedDiscovery: prev.cachedDiscovery || null,

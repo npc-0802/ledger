@@ -4,6 +4,7 @@ import { isNewTerritory, DISCOVERY_ICON_SVG, getPredictionTier, formatPredictedS
 import { shouldShowHint, renderHint } from './hints.js';
 import { track } from '../analytics.js';
 import { smartSearch, formatDirector } from './smart-search.js';
+import { credentialChipHTML } from '../data/credentials.js';
 
 const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
 let wlSearchDebounce = null;
@@ -29,6 +30,7 @@ export function renderWatchlist() {
   const list = currentUser?.watchlist || [];
   const seenCount = list.filter(w => w.status === 'seen').length;
   const watchCount = list.length - seenCount;
+  const noun = list.some(w => w.medium === 'book') ? 'item' : 'film';
 
   const headerStats = [
     seenCount > 0 ? `${seenCount} seen` : '',
@@ -39,7 +41,7 @@ export function renderWatchlist() {
     <div style="padding:8px 0 48px">
       <!-- Compact tab-level header -->
       <div style="margin-bottom:24px">
-        <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim)">${list.length} film${list.length !== 1 ? 's' : ''}${headerStats ? ' · ' + headerStats : ''}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim)">${list.length} ${noun}${list.length !== 1 ? 's' : ''}${headerStats ? ' · ' + headerStats : ''}</div>
       </div>
       ${list.length === 0 ? emptyState() : listHTML(list)}
       <!-- Search below content -->
@@ -135,7 +137,27 @@ function listHTML(list) {
   return html;
 }
 
+function bookWatchlistCard(item, i) {
+  const cover = item.cover;
+  const coverHtml = cover
+    ? `<img class="wl-card-poster" src="${cover}" alt="${(item.title||'').replace(/"/g,'&quot;')}" loading="lazy">`
+    : `<div class="wl-card-poster" style="background:var(--rule);display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:9px;color:var(--dim);padding:6px;text-align:center">${item.title}</div>`;
+  return `
+    <div class="wl-card" onclick="openWatchlistDetail(${i})">
+      <div class="wl-card-poster-wrap">
+        ${coverHtml}
+        <div class="wl-card-medium-tag">Book</div>
+      </div>
+      <div class="wl-card-meta">
+        <div class="wl-card-title">${item.title}</div>
+        <div class="wl-card-sub">${item.author || ''}${item.year ? ' · ' + item.year : ''}</div>
+        ${credentialChipHTML(item) ? `<div style="margin-top:4px">${credentialChipHTML(item)}</div>` : ''}
+      </div>
+    </div>`;
+}
+
 function watchlistCard(item, i) {
+  if (item.medium === 'book') return bookWatchlistCard(item, i);
   const isSeen = item.status === 'seen';
   const prediction = item.tmdbId ? currentUser?.predictions?.[String(item.tmdbId)] : null;
   const predTotal = prediction ? calcWlPredictedTotal(prediction.prediction) : null;
@@ -171,6 +193,7 @@ function watchlistCard(item, i) {
       <div class="wl-card-meta">
         <div class="wl-card-title">${item.title}</div>
         <div class="wl-card-sub">${item.year || ''}${item.director ? ' · ' + item.director.split(',')[0] : ''}</div>
+        ${credentialChipHTML(item) ? `<div style="margin-top:4px">${credentialChipHTML(item)}</div>` : ''}
       </div>
     </div>`;
 }
@@ -181,13 +204,18 @@ function watchlistRow(item, i) { return watchlistCard(item, i); }
 export function addToWatchlist(item) {
   if (!currentUser) return;
   const list = currentUser.watchlist || [];
-  if (list.some(w => String(w.tmdbId) === String(item.tmdbId))) {
-    import('../ui-callbacks.js').then(({ showToast }) => showToast('Already on your watch list.'));
+  const isBook = item.medium === 'book';
+  const dupe = isBook
+    ? list.some(w => w.medium === 'book' && (w.bookKey || '') === (item.bookKey || ''))
+    : list.some(w => String(w.tmdbId) === String(item.tmdbId));
+  if (dupe) {
+    import('../ui-callbacks.js').then(({ showToast }) => showToast(isBook ? 'Already on your reading list.' : 'Already on your watch list.'));
     return;
   }
   const status = item.status || 'watch';
   const entry = {
     ...item,
+    medium: item.medium || 'film',
     addedAt: item.addedAt || new Date().toISOString(),
     status,
     seenAt: item.seenAt || null,
@@ -196,7 +224,8 @@ export function addToWatchlist(item) {
   setCurrentUser({ ...currentUser, watchlist: updated });
   saveUserLocally();
   syncToSupabase();
-  const toastMsg = status === 'seen' ? `${item.title} marked as seen.` : `${item.title} added to watch list.`;
+  const toastMsg = isBook ? `${item.title} added to reading list.`
+    : status === 'seen' ? `${item.title} marked as seen.` : `${item.title} added to watch list.`;
   import('../ui-callbacks.js').then(({ showToast }) => showToast(toastMsg));
   window.__ledger?.updateMyFilmsTabCounts?.();
 
@@ -216,6 +245,7 @@ export function markAsSeen(tmdbId, filmData = null) {
     // Not on watchlist — add as seen
     const entry = {
       tmdbId: filmData.tmdbId || tmdbId,
+      medium: 'film',
       title: filmData.title || '',
       year: filmData.year || '',
       poster: filmData.poster || null,
@@ -265,14 +295,16 @@ export function unmarkSeen(tmdbId) {
 }
 window.unmarkSeen = unmarkSeen;
 
-export function removeFromWatchlist(tmdbId) {
+export function removeFromWatchlist(id) {
   if (!currentUser) return;
-  const item = (currentUser.watchlist || []).find(w => String(w.tmdbId) === String(tmdbId));
+  // `id` is a tmdbId for films, or a bookKey for books.
+  const matches = w => (w.bookKey != null && w.bookKey === id) || (w.tmdbId != null && String(w.tmdbId) === String(id));
+  const item = (currentUser.watchlist || []).find(matches);
   if (item?.status === 'seen') {
     const daysSinceSeen = item.seenAt ? Math.round((Date.now() - new Date(item.seenAt).getTime()) / 86400000) : 0;
-    track('watchlist_seen_removed', { tmdb_id: tmdbId, title: item.title, days_since_seen: daysSinceSeen });
+    track('watchlist_seen_removed', { tmdb_id: item.tmdbId, title: item.title, days_since_seen: daysSinceSeen });
   }
-  const updated = (currentUser.watchlist || []).filter(w => String(w.tmdbId) !== String(tmdbId));
+  const updated = (currentUser.watchlist || []).filter(w => !matches(w));
   setCurrentUser({ ...currentUser, watchlist: updated });
   saveUserLocally();
   syncToSupabase();
@@ -317,6 +349,7 @@ async function wlSearch() {
           <div style="flex:1;min-width:0">
             <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${title}</div>
             <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">${metaLine}</div>
+          ${credentialChipHTML(m) ? `<div style="margin-top:3px">${credentialChipHTML(m)}</div>` : ''}
           </div>
           ${alreadyAdded ? '' : `<span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--blue);flex-shrink:0">＋ Add</span>`}
         </div>`;
@@ -370,6 +403,10 @@ window.watchlistRate = function(index) {
 window.openWatchlistDetail = function(index) {
   const item = currentUser?.watchlist?.[index];
   if (!item) return;
+  if (item.medium === 'book') {
+    import('./books/book-ui.js').then(m => m.openBookDetailFromObject(item));
+    return;
+  }
   const prediction = item.tmdbId ? currentUser?.predictions?.[String(item.tmdbId)] : null;
   const predTotal = prediction ? calcWlPredictedTotal(prediction.prediction) : null;
   const filmData = prediction?.film || item;
@@ -385,14 +422,14 @@ window.openWatchlistDetail = function(index) {
          <div style="flex:1;padding:0 40px 0 20px;display:flex;flex-direction:column;justify-content:flex-end">
            ${wlHeaderLabel}
            <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(20px,3.5vw,30px);line-height:1.1;color:var(--on-dark);letter-spacing:-0.5px;margin-bottom:8px">${item.title}</div>
-           <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${item.year||''}</div>
+           <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${item.year||''}</div>${credentialChipHTML(item,{dark:true}) ? `<div style="margin-top:10px">${credentialChipHTML(item,{dark:true})}</div>` : ''}
          </div>
        </div>`
     : `<div style="position:relative;background:var(--surface-dark);margin:-40px -40px 28px;padding:32px 40px 28px">
          <button onclick="closeModal()" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--on-dark-dim);line-height:1;padding:4px 8px">×</button>
          ${wlHeaderLabel}
          <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(20px,3.5vw,30px);line-height:1.1;color:var(--on-dark);letter-spacing:-0.5px;margin-bottom:8px">${item.title}</div>
-         <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${item.year||''}</div>
+         <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${item.year||''}</div>${credentialChipHTML(item,{dark:true}) ? `<div style="margin-top:10px">${credentialChipHTML(item,{dark:true})}</div>` : ''}
        </div>`;
 
   const predHtml = predTotal != null ? `
@@ -652,6 +689,7 @@ async function gsSearch() {
         <div style="flex:1;min-width:0">
           <div style="font-family:'DM Sans',sans-serif;font-size:14px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.title}</div>
           <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">${m.year || ''}${m.director ? ' · ' + m.director.split(',')[0] : ''}</div>
+          ${credentialChipHTML(m) ? `<div style="margin-top:3px">${credentialChipHTML(m)}</div>` : ''}
         </div>
         <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:20px;color:var(--blue);letter-spacing:-0.5px;flex-shrink:0">${total}</div>
       </div>`;
@@ -680,6 +718,7 @@ async function gsSearch() {
         <div style="flex:1;min-width:0">
           <div style="font-family:'DM Sans',sans-serif;font-size:14px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${title}</div>
           <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">${metaLine}</div>
+          ${credentialChipHTML(m) ? `<div style="margin-top:3px">${credentialChipHTML(m)}</div>` : ''}
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
           ${isSeen

@@ -157,8 +157,12 @@ export function recordWeightSnapshot(trigger, opts = {}) {
  *
  * Returns null if fewer than 3 films rated.
  */
-export function computeRatingWeights() {
-  if (MOVIES.length < 3) return null;
+export function computeRatingWeights(medium = null) {
+  // Optional medium filter (null = all media). Phase 1: every rated item is a
+  // film, so the default path is identical to before. The parameter exists so
+  // future per-medium taste profiles can read this cleanly without a rewrite.
+  const items = medium ? MOVIES.filter(m => (m.medium || 'film') === medium) : MOVIES;
+  if (items.length < 3) return null;
 
   // ── Signal 1: Weighted variance ──
   // Weighted mean then weighted variance, so low-confidence pairwise scores
@@ -167,7 +171,7 @@ export function computeRatingWeights() {
   const catMeans = {};
   for (const cat of CATEGORIES) {
     let wSum = 0, wTotal = 0;
-    for (const m of MOVIES) {
+    for (const m of items) {
       const s = m.scores?.[cat.key];
       if (s == null) continue;
       const w = getFilmObservationWeight(m, cat.key);
@@ -181,7 +185,7 @@ export function computeRatingWeights() {
 
     // Weighted variance: Σ w_i * (x_i - mean)² / Σ w_i
     let varNum = 0;
-    for (const m of MOVIES) {
+    for (const m of items) {
       const s = m.scores?.[cat.key];
       if (s == null) continue;
       const w = getFilmObservationWeight(m, cat.key);
@@ -208,7 +212,7 @@ export function computeRatingWeights() {
     deviationWeights[cat.key] = 0;
   }
 
-  for (const m of MOVIES) {
+  for (const m of items) {
     if (!m.scores) continue;
     // Compute the film's own mean as a confidence-weighted average.
     // Without this, uncovered pairwise categories (inferred from prior,

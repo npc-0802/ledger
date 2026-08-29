@@ -1,5 +1,10 @@
 import { MOVIES, CATEGORIES, currentUser, setCurrentUser, scoreClass, getLabel, calcTotal, mergeSplitNames } from '../state.js';
 import { syncToSupabase, saveUserLocally, logPrediction, saveGeneratedArtifact, sb } from './supabase.js';
+import { buildTasteSummary, formatTasteSummary } from './taste-summary.js';
+import { selectAnalogs, formatAnalogsForPrompt } from './analog-selector.js';
+import { rankFilmsSafeUpside, assembleSafeUpsideShelves } from './film-scorer.js';
+import { credentialChipHTML } from '../data/credentials.js';
+import { cacheFilmCollection, noteFilmCollection, filmSeriesInfo, resolveFilmSeriesInfo, seriesPillHTML } from './series-metadata.js';
 import { ARCHETYPES } from '../data/archetypes.js';
 import { classifyArchetype } from './quiz-engine.js';
 import { track, pushAnalyticsEvent } from '../analytics.js';
@@ -216,7 +221,16 @@ export function initPredict() {
   // Welcome banner (first visit after onboarding)
   renderWelcomeBanner();
 
+  // Reset Discover to the Films tab on every (re)entry — books panel is lazy.
+  const _booksPanel = document.getElementById('discover-books-panel');
+  const _filmPanel = document.getElementById('discover-film-panel');
+  if (_filmPanel) _filmPanel.style.display = '';
+  if (_booksPanel) _booksPanel.style.display = 'none';
+  document.getElementById('discover-tab-films')?.classList.add('active');
+  document.getElementById('discover-tab-books')?.classList.remove('active');
+
   const tier = getPredictionTier();
+  const _tabsEl = document.getElementById('discover-tabs');
 
   const heroSection = document.getElementById('foryou-hero-section');
   const secondarySection = document.getElementById('foryou-secondary-section');
@@ -225,6 +239,7 @@ export function initPredict() {
 
   // ── Tier 0: Locked — warm invitation ──────────────────────────────────────
   if (!tier.canRecommend) {
+    if (_tabsEl) _tabsEl.style.display = 'none';
     if (heroSection) heroSection.style.display = 'none';
     if (secondarySection) secondarySection.style.display = 'none';
     if (manualSection) manualSection.style.display = 'none';
@@ -259,6 +274,7 @@ export function initPredict() {
   }
 
   // ── Remove lock state, show sections ──────────────────────────────────────
+  if (_tabsEl) _tabsEl.style.display = '';
   const lockEl = document.getElementById('predict-lock-state');
   if (lockEl) lockEl.remove();
   if (heroSection) heroSection.style.display = '';
@@ -402,6 +418,7 @@ export function initPredict() {
 
   // Mood entity chips + predict recent hint
   renderMoodChips();
+  renderGenreChips();
   renderPredictRecentHint();
 
   // Restore constrained results if cached
@@ -635,6 +652,12 @@ function renderHeroCard(result) {
         <div class="foryou-hero-source">${tier.tier === 'early' ? 'EARLY PICK · ' : ''}${getSourceLabel(result)}</div>
         <div class="foryou-hero-title">${result.title}</div>
         <div class="foryou-hero-meta">${result.year || ''}${result.director ? ' · ' + result.director.split(',')[0] : ''}</div>
+        ${(() => {
+          const cred = credentialChipHTML(result);
+          const pill = seriesPillHTML(filmSeriesInfo(result));
+          if (!cred && !pill) return '';
+          return `<div id="foryou-hero-pills" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">${cred}${pill}</div>`;
+        })()}
         ${scoreHtml}
         ${explanationHtml}
         ${overviewHtml}
@@ -665,6 +688,22 @@ async function _enrichHeroFromTmdb(result, tmdbId) {
     if (!result.cast) result.cast = (credits.cast || []).slice(0, 8).map(c => c.name).join(', ');
     if (!result.genres) result.genres = (detail.genres || []).map(g => g.name).join(', ');
     if (!result.overview && detail.overview) result.overview = detail.overview;
+    if (detail.belongs_to_collection) {
+      result._collectionId = detail.belongs_to_collection.id;
+      noteFilmCollection(result.tmdbId, detail.belongs_to_collection.id, detail.belongs_to_collection.name);
+      // Resolve full position now so the pill can appear without a second click
+      resolveFilmSeriesInfo(result).then(info => {
+        if (!info) return;
+        const pillsEl = document.getElementById('foryou-hero-pills');
+        const heroBodyEl = document.querySelector('.foryou-hero-body');
+        if (pillsEl) {
+          if (!pillsEl.querySelector('.series-pill')) pillsEl.insertAdjacentHTML('beforeend', seriesPillHTML(info));
+        } else if (heroBodyEl) {
+          const meta = heroBodyEl.querySelector('.foryou-hero-meta');
+          (meta || heroBodyEl).insertAdjacentHTML('afterend', `<div id="foryou-hero-pills" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">${seriesPillHTML(info)}</div>`);
+        }
+      }).catch(() => {});
+    }
     // Re-render chips and overview in place
     const chipsEl = document.querySelector('.foryou-hero-chips');
     const newChips = buildHeroChips(result);
@@ -758,6 +797,7 @@ function renderSecondaryCards(results) {
         <div class="foryou-sec-body">
           <div class="foryou-sec-title">${r.title}</div>
           <div class="foryou-sec-meta">${r.year || ''}</div>
+          ${(() => { const c = credentialChipHTML(r); const p = seriesPillHTML(filmSeriesInfo(r)); return (c || p) ? `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">${c}${p}</div>` : ''; })()}
           ${matchReason}
           <div class="foryou-sec-actions">
             <button class="foryou-sec-seen-btn" onclick="event.stopPropagation();forYouSeenIt(${i}, '${r.title.replace(/'/g, "\\'")}', ${safeTmdbId})">Seen it →</button>
@@ -786,12 +826,58 @@ function renderForYouFromCache() {
   }
   renderForYouEyebrow(currentUser.lastRecommendationAt);
   renderSecondaryCards(cached.slice(hasPredBacked ? 1 : 0, hasPredBacked ? 5 : 4));
+  renderUpsideCards(currentUser?.cachedUpsideRecommendations || []);
   updateRefreshButtonState();
   // Discovery shares the same cache lifecycle
   const cachedDiscovery = currentUser?.cachedDiscovery;
   if (cachedDiscovery?.length) {
     renderDiscoveryCards(cachedDiscovery);
   }
+}
+
+// Mirror of renderSecondaryCards targeting the new High-upside grid. Cards reuse
+// the same component class so visual rhythm matches; section header conveys lane.
+function renderUpsideCards(results) {
+  const gridEl = document.getElementById('foryou-upside-grid');
+  const sectionEl = document.getElementById('foryou-upside-section');
+  if (!gridEl || !sectionEl) return;
+  if (!results?.length) {
+    gridEl.innerHTML = '';
+    sectionEl.style.display = 'none';
+    return;
+  }
+  sectionEl.style.display = '';
+  const tier = getPredictionTier();
+
+  gridEl.innerHTML = results.map((r, i) => {
+    const posterImg = r.poster
+      ? `<img class="foryou-sec-poster" src="https://image.tmdb.org/t/p/w342${r.poster}" alt="${r.title}" loading="lazy">`
+      : `<div class="foryou-sec-poster" style="width:100%;height:100%;background:var(--rule);display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)">${r.title}</div>`;
+    const safeTmdbId = parseInt(r.tmdbId);
+    const hasRealPred = (r.predictionBacked ?? !!r.prediction) && r.predTotal != null;
+    let scoreBadge;
+    if (!tier.showScores || !hasRealPred) scoreBadge = '';
+    else if (tier.rangeWidth > 0) scoreBadge = `<div class="foryou-sec-score-badge">${formatPredictedScore(r.predTotal, MOVIES.length)}</div>`;
+    else scoreBadge = `<div class="foryou-sec-score-badge">~${Math.round(r.predTotal)}</div>`;
+    const matchReason = !hasRealPred ? `<div class="foryou-sec-match-reason">Could spike · ${getMatchReason(r)}</div>` : '';
+    const predictCta = hasRealPred
+      ? `<button class="foryou-sec-predict-btn" onclick="event.stopPropagation();openRecommendedDetail(${safeTmdbId})" style="opacity:0.7">View prediction</button>`
+      : '';
+    return `
+      <div class="foryou-sec-card" onclick="openRecommendedDetail(${safeTmdbId})" style="opacity:0;animation:heroReveal 0.3s ease ${i * 80}ms both">
+        <div class="foryou-sec-poster-wrap">${posterImg}${scoreBadge}</div>
+        <div class="foryou-sec-body">
+          <div class="foryou-sec-title">${r.title}</div>
+          <div class="foryou-sec-meta">${r.year || ''}</div>
+          ${(() => { const c = credentialChipHTML(r); const p = seriesPillHTML(filmSeriesInfo(r)); return (c || p) ? `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">${c}${p}</div>` : ''; })()}
+          ${matchReason}
+          <div class="foryou-sec-actions">
+            <button class="foryou-sec-seen-btn" onclick="event.stopPropagation();forYouSeenIt(${i}, '${r.title.replace(/'/g, "\\'")}', ${safeTmdbId})">Seen it →</button>
+            ${predictCta}
+          </div>
+        </div>
+      </div>`;
+  }).join('');
 }
 
 function loadForYouRecommendations() {
@@ -990,15 +1076,29 @@ function buildStrongestPreferencesSection(profile) {
       .sort((a, b) => b.diagnostic - a.diagnostic)
       .slice(0, 2);
 
-    const filmStr = scored.length > 0
-      ? scored.map(f => `${f.title} (${edge.cat}=${f.catScore})`).join(', ')
-      : '';
-
-    return `- ${edge.label}: ${direction} (${sign}${edge.dev.toFixed(1)} vs neutral)${filmStr ? ' — e.g. ' + filmStr : ''}`;
+    // Diagnostic titles are computed (still useful for debug telemetry) but no
+    // longer emitted in the prompt — concrete title evidence belongs only in the
+    // analog set / comparables. This section now states the directional pattern.
+    return `- ${edge.label}: ${direction} (${sign}${edge.dev.toFixed(1)} vs neutral)`;
   });
 
   return `\nSTRONGEST PREFERENCES (what makes this user distinctive):
 ${lines.join('\n')}`;
+}
+
+// Genre → dimension map: extracted to src/data/film-genre-dimensions.js so the
+// film recommender and analog selection share one source of truth.
+import { FILM_GENRE_DIMENSIONS } from '../data/film-genre-dimensions.js';
+
+// Categories most active for THIS film; falls back to the user's defining-positive
+// preferences when genre signal is absent.
+function filmTargetCategories(film, profile) {
+  const genres = (film.genres || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  const tally = {};
+  genres.forEach(g => (FILM_GENRE_DIMENSIONS[g] || []).forEach(d => { tally[d] = (tally[d] || 0) + 1; }));
+  let cats = Object.entries(tally).sort((a, b) => b[1] - a[1]).map(([k]) => k).slice(0, 3);
+  if (!cats.length) cats = (profile.tasteSummary?.definingPositive || []).map(d => d.cat).slice(0, 3);
+  return cats;
 }
 
 function buildTasteProfile() {
@@ -1102,7 +1202,9 @@ function buildTasteProfile() {
 
   const onboardingContext = buildOnboardingContext();
 
-  return { stats, top5, bottom3, weightStr, archetype: currentUser?.archetype, archetypeSecondary: currentUser?.archetype_secondary, totalFilms: MOVIES.length, reconciledPredictions, categoryBias, reconciledCount: allReconciled.length, tagFingerprint, onboardingContext };
+  const tasteSummary = buildTasteSummary({ medium: 'film' });
+
+  return { stats, top5, bottom3, weightStr, archetype: currentUser?.archetype, archetypeSecondary: currentUser?.archetype_secondary, totalFilms: MOVIES.length, reconciledPredictions, categoryBias, reconciledCount: allReconciled.length, tagFingerprint, onboardingContext, tasteSummary };
 }
 
 function findComparableFilms(film) {
@@ -1359,8 +1461,13 @@ async function filterSequels(candidates) {
     try {
       const res = await fetch(`${TMDB}/collection/${colId}?api_key=${TMDB_KEY}`);
       const data = await res.json();
-      _collectionCache[colId] = (data.parts || [])
+      const parts = (data.parts || [])
         .sort((a, b) => (a.release_date || '').localeCompare(b.release_date || ''));
+      _collectionCache[colId] = parts;
+      // Mirror into the shared series-metadata cache so the For You pill, the
+      // detail-modal pill, and the rated-film modal pill all agree on position
+      // without re-fetching.
+      cacheFilmCollection(colId, parts, data.name || null);
     } catch { _collectionCache[colId] = []; }
   }));
 
@@ -1740,8 +1847,7 @@ Weights: ${profile.weightStr}
 Category stats:
 ${statsStr}
 
-Top films: ${profile.top5}
-Bottom films: ${profile.bottom3}`;
+${formatTasteSummary(profile.tasteSummary, 'film')}`;
 }
 
 function buildPredictionExamplesSection(profile) {
@@ -1807,7 +1913,11 @@ function buildPredictionTaskSection(entityConstraint) {
   }
   return `\n${ctx}TASK: Predict scores. Use comparables as strongest signal. Weight director/cast patterns heavily. Correct for track record bias if present.
 
-Reasoning: 2-3 sentences, second person, personal to THIS person's taste. Reference their rated films by name. No general film analysis.
+Reasoning: 2-3 sentences, second person, written like a critic who has studied THIS person's whole palate — not a recommendation engine.
+- Reason from the full taste pattern above (defining preferences, boundaries, tensions).
+- Use the ANALOGS as purposeful evidence — they were chosen for THIS film, not the user's favorites in general. Lean on the PRIMARY analog if it truly illuminates; introduce the SECONDARY only when it adds a different angle; mention the BOUNDARY case only when partial/conditional fit matters. Do NOT recite every analog.
+- Do NOT default to "because you liked X and Y." Do NOT name-drop titles that aren't in the analog set or comparables.
+- Name the tradeoff: what's likely to land, what may not, and any conditional or partial fit. Distinguish respect from love. If it sits near a fault line in their taste, say so.
 
 JSON response:
 {"predicted_scores":{"story":<1-100>,"craft":<1-100>,"performance":<1-100>,"world":<1-100>,"experience":<1-100>,"hold":<1-100>,"ending":<1-100>,"singularity":<1-100>},"confidence":"high|medium|low","reasoning":"<2-3 sentences, you/your>","key_comparables":["<title>","<title>"]}`;
@@ -1831,12 +1941,25 @@ async function callClaudeForPrediction(film, entityConstraint = null, source = '
   const comps = findComparableFilms(film);
   const tagCtx = buildTagContext(film);
 
+  // Target-specific ANALOG selection: search the full rated set for the rated
+  // films that most illuminate THIS film — across dimension shape, thematic
+  // overlap, tone, and boundary signal — and assign roles. Anti-repetition
+  // counter prevents the same title becoming a universal crutch.
+  const targetCats = filmTargetCategories(film, profile);
+  const targetDimsVec = Object.fromEntries(['story','craft','performance','world','experience','hold','ending','singularity'].map(k => [k, targetCats.includes(k) ? 1 : 0]));
+  const targetText = `${film.title || ''} ${film.overview || ''} ${(film.genres || '').replace(/,/g, ' ')}`;
+  const analogs = selectAnalogs({ target: film, medium: 'film', targetDims: targetDimsVec, targetText });
+
   // Build modular prompt sections
   const systemPrompt = buildPredictionSystemPrompt(profile);
+  // `examples`/onboardingContext was a legacy title-leaker (named onboarding films
+  // outside the analog set, which contradicted the new "evidence only from
+  // analogs/comparables" rule). Dropped from the prompt; the analog selector +
+  // comparables are now the only places concrete titles enter the reasoning.
   const sections = {
     profile: buildPredictionProfileSection(profile),
     edges: buildStrongestPreferencesSection(profile),
-    examples: buildPredictionExamplesSection(profile),
+    analogs: formatAnalogsForPrompt(analogs, 'film'),
     trackRecord: buildPredictionTrackRecordSection(profile),
     comparables: buildPredictionComparablesSection(comps),
     tags: buildPredictionTagSection(tagCtx),
@@ -1844,7 +1967,12 @@ async function callClaudeForPrediction(film, entityConstraint = null, source = '
     task: buildPredictionTaskSection(entityConstraint),
   };
 
-  const userPrompt = sections.profile + sections.edges + sections.examples + sections.trackRecord + sections.comparables + sections.tags + sections.targetFilm + sections.task;
+  const userPrompt = sections.profile + sections.edges + sections.analogs + sections.trackRecord + sections.comparables + sections.tags + sections.targetFilm + sections.task;
+
+  // Dev diagnostics: inspect the reasoning inputs for the last prediction.
+  if (typeof window !== 'undefined') {
+    window.__pmReasoning = { medium: 'film', tmdbId: film.tmdbId, title: film.title, targetCategories: targetCats, analogs: analogs.diagnostics, tasteSummary: profile.tasteSummary };
+  }
 
   // Section size telemetry (dev + analytics)
   const sectionSizes = {};
@@ -2195,7 +2323,11 @@ function renderPrediction(film, prediction, comps, predictedAt = null) {
         ${film.poster ? `<img style="width:80px;height:120px;object-fit:cover;flex-shrink:0;display:block" src="https://image.tmdb.org/t/p/w185${film.poster}" alt="${film.title}">` : ''}
         <div style="flex:1">
           <div style="font-family:'Playfair Display',serif;font-size:26px;font-weight:900;letter-spacing:-0.5px;margin-bottom:2px;color:var(--on-dark)">${film.title}</div>
-          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim);margin-bottom:16px">${film.year}${film.director ? ' · ' + film.director : ''}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim);margin-bottom:${seriesPillHTML(filmSeriesInfo(film)) ? '8px' : '16px'}">${film.year}${film.director ? ' · ' + film.director : ''}</div>
+          ${(() => {
+            const pill = seriesPillHTML(filmSeriesInfo(film), { dark: true });
+            return pill ? `<div id="predict-result-pills" style="margin-bottom:16px">${pill}</div>` : '<div id="predict-result-pills"></div>';
+          })()}
           <div style="display:flex;align-items:baseline;gap:8px">
             <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:48px;color:var(--blue);letter-spacing:-2px;line-height:1">${rpTier.rangeWidth > 0 ? formatPredictedScore(predictedTotal, MOVIES.length) : predictedTotal}</div>
             <div>
@@ -2246,6 +2378,15 @@ function renderPrediction(film, prediction, comps, predictedAt = null) {
       </div>
     </div>
   `;
+
+  // Lazy-resolve series pill if not already pre-cached by the recommender flow.
+  resolveFilmSeriesInfo(film).then(info => {
+    if (!info) return;
+    const pillsEl = document.getElementById('predict-result-pills');
+    if (!pillsEl || pillsEl.querySelector('.series-pill')) return;
+    pillsEl.innerHTML = seriesPillHTML(info, { dark: true });
+    pillsEl.style.marginBottom = '16px';
+  }).catch(() => {});
 }
 
 // ── FIND ME A FILM ──────────────────────────────────────────────────────────
@@ -2278,6 +2419,7 @@ async function findMeAFilm() {
         if (detail.belongs_to_collection) {
           c._collectionId = detail.belongs_to_collection.id;
           c._releaseDate = detail.release_date || '';
+          noteFilmCollection(c.tmdbId, detail.belongs_to_collection.id, detail.belongs_to_collection.name);
         }
       } catch { /* candidate will score lower without cast data */ }
     }));
@@ -2413,13 +2555,52 @@ async function findMeAFilm() {
       return;
     }
 
-    // ── Phase 5: Cache + render into For You layout ──────────────────────────
+    // ── Phase 5: Safe + Upside split (film recommender parity) ───────────────
+    // Re-rank finalResults with the shared shape-fit philosophy to surface TWO
+    // distinct lanes. Hero defaults to top safe (high-confidence public slot);
+    // upside lane gets its own shelf so favorite-energy candidates aren't
+    // compressed out by the safe objective.
+    const filmScorerCtx = (() => {
+      const knownDirectors = new Set();
+      const knownCast = new Set();
+      MOVIES.forEach(m => {
+        (m.director || '').split(',').forEach(n => { const t = n.trim().toLowerCase(); if (t) knownDirectors.add(t); });
+        (m.cast || '').split(',').forEach(n => { const t = n.trim().toLowerCase(); if (t) knownCast.add(t); });
+      });
+      return {
+        baseScoreFn: scoreCandidate,
+        tasteSummary: buildTasteSummary({ medium: 'film' }),
+        weights: currentUser?.weights,
+        knownDirectors, knownCast,
+      };
+    })();
+    const ranked = rankFilmsSafeUpside(finalResults, filmScorerCtx);
+    const { safeShelf, upsideShelf } = assembleSafeUpsideShelves({ safe: ranked.safe, upside: ranked.upside, safeN: 5, upsideN: 5 });
+    const safeResults = safeShelf.map(it => ({ ...it.film, _safeScore: it.safeScore, _upsideScore: it.upsideScore, _features: it.features }));
+    const upsideResults = upsideShelf.map(it => ({ ...it.film, _safeScore: it.safeScore, _upsideScore: it.upsideScore, _features: it.features }));
+
+    if (typeof window !== 'undefined') {
+      window.__filmReco = {
+        pool: finalResults.length,
+        safeN: safeResults.length, upsideN: upsideResults.length,
+        overlap: safeResults.filter(s => upsideResults.some(u => String(u.tmdbId) === String(s.tmdbId))).length,
+        safe: safeResults.map(r => ({ title: r.title, safeScore: r._safeScore, upsideScore: r._upsideScore, features: r._features })),
+        upside: upsideResults.map(r => ({ title: r.title, safeScore: r._safeScore, upsideScore: r._upsideScore, features: r._features })),
+      };
+    }
+    track('foryou_safe_upside_built', {
+      pool: finalResults.length, safe_n: safeResults.length, upside_n: upsideResults.length,
+      overlap: safeResults.filter(s => upsideResults.some(u => String(u.tmdbId) === String(s.tmdbId))).length,
+    });
+
+    // ── Cache + render into For You layout ──────────────────────────────────
     const now = new Date().toISOString();
     const seedFields = isOnboardingSeed ? markOnboardingSeeded() : {};
     setCurrentUser({
       ...currentUser,
       ...seedFields,
-      cachedRecommendations: finalResults,
+      cachedRecommendations: safeResults,        // safe shelf is the canonical "main" recs
+      cachedUpsideRecommendations: upsideResults, // new: upside shelf
       lastRecommendationAt: now,
       moviesCountAtLastRecommendation: MOVIES.length,
       recommendationFingerprint: libraryFingerprint()
@@ -2428,17 +2609,18 @@ async function findMeAFilm() {
     syncToSupabase();
 
     renderForYouEyebrow(now);
-    const heroIsPredBacked = finalResults[0] && (finalResults[0].predictionBacked ?? !!finalResults[0].prediction) && finalResults[0].predTotal != null;
+    const heroIsPredBacked = safeResults[0] && (safeResults[0].predictionBacked ?? !!safeResults[0].prediction) && safeResults[0].predTotal != null;
     if (heroIsPredBacked) {
-      renderHeroCard(finalResults[0]);
+      renderHeroCard(safeResults[0]);
       _resetManualPredict();
-      renderSecondaryCards(finalResults.slice(1, 5));
+      renderSecondaryCards(safeResults.slice(1, 5));
     } else {
       const heroEl = document.getElementById('foryou-hero');
       if (heroEl) heroEl.style.display = 'none';
       _elevateManualPredict();
-      renderSecondaryCards(finalResults.slice(0, 4));
+      renderSecondaryCards(safeResults.slice(0, 4));
     }
+    renderUpsideCards(upsideResults);
     updateRefreshButtonState();
 
     // Diagnostics: track prediction coverage in recommendations
@@ -2598,6 +2780,7 @@ async function buildDiscoveryPool() {
       if (detail.belongs_to_collection) {
         cand._collectionId = detail.belongs_to_collection.id;
         cand._releaseDate = detail.release_date || '';
+        noteFilmCollection(cand.tmdbId, detail.belongs_to_collection.id, detail.belongs_to_collection.name);
       }
       candidates.push(cand);
     } catch { /* skip */ }
@@ -2722,6 +2905,7 @@ function renderDiscoveryCards(results) {
         <div class="discovery-card-source">${DISCOVERY_ICON_SVG} New territory</div>
         <div class="discovery-card-title">${r.title}</div>
         <div class="discovery-card-meta">${r.year || ''}${r.director ? ' · ' + r.director.split(',')[0] : ''}</div>
+        ${(() => { const c = credentialChipHTML(r); const p = seriesPillHTML(filmSeriesInfo(r)); return (c || p) ? `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">${c}${p}</div>` : ''; })()}
         ${scoreDisplay}
         ${viewLabel}
       </div>
@@ -3050,8 +3234,110 @@ function getConstrainedSourceLabel(type, name) {
   if (type === 'actor') return `Starring ${name}`;
   if (type === 'writer') return `Written by ${name}`;
   if (type === 'company') return `From ${name}`;
+  if (type === 'genre') return `${name}`;
   return name;
 }
+
+// ── "I'm in the mood for…" by GENRE (films) ──────────────────────────────────
+// A genre-constrained browse: pull a TMDB genre pool, then rank it by the user's
+// taste (same heuristic as entity browse). No entity search needed — answers
+// "I want horror" with horror films shaped to this palate.
+const FILM_MOOD_GENRES = [
+  { id: 27, label: 'Horror' }, { id: 878, label: 'Sci-Fi' }, { id: 18, label: 'Drama' },
+  { id: 53, label: 'Thriller' }, { id: 35, label: 'Comedy' }, { id: 10749, label: 'Romance' },
+  { id: 28, label: 'Action' }, { id: 14, label: 'Fantasy' }, { id: 9648, label: 'Mystery' },
+  { id: 16, label: 'Animation' }, { id: 99, label: 'Documentary' }, { id: 12, label: 'Adventure' },
+];
+
+function renderGenreChips() {
+  const container = document.getElementById('mood-genre-chips');
+  if (!container || MOVIES.length < 5) return;
+  container.innerHTML = FILM_MOOD_GENRES.map(g =>
+    `<div class="mood-chip mood-chip-genre" onclick="moodGenreSelect(${g.id},'${g.label.replace(/'/g, "\\'")}')"><span>${g.label}</span></div>`
+  ).join('');
+}
+
+window.moodGenreSelect = async function(genreId, genreName) {
+  const searchInput = document.getElementById('constrained-search');
+  const searchResults = document.getElementById('constrained-search-results');
+  const resultsEl = document.getElementById('constrained-results');
+  if (searchInput) searchInput.style.display = 'none';
+  if (searchResults) searchResults.innerHTML = '';
+  if (!resultsEl) return;
+  resultsEl.style.display = '';
+  resultsEl.innerHTML = `
+    <div class="constrained-results-header">
+      <span class="constrained-results-title">${genreName} films</span>
+      <button class="constrained-clear-btn" onclick="constrainedClear()">× Clear</button>
+    </div>
+    <div class="constrained-loading">
+      <div class="constrained-loading-title">Finding ${genreName} films for you…</div>
+      <div class="constrained-loading-sub">Browsing the genre · scoring by your taste</div>
+    </div>`;
+  track('discover_film_genre', { genre: genreName });
+
+  try {
+    const ratedIds = new Set(MOVIES.map(m => String(m.tmdbId)).filter(Boolean));
+    const ratedTitlesNorm = new Set(MOVIES.map(m => normTitle(m.title)));
+    const watchlistIds = new Set((currentUser?.watchlist || []).map(w => String(w.tmdbId)));
+    const isKnown = (id, title) => ratedIds.has(String(id)) || ratedTitlesNorm.has(normTitle(title)) || watchlistIds.has(String(id));
+
+    const pages = await Promise.all([1, 2].map(p =>
+      fetch(`${TMDB}/discover/movie?api_key=${TMDB_KEY}&with_genres=${genreId}&sort_by=vote_average.desc&vote_count.gte=300&page=${p}&language=en-US`).then(r => r.json()).catch(() => ({}))
+    ));
+    const seenIds = new Set();
+    const films = pages.flatMap(d => d.results || [])
+      .filter(f => f.poster_path && !isKnown(f.id, f.title))
+      .filter(f => { if (seenIds.has(f.id)) return false; seenIds.add(f.id); return true; });
+
+    if (!films.length) {
+      resultsEl.innerHTML = `
+        <div class="constrained-results-header"><span class="constrained-results-title">${genreName} films</span><button class="constrained-clear-btn" onclick="constrainedClear()">× Clear</button></div>
+        <div style="padding:24px;text-align:center;font-family:'DM Mono',monospace;font-size:11px;color:var(--dim)">No unrated ${genreName} films found.</div>`;
+      return;
+    }
+
+    const candidates = films.slice(0, 20).map(f => ({
+      tmdbId: f.id, title: f.title, year: (f.release_date || '').slice(0, 4),
+      poster: f.poster_path, director: '', cast: '', genres: '', overview: f.overview || '', source: 'genre',
+    }));
+    await Promise.allSettled(candidates.map(async (c) => {
+      try {
+        const [dRes, crRes] = await Promise.all([
+          fetch(`${TMDB}/movie/${c.tmdbId}?api_key=${TMDB_KEY}`),
+          fetch(`${TMDB}/movie/${c.tmdbId}/credits?api_key=${TMDB_KEY}`),
+        ]);
+        const detail = await dRes.json();
+        const credits = await crRes.json();
+        c.director = (credits.crew || []).filter(x => x.job === 'Director').map(x => x.name).join(', ');
+        c.writer = (credits.crew || []).filter(x => ['Screenplay', 'Writer', 'Story'].includes(x.job)).map(x => x.name).slice(0, 3).join(', ');
+        c.cast = (credits.cast || []).slice(0, 8).map(x => x.name).join(', ');
+        c.genres = (detail.genres || []).map(g => g.name).join(', ');
+        c.productionCompanies = (detail.production_companies || []).map(p => p.name).join(', ');
+        c.overview = c.overview || detail.overview || '';
+      } catch { /* scores lower */ }
+    }));
+
+    const scored = candidates.map(c => ({ ...c, compatScore: scoreCandidate(c) })).sort((a, b) => b.compatScore - a.compatScore);
+    const csResults = scored.slice(0, 6).map(c => {
+      const cached = currentUser?.predictions?.[String(c.tmdbId)];
+      return cached?.prediction
+        ? { ...c, prediction: cached.prediction, predTotal: calcPredictedTotal(cached.prediction), predictionBacked: true }
+        : { ...c, predTotal: null, prediction: null, predictionBacked: false };
+    });
+    const predicted = csResults.filter(r => r.predictionBacked).sort((a, b) => b.predTotal - a.predTotal);
+    const heuristic = csResults.filter(r => !r.predictionBacked).sort((a, b) => b.compatScore - a.compatScore);
+    const results = [...predicted, ...heuristic].slice(0, 6);
+
+    setCurrentUser({ ...currentUser, lastConstrainedEntity: { type: 'genre', tmdbId: genreId, name: genreName, results } });
+    saveUserLocally();
+    renderConstrainedResults(genreName, 'genre', genreId, results);
+  } catch (e) {
+    resultsEl.innerHTML = `
+      <div class="constrained-results-header"><span class="constrained-results-title">${genreName} films</span><button class="constrained-clear-btn" onclick="constrainedClear()">× Clear</button></div>
+      <div style="padding:24px;text-align:center;font-family:'DM Mono',monospace;font-size:11px;color:var(--dim)">Something went wrong — ${e.message}.</div>`;
+  }
+};
 
 function renderConstrainedResults(name, type, _tmdbId, results) {
   const resultsEl = document.getElementById('constrained-results');
@@ -3072,6 +3358,7 @@ function renderConstrainedResults(name, type, _tmdbId, results) {
         <div class="constrained-card-source">${getConstrainedSourceLabel(type, name)}</div>
         <div class="constrained-card-title">${r.title}</div>
         <div class="constrained-card-meta">${r.year || ''}${r.director ? ' · ' + r.director.split(',')[0] : ''}</div>
+        ${(() => { const c = credentialChipHTML(r); const p = seriesPillHTML(filmSeriesInfo(r)); return (c || p) ? `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">${c}${p}</div>` : ''; })()}
         <div class="constrained-card-score">${csScoreDisplay}</div>
       </div>
       <div class="constrained-card-actions" onclick="event.stopPropagation()">
@@ -3228,14 +3515,14 @@ async function openRecommendedDetail(tmdbId) {
          <div style="flex:1;padding:0 40px 0 20px;display:flex;flex-direction:column;justify-content:flex-end">
            ${headerLabel}
            <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(20px,3.5vw,30px);line-height:1.1;color:var(--on-dark);letter-spacing:-0.5px;margin-bottom:8px">${film.title}</div>
-           <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${film.year || ''}</div>
+           <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${film.year || ''}</div>${credentialChipHTML(film,{dark:true}) ? `<div style="margin-top:10px">${credentialChipHTML(film,{dark:true})}</div>` : ''}
          </div>
        </div>`
     : `<div style="position:relative;background:var(--surface-dark);margin:-40px -40px 28px;padding:32px 40px 28px">
          <button onclick="closeModal()" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--on-dark-dim);line-height:1;padding:4px 8px">×</button>
          ${headerLabel}
          <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(20px,3.5vw,30px);line-height:1.1;color:var(--on-dark);letter-spacing:-0.5px;margin-bottom:8px">${film.title}</div>
-         <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${film.year || ''}</div>
+         <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${film.year || ''}</div>${credentialChipHTML(film,{dark:true}) ? `<div style="margin-top:10px">${credentialChipHTML(film,{dark:true})}</div>` : ''}
        </div>`;
 
   const predDateStr = cached?.predictedAt

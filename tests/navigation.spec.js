@@ -49,6 +49,15 @@ test.describe('Core navigation', () => {
 
     await expect(page.locator('.screen').filter({ hasText: 'Sensualist' }).first()).toBeVisible({ timeout: 3000 });
   });
+
+  test('award credentials appear on My Films cards', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => window.showScreen('myfilms'));
+    await page.waitForTimeout(700);
+    // Fixtures include award films (Parasite, Moonlight, …) → chips render in the grid.
+    expect(await page.locator('#rankings .cred-badge').count()).toBeGreaterThan(0);
+  });
 });
 
 test.describe('Hints system', () => {

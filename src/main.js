@@ -21,6 +21,7 @@ import { renderProfile } from './modules/profile.js';
 import { renderFriends, handleFriendInvite, updateFriendsNotificationDot } from './modules/friends.js';
 import { renderWatchlist, addToWatchlist, openGlobalSearch } from './modules/watchlist.js';
 import { predictAddToWatchlist } from './modules/predict.js';
+import './modules/books/book-ui.js'; // registers window.showDiscoverTab + book modal/search handlers
 
 // ── SCREEN NAVIGATION ──
 export function showScreen(id) {

@@ -113,6 +113,46 @@ export function runMigrations() {
       console.log(`Migration backfill_tmdb_ids: added TMDB IDs to ${changed} films.`);
     }
   }
+
+  // Backfill `medium` on items that predate the books expansion. Every existing
+  // rated film and watchlist entry is film. Runs every time (no flag) since
+  // Supabase loads may overwrite locally-migrated data; only writes on change,
+  // and is a no-op once `medium` is present (idempotent, no data loss risk).
+  {
+    let changed = 0;
+    for (const m of MOVIES) {
+      if (!m.medium) { m.medium = 'film'; changed++; }
+    }
+    let wlChanged = 0;
+    if (Array.isArray(currentUser?.watchlist)) {
+      currentUser.watchlist.forEach(w => { if (!w.medium) { w.medium = 'film'; wlChanged++; } });
+    }
+    if (changed > 0) saveToStorage();
+    if (changed > 0 || wlChanged > 0) {
+      import('./supabase.js').then(mod => { mod.saveUserLocally(); mod.syncToSupabase().catch(() => {}); });
+      console.log(`Migration backfill_medium: ${changed} films, ${wlChanged} watchlist items → medium:'film'.`);
+    }
+  }
+
+  // One-time: invalidate stale Discover recommendation caches so they regenerate
+  // under the richer taste-summary prediction prompts. Clears ONLY the regenerable
+  // rec caches — paid/durable predictions, book predictions, and artifacts are left
+  // intact (re-predict those individually if you want fresh reasoning).
+  if (!flags.recs_taste_v2) {
+    if (currentUser && (currentUser.cachedRecommendations || currentUser.cachedDiscovery || currentUser.lastRecommendationAt)) {
+      setCurrentUser({
+        ...currentUser,
+        cachedRecommendations: null,
+        cachedDiscovery: null,
+        lastRecommendationAt: null,
+        moviesCountAtLastRecommendation: 0,
+      });
+      import('./supabase.js').then(mod => { mod.saveUserLocally(); mod.syncToSupabase().catch(() => {}); });
+      console.log('Migration recs_taste_v2: cleared stale Discover recommendation caches — will regenerate under the new prompts.');
+    }
+    flags.recs_taste_v2 = true;
+    try { localStorage.setItem(MIGRATIONS_KEY, JSON.stringify(flags)); } catch {}
+  }
 }
 
 export const STORAGE_KEY = 'palatemap_films_v1';

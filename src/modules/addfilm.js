@@ -10,6 +10,7 @@ import { track } from '../analytics.js';
 import { shouldShowHint, renderHint } from './hints.js';
 import { updateEffectiveWeights } from './weight-blend.js';
 import { evaluatePredictions } from './eval-framework.js';
+import { credentialChipHTML } from '../data/credentials.js';
 
 const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
 const TMDB = 'https://api.themoviedb.org/3';
@@ -78,6 +79,7 @@ export function liveSearch(val) {
           '<div class="add-result-info">' +
             '<div class="add-result-title">' + m.title + '</div>' +
             '<div class="add-result-meta">' + metaParts.join(' · ') + '</div>' +
+            (credentialChipHTML(m) ? '<div style="margin-top:3px">' + credentialChipHTML(m) + '</div>' : '') +
           '</div>' +
           '<div class="add-result-actions" onclick="event.stopPropagation()">' +
             '<button class="add-result-wl-btn" onclick="addResultToWatchlist(' + m.id + ',\'' + safeTitle + '\',\'' + year + '\',\'' + safePoster + '\',this)">+ List</button>' +
@@ -704,6 +706,7 @@ function autoSaveFilm() {
       poster: newFilm._tmdbDetail?.poster_path || null,
       overview: newFilm._tmdbDetail?.overview || '',
       tmdbId: newFilm._tmdbId || null,
+      medium: 'film',
       scores: { ...newFilm.scores },
       rating_source: 'manual_rating',
       calibration_reconciliation: reconciliation,
@@ -718,6 +721,7 @@ function autoSaveFilm() {
       poster: newFilm._tmdbDetail?.poster_path || null,
       overview: newFilm._tmdbDetail?.overview || '',
       tmdbId: newFilm._tmdbId || null,
+      medium: 'film',
       scores: { ...newFilm.scores },
       rating_source: 'manual_rating',
     });

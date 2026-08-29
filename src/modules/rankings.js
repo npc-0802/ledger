@@ -1,4 +1,5 @@
 import { MOVIES, CATEGORIES, scoreClass } from '../state.js';
+import { credentialChipHTML } from '../data/credentials.js';
 import { getPredictionTier } from './predict.js';
 import { shouldShowHint, renderHint } from './hints.js';
 
@@ -189,6 +190,7 @@ function renderGrid(sorted, list, controls, rankingsEl) {
         <div class="film-card-meta">
           <div class="film-card-title">${m.title}</div>
           <div class="film-card-sub">${m.year || ''}${m.director ? ' · ' + m.director.split(',')[0] : ''}</div>
+          ${credentialChipHTML(m) ? `<div style="margin-top:4px">${credentialChipHTML(m)}</div>` : ''}
         </div>
       </div>`;
     }).join('')}
@@ -214,7 +216,7 @@ function renderTable(sorted, list, controls, rankingsEl) {
       <div class="film-rank">${rank}</div>
       <div class="film-title-cell">
         <div class="film-title-main">${m.title}</div>
-        <div class="film-title-sub">${m.year || ''}${m.director ? ' · ' + m.director.split(',')[0] : ''}</div>
+        <div class="film-title-sub">${m.year || ''}${m.director ? ' · ' + m.director.split(',')[0] : ''}${credentialChipHTML(m) ? ' ' + credentialChipHTML(m) : ''}</div>
       </div>
       ${['story','craft','performance','world','experience','hold','ending','singularity'].map(k =>
         `<div class="film-score ${s[k] ? scoreClass(s[k]) : ''}">${s[k] ?? '—'}</div>`

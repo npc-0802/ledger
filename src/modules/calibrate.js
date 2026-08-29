@@ -130,11 +130,14 @@ function renderCalMatchup() {
         <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:16px;color:var(--on-dark-dim);text-align:center;padding-top:35%">vs</div>
         ${filmCard(b, 'b')}
       </div>
-      <div style="text-align:center;margin-top:24px;display:flex;justify-content:center;align-items:center;gap:24px">
-        ${calMatchupIdx > 0 ? `<span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim);cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="undoCalChoice()">← Undo</span>` : ''}
-        <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim);cursor:pointer;text-decoration:underline;text-underline-offset:2px;letter-spacing:0.5px" onclick="calChoose('skip')">Too close to call</span>
-        ${calMatchupIdx > 0 ? `<span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim);cursor:pointer;text-decoration:underline;text-underline-offset:2px;letter-spacing:0.5px" onclick="calFinishEarly()">Finish early →</span>` : ''}
+      <div class="cal-actions" style="text-align:center">
+        <button type="button" class="cal-tie" onclick="calChoose('skip')">Too close to call</button>
       </div>
+      ${calMatchupIdx > 0 ? `
+      <div class="cal-utility-row">
+        <button type="button" class="cal-utility" onclick="undoCalChoice()">← Undo</button>
+        <button type="button" class="cal-utility" onclick="calFinishEarly()">Finish early →</button>
+      </div>` : ''}
     </div>
   `;
 }
