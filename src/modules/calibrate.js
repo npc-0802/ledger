@@ -27,6 +27,29 @@ export function selectCalInt(intensity) {
   document.getElementById('calint_' + intensity).classList.add('active');
 }
 
+// Fisher-Yates. `arr.sort(() => Math.random() - 0.5)` is NOT a uniform shuffle —
+// it feeds an inconsistent comparator to a sort whose behaviour is then
+// implementation-defined, and the resulting order is measurably skewed toward
+// the original. That matters here because the shuffle is followed by
+// slice(0, count), so a skewed shuffle biases WHICH matchups you are asked.
+function shuffle(arr) {
+  const out = [...arr];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+// Coin-flip which film is card A. Pairs are built in a canonical order (lower
+// score first, or target first), so without this the left card carries a
+// consistent signal and a user answering many rounds can learn the position
+// instead of answering the question. Must run AFTER dedupe, which relies on
+// that canonical ordering.
+function randomiseSides(pairs) {
+  return pairs.map(p => Math.random() < 0.5 ? p : { ...p, a: p.b, b: p.a });
+}
+
 function generateMatchups(catKey, count) {
   const pairs = [];
   const cats = catKey === 'all' ? CATEGORIES.map(c => c.key) : [catKey];
@@ -51,7 +74,7 @@ function generateMatchups(catKey, count) {
     const key2 = [p.a.title, p.b.title, p.catKey].join('|');
     if (!seen.has(key2)) { seen.add(key2); deduped.push(p); }
   }
-  return deduped.sort(() => Math.random() - 0.5).slice(0, count);
+  return randomiseSides(shuffle(deduped).slice(0, count));
 }
 
 /**
@@ -90,10 +113,7 @@ function generateTargetMatchups(target, catKey, count) {
     }
   }
 
-  // Randomise which side the target lands on. Without this the target is always
-  // the left card, and a user answering 15 rounds learns the position, not the
-  // question.
-  return picked.map(p => Math.random() < 0.5 ? p : { ...p, a: p.b, b: p.a });
+  return randomiseSides(picked);
 }
 
 export function startCalibration() {

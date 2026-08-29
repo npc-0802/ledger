@@ -126,3 +126,43 @@ test.describe('Focused calibration (one film)', () => {
     await expect(page.locator('#cal-target-chip')).toContainText('Parasite');
   });
 });
+
+test.describe('Whole-collection calibration', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockSupabase(page);
+    await page.addInitScript(injectAuthState());
+    await page.goto('/');
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => window.showScreen('calibration'));
+  });
+
+  test('the lower-scored film is not always card A', async ({ page }) => {
+    // Pairs are built lower-score-first, so without side randomisation card A
+    // is ALWAYS the lower-scored film and a user learns the position rather
+    // than answering the question. Expect roughly a coin flip.
+    const { aLower, total } = await page.evaluate(() => {
+      const films = JSON.parse(localStorage.getItem('palatemap_films_v1') || '[]');
+      const scoresByTitle = Object.fromEntries(films.map(f => [f.title, f.scores]));
+      const titleOf = el => films.map(f => f.title).find(t => el.textContent.includes(t));
+      let aLower = 0, total = 0;
+
+      for (let run = 0; run < 60; run++) {
+        window.selectCalCat('all');
+        window.startCalibration();
+        const card = document.getElementById('cal-matchup-card');
+        const cat = card.textContent.trim().split('\n')[0].trim().toLowerCase();
+        const cards = card.querySelectorAll('.cal-film-card');
+        const ta = titleOf(cards[0]), tb = titleOf(cards[1]);
+        const sa = scoresByTitle[ta]?.[cat], sb = scoresByTitle[tb]?.[cat];
+        if (sa != null && sb != null && sa !== sb) { total++; if (sa < sb) aLower++; }
+        window.resetCalibration();
+      }
+      return { aLower, total };
+    });
+
+    expect(total).toBeGreaterThan(20);
+    // Pre-fix this was 100%. Bounds are loose enough never to flake on chance.
+    expect(aLower).toBeGreaterThan(total * 0.15);
+    expect(aLower).toBeLessThan(total * 0.85);
+  });
+});
