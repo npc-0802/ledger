@@ -10,6 +10,8 @@ let calMatchupIdx = 0;
 let calScoreDeltas = {};
 let calTempScores = {};
 let calHistory = [];
+// Non-null = focused mode: every matchup pits this film against another.
+let calTargetFilm = null;
 const CAL_INTENSITY = { focused: 15, thorough: 30, deep: 50 };
 const ELO_K = 8;
 
@@ -52,11 +54,57 @@ function generateMatchups(catKey, count) {
   return deduped.sort(() => Math.random() - 0.5).slice(0, count);
 }
 
+/**
+ * Focused matchups for ONE film: "I don't think this is ranked right — show me
+ * what it actually loses to." Every pair contains `target`.
+ *
+ * Unlike generateMatchups there is no max-diff cutoff. If a user believes a
+ * score is wrong, the informative comparisons may be far from it, so we order
+ * by closeness (closest = hardest = most diagnostic) and let breadth win.
+ *
+ * Round-robin across categories rather than a global sort, so a 15-round
+ * session on "All" covers all 8 categories instead of spending every round on
+ * whichever category happens to have the tightest cluster.
+ */
+function generateTargetMatchups(target, catKey, count) {
+  const cats = (catKey === 'all' ? CATEGORIES.map(c => c.key) : [catKey])
+    .filter(key => target.scores?.[key] != null);
+  if (cats.length === 0) return [];
+
+  // Per category: opponents ordered by |score difference| ascending.
+  const laddersByCat = cats.map(key => {
+    const tScore = target.scores[key];
+    return MOVIES
+      .filter(m => m !== target && m.title !== target.title && m.scores?.[key] != null)
+      .map(m => ({ a: target, b: m, catKey: key, diff: Math.abs(m.scores[key] - tScore) }))
+      .sort((x, y) => x.diff - y.diff);
+  });
+
+  // Round-robin: closest opponent in every category, then 2nd closest, ...
+  const picked = [];
+  const depth = Math.max(...laddersByCat.map(l => l.length), 0);
+  for (let round = 0; round < depth && picked.length < count; round++) {
+    for (const ladder of laddersByCat) {
+      if (picked.length >= count) break;
+      if (ladder[round]) picked.push(ladder[round]);
+    }
+  }
+
+  // Randomise which side the target lands on. Without this the target is always
+  // the left card, and a user answering 15 rounds learns the position, not the
+  // question.
+  return picked.map(p => Math.random() < 0.5 ? p : { ...p, a: p.b, b: p.a });
+}
+
 export function startCalibration() {
   const count = CAL_INTENSITY[calIntensity];
-  calMatchups = generateMatchups(calCategory, count);
+  calMatchups = calTargetFilm
+    ? generateTargetMatchups(calTargetFilm, calCategory, count)
+    : generateMatchups(calCategory, count);
   if (calMatchups.length === 0) {
-    alert('Not enough films with close scores to calibrate. Try a different category or add more films.');
+    alert(calTargetFilm
+      ? `Not enough scored films to compare "${calTargetFilm.title}" against. Rate a few more films first.`
+      : 'Not enough films with close scores to calibrate. Try a different category or add more films.');
     return;
   }
   calMatchupIdx = 0;
@@ -70,7 +118,22 @@ export function startCalibration() {
   document.getElementById('cal-cat-label').textContent =
     calCategory === 'all' ? 'All categories' :
     CATEGORIES.find(c => c.key === calCategory)?.label || calCategory;
+  renderCalTargetBanner();
   renderCalMatchup();
+}
+
+// Standing reminder of which film a focused session is about. Hidden entirely
+// in normal (whole-collection) mode.
+function renderCalTargetBanner() {
+  const el = document.getElementById('cal-target-banner');
+  if (!el) return;
+  if (!calTargetFilm) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'block';
+  el.innerHTML = `Focusing on <strong>${escHtml(calTargetFilm.title)}</strong>${calTargetFilm.year ? ' (' + calTargetFilm.year + ')' : ''} — every matchup includes it.`;
+}
+
+function escHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 function calBadgeColor(score) {
@@ -107,15 +170,18 @@ function renderCalMatchup() {
       </div>`;
   }
 
+  // Keyed to the live category keys. These were still on the pre-rename keys
+  // (plot/execution/acting/…), so every category except `ending` silently fell
+  // through to the generic "Better <label>?" fallback.
   const PROMPTS = {
-    uniqueness:    'Which is more unique?',
-    enjoyability:  'Which is more enjoyable?',
-    execution:     'Which is better executed?',
-    acting:        'Which has better acting?',
-    plot:          'Which has a better plot?',
-    production:    'Which has better production?',
-    ending:        'Which has the better ending?',
-    rewatchability:'Which is more rewatchable?',
+    story:       'Which has the better story?',
+    craft:       'Which is better made?',
+    performance: 'Which has the better performances?',
+    world:       'Whose world pulls you in more?',
+    experience:  'Which was better to watch?',
+    ending:      'Which has the better ending?',
+    hold:        'Which has more of a hold on you?',
+    singularity: 'Which stands more on its own?',
   };
   const promptQuestion = PROMPTS[catKey] || `Better ${catLabel.toLowerCase()}?`;
 
@@ -321,6 +387,8 @@ export function applyCalibration() {
     localStorage.setItem('palatemap_calibrate_last_threshold', String(threshold));
     import('../ui-callbacks.js').then(({ updateStorageStatus }) => updateStorageStatus());
     renderRankings();
+    // Session is finished — a later visit to Calibrate should start clean.
+    calTargetFilm = null;
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById('myfilms').classList.add('active');
     document.querySelectorAll('.nav-btn, .nav-mobile-btn').forEach(b => {
@@ -332,8 +400,98 @@ export function applyCalibration() {
   }
 }
 
+// ── FOCUSED CALIBRATION: target selection ───────────────────────────────────
+
+// Reflects the current target into the setup screen: either the search input
+// or the selected-film chip, never both.
+function renderCalTargetPicker() {
+  const chip = document.getElementById('cal-target-chip');
+  const searchWrap = document.getElementById('cal-target-search-wrap');
+  const results = document.getElementById('cal-target-results');
+  if (!chip || !searchWrap) return;
+  if (results) { results.innerHTML = ''; results.style.display = 'none'; }
+
+  if (calTargetFilm) {
+    searchWrap.style.display = 'none';
+    chip.style.display = 'flex';
+    chip.innerHTML = `
+      <span class="cal-target-chip-label">Focusing on</span>
+      <span class="cal-target-chip-title">${escHtml(calTargetFilm.title)}</span>
+      <button type="button" class="cal-target-chip-clear" onclick="calClearTargetFilm()" aria-label="Clear focused film">×</button>`;
+  } else {
+    chip.style.display = 'none';
+    chip.innerHTML = '';
+    searchWrap.style.display = 'block';
+    const input = document.getElementById('cal-target-search');
+    if (input) input.value = '';
+  }
+}
+
+// Title search over the rated collection. Local only — you can only calibrate
+// films you have already scored.
+window.calTargetSearch = function(query) {
+  const results = document.getElementById('cal-target-results');
+  if (!results) return;
+  const q = String(query || '').trim().toLowerCase();
+  if (q.length < 2) { results.innerHTML = ''; results.style.display = 'none'; return; }
+
+  const matches = MOVIES
+    .map((m, idx) => ({ m, idx }))
+    .filter(({ m }) => (m.title || '').toLowerCase().includes(q))
+    .slice(0, 8);
+
+  if (matches.length === 0) {
+    results.style.display = 'block';
+    results.innerHTML = `<div class="cal-target-empty">No rated film matches "${escHtml(query)}".</div>`;
+    return;
+  }
+
+  results.style.display = 'block';
+  results.innerHTML = matches.map(({ m, idx }) => `
+    <button type="button" class="cal-target-result" onclick="calSelectTargetFilm(${idx})">
+      <span class="cal-target-result-title">${escHtml(m.title)}</span>
+      <span class="cal-target-result-meta">${m.year || ''}${m.total != null ? ' · ' + Math.round(m.total) : ''}</span>
+    </button>`).join('');
+};
+
+window.calSelectTargetFilm = function(idx) {
+  const film = MOVIES[idx];
+  if (!film) return;
+  calTargetFilm = film;
+  renderCalTargetPicker();
+};
+
+window.calClearTargetFilm = function() {
+  calTargetFilm = null;
+  renderCalTargetPicker();
+};
+
+/**
+ * Entry point from the film modal ("Recalibrate"). Intent is already explicit,
+ * so this skips the setup screen and starts comparing immediately with the
+ * current category/rounds settings. "Start over" from the review returns to
+ * setup with the film still focused.
+ */
+window.startFilmCalibration = function(movieIdx) {
+  const film = MOVIES[movieIdx];
+  if (!film) return;
+  calTargetFilm = film;
+
+  if (typeof window.closeModal === 'function') window.closeModal();
+  if (typeof window.showScreen === 'function') window.showScreen('calibration');
+
+  renderCalTargetPicker();
+  startCalibration();
+};
+
 export function resetCalibration() {
+  // calTargetFilm intentionally survives: "Start over" should return you to
+  // setup still focused on the same film, not silently widen to the whole
+  // collection. calClearTargetFilm() is the explicit way out.
   calMatchups = []; calMatchupIdx = 0; calScoreDeltas = {}; calTempScores = {}; calHistory = [];
+  renderCalTargetPicker();
+  const banner = document.getElementById('cal-target-banner');
+  if (banner) { banner.style.display = 'none'; banner.innerHTML = ''; }
   document.getElementById('cal-setup').style.display = 'block';
   document.getElementById('cal-matchups').style.display = 'none';
   document.getElementById('cal-review').style.display = 'none';

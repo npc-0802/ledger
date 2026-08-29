@@ -1519,6 +1519,139 @@ input[type="range"]::-webkit-slider-thumb:hover { background: var(--blue-dark); 
 .cal-utility:hover { opacity: 1; color: var(--on-dark); }
 .cal-utility:focus-visible { outline: 1px solid var(--on-dark-dim); outline-offset: 3px; }
 
+/* ── FOCUSED CALIBRATION (one film vs the collection) ── */
+.cal-target-search {
+  width: 100%;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--card-bg);
+  border: 1px solid var(--rule);
+  padding: 12px 14px;
+  outline: none;
+  transition: border-color 0.12s;
+}
+.cal-target-search::placeholder { color: var(--dim); opacity: 0.8; }
+.cal-target-search:focus { border-color: var(--ink); }
+
+.cal-target-results {
+  border: 1px solid var(--rule);
+  border-top: none;
+  max-height: 264px;
+  overflow-y: auto;
+  background: var(--card-bg);
+}
+.cal-target-result {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--rule);
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.cal-target-result:last-child { border-bottom: none; }
+.cal-target-result:hover { background: var(--cream); }
+.cal-target-result-title {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cal-target-result-meta {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--dim);
+  flex-shrink: 0;
+}
+.cal-target-empty {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: var(--dim);
+  padding: 12px 14px;
+}
+
+.cal-target-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--ink);
+  background: var(--cream);
+  padding: 10px 12px;
+}
+.cal-target-chip-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--dim);
+  flex-shrink: 0;
+}
+.cal-target-chip-title {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--ink);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cal-target-chip-clear {
+  font-family: 'DM Mono', monospace;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--dim);
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.12s;
+}
+.cal-target-chip-clear:hover { color: var(--ink); }
+
+.cal-target-banner {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: var(--dim);
+  background: var(--cream);
+  border-left: 2px solid var(--ink);
+  padding: 10px 14px;
+  margin-bottom: 16px;
+}
+.cal-target-banner strong {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* Modal action that starts a focused session on the open film. */
+.modal-recalibrate-btn {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 1px;
+  background: none;
+  color: var(--dim);
+  border: 1px solid var(--rule);
+  padding: 6px 14px;
+  cursor: pointer;
+  margin-right: 8px;
+  transition: border-color 0.12s, color 0.12s;
+}
+.modal-recalibrate-btn:hover { border-color: var(--ink); color: var(--ink); }
+
 /* ── ARCHETYPE MODAL ── */
 .archetype-weight-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--rule); }
 .archetype-weight-label { font-family: 'DM Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; width: 110px; flex-shrink: 0; }
