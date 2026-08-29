@@ -3,7 +3,7 @@ import { syncToSupabase, saveUserLocally, logPrediction, saveGeneratedArtifact, 
 import { buildTasteSummary, formatTasteSummary } from './taste-summary.js';
 import { selectAnalogs, formatAnalogsForPrompt } from './analog-selector.js';
 import { rankFilmsSafeUpside, assembleSafeUpsideShelves } from './film-scorer.js';
-import { credentialChipHTML } from '../data/credentials.js';
+import { credentialChipHTML, credentialChipsHTML } from '../data/credentials.js';
 import { cacheFilmCollection, noteFilmCollection, filmSeriesInfo, resolveFilmSeriesInfo, seriesPillHTML } from './series-metadata.js';
 import { ARCHETYPES } from '../data/archetypes.js';
 import { classifyArchetype } from './quiz-engine.js';
@@ -3515,14 +3515,14 @@ async function openRecommendedDetail(tmdbId) {
          <div style="flex:1;padding:0 40px 0 20px;display:flex;flex-direction:column;justify-content:flex-end">
            ${headerLabel}
            <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(20px,3.5vw,30px);line-height:1.1;color:var(--on-dark);letter-spacing:-0.5px;margin-bottom:8px">${film.title}</div>
-           <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${film.year || ''}</div>${credentialChipHTML(film,{dark:true}) ? `<div style="margin-top:10px">${credentialChipHTML(film,{dark:true})}</div>` : ''}
+           <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${film.year || ''}</div>${credentialChipsHTML(film,{dark:true}) ? `<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">${credentialChipsHTML(film,{dark:true})}</div>` : ''}
          </div>
        </div>`
     : `<div style="position:relative;background:var(--surface-dark);margin:-40px -40px 28px;padding:32px 40px 28px">
          <button onclick="closeModal()" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--on-dark-dim);line-height:1;padding:4px 8px">×</button>
          ${headerLabel}
          <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(20px,3.5vw,30px);line-height:1.1;color:var(--on-dark);letter-spacing:-0.5px;margin-bottom:8px">${film.title}</div>
-         <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${film.year || ''}</div>${credentialChipHTML(film,{dark:true}) ? `<div style="margin-top:10px">${credentialChipHTML(film,{dark:true})}</div>` : ''}
+         <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${film.year || ''}</div>${credentialChipsHTML(film,{dark:true}) ? `<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">${credentialChipsHTML(film,{dark:true})}</div>` : ''}
        </div>`;
 
   const predDateStr = cached?.predictedAt

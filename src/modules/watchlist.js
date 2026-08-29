@@ -4,7 +4,7 @@ import { isNewTerritory, DISCOVERY_ICON_SVG, getPredictionTier, formatPredictedS
 import { shouldShowHint, renderHint } from './hints.js';
 import { track } from '../analytics.js';
 import { smartSearch, formatDirector } from './smart-search.js';
-import { credentialChipHTML } from '../data/credentials.js';
+import { credentialChipHTML, credentialChipsHTML } from '../data/credentials.js';
 
 const TMDB_KEY = 'f5a446a5f70a9f6a16a8ddd052c121f2';
 let wlSearchDebounce = null;
@@ -422,14 +422,14 @@ window.openWatchlistDetail = function(index) {
          <div style="flex:1;padding:0 40px 0 20px;display:flex;flex-direction:column;justify-content:flex-end">
            ${wlHeaderLabel}
            <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(20px,3.5vw,30px);line-height:1.1;color:var(--on-dark);letter-spacing:-0.5px;margin-bottom:8px">${item.title}</div>
-           <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${item.year||''}</div>${credentialChipHTML(item,{dark:true}) ? `<div style="margin-top:10px">${credentialChipHTML(item,{dark:true})}</div>` : ''}
+           <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${item.year||''}</div>${credentialChipsHTML(item,{dark:true}) ? `<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">${credentialChipsHTML(item,{dark:true})}</div>` : ''}
          </div>
        </div>`
     : `<div style="position:relative;background:var(--surface-dark);margin:-40px -40px 28px;padding:32px 40px 28px">
          <button onclick="closeModal()" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--on-dark-dim);line-height:1;padding:4px 8px">×</button>
          ${wlHeaderLabel}
          <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(20px,3.5vw,30px);line-height:1.1;color:var(--on-dark);letter-spacing:-0.5px;margin-bottom:8px">${item.title}</div>
-         <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${item.year||''}</div>${credentialChipHTML(item,{dark:true}) ? `<div style="margin-top:10px">${credentialChipHTML(item,{dark:true})}</div>` : ''}
+         <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${item.year||''}</div>${credentialChipsHTML(item,{dark:true}) ? `<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">${credentialChipsHTML(item,{dark:true})}</div>` : ''}
        </div>`;
 
   const predHtml = predTotal != null ? `

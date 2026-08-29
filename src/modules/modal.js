@@ -7,7 +7,7 @@ import { renderRankings } from './rankings.js';
 import { openPosterPicker } from './posterpicker.js';
 import { fetchTmdbMovieBundle } from './tmdb-movie.js';
 import { updateEffectiveWeights } from './weight-blend.js';
-import { credentialChipHTML } from '../data/credentials.js';
+import { credentialChipsHTML } from '../data/credentials.js';
 import { filmSeriesInfo, resolveFilmSeriesInfo, seriesPillHTML } from './series-metadata.js';
 
 const SCORE_LABELS = [
@@ -86,7 +86,7 @@ function renderModal() {
            <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px">Rank #${rank} of ${MOVIES.length}</div>
            <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(20px,3.5vw,30px);line-height:1.1;color:var(--on-dark);letter-spacing:-0.5px;margin-bottom:8px">${m.title}</div>
            <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${m.year||''}</div>
-         <div id="film-modal-pills" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">${credentialChipHTML(m,{dark:true})}${seriesPillHTML(filmSeriesInfo(m),{dark:true})}</div>
+         <div id="film-modal-pills" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">${credentialChipsHTML(m,{dark:true})}${seriesPillHTML(filmSeriesInfo(m),{dark:true})}</div>
          </div>
        </div>`
     : `<div class="dark-grid" style="position:relative;background:var(--surface-dark);margin:-40px -40px 28px;padding:32px 40px 28px;border-bottom:3px solid ${tierBorderColor}">
@@ -94,7 +94,7 @@ function renderModal() {
          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--on-dark-dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px">Rank #${rank} of ${MOVIES.length}</div>
          <div style="font-family:'Playfair Display',serif;font-style:italic;font-weight:900;font-size:clamp(20px,3.5vw,30px);line-height:1.1;color:var(--on-dark);letter-spacing:-0.5px;margin-bottom:8px">${m.title}</div>
          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--on-dark-dim)">${m.year||''}</div>
-         <div id="film-modal-pills" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">${credentialChipHTML(m,{dark:true})}${seriesPillHTML(filmSeriesInfo(m),{dark:true})}</div>
+         <div id="film-modal-pills" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">${credentialChipsHTML(m,{dark:true})}${seriesPillHTML(filmSeriesInfo(m),{dark:true})}</div>
        </div>`;
 
   const scores = editMode ? editScores : m.scores;
